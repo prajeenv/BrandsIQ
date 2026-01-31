@@ -354,7 +354,7 @@ export default function ReviewDetailPage() {
                           className="text-muted-foreground"
                         >
                           Sentiment
-                          <AlertTriangle className="ml-1 h-3 w-3" />
+                          <AlertTriangle className="ml-1 h-4 w-4" />
                         </Badge>
                       </span>
                     </TooltipTrigger>
