@@ -6,6 +6,8 @@
 import { prisma } from "./prisma";
 import type { Tier, Prisma } from "@prisma/client";
 import { CreditActionValues } from "@/types/database";
+import { TIER_LIMITS } from "@/lib/constants";
+import type { SubscriptionTier } from "@/lib/constants";
 
 // ============================================
 // USER QUERIES
@@ -351,13 +353,11 @@ export async function deductSentimentCredits(
 // ============================================
 
 /**
- * Tier limits configuration
+ * Helper to get tier limits from the single source of truth (constants.ts)
  */
-const TIER_LIMITS_CONFIG: Record<Tier, { credits: number; sentiment: number }> = {
-  FREE: { credits: 15, sentiment: 35 },
-  STARTER: { credits: 60, sentiment: 150 },
-  GROWTH: { credits: 200, sentiment: 500 },
-};
+function getTierLimits(tier: Tier): { credits: number; sentimentQuota: number } {
+  return TIER_LIMITS[tier as SubscriptionTier];
+}
 
 /**
  * Calculate next reset date (30 days from a given date)
@@ -381,7 +381,7 @@ export async function resetUserCredits(userId: string) {
 
   if (!user) return null;
 
-  const limits = TIER_LIMITS_CONFIG[user.tier];
+  const limits = getTierLimits(user.tier);
   // Calculate next reset as 30 days from the user's current reset date (anniversary-based)
   const nextResetDate = getNextResetDate(user.creditsResetDate);
 
@@ -390,7 +390,7 @@ export async function resetUserCredits(userId: string) {
     data: {
       credits: limits.credits,
       creditsResetDate: nextResetDate,
-      sentimentCredits: limits.sentiment,
+      sentimentCredits: limits.sentimentQuota,
       sentimentResetDate: nextResetDate,
     },
   });
@@ -450,7 +450,7 @@ export async function resetMonthlyCredits(): Promise<{
     // Process each user in a transaction
     for (const user of usersToReset) {
       try {
-        const limits = TIER_LIMITS_CONFIG[user.tier];
+        const limits = getTierLimits(user.tier);
         // Anniversary-based: 30 days from the user's current reset date
         const nextResetDate = getNextResetDate(user.creditsResetDate);
 
@@ -461,7 +461,7 @@ export async function resetMonthlyCredits(): Promise<{
             data: {
               credits: limits.credits,
               creditsResetDate: nextResetDate,
-              sentimentCredits: limits.sentiment,
+              sentimentCredits: limits.sentimentQuota,
               sentimentResetDate: nextResetDate,
             },
           });
@@ -477,7 +477,7 @@ export async function resetMonthlyCredits(): Promise<{
                 previousCredits: user.credits,
                 newCredits: limits.credits,
                 previousSentimentCredits: user.sentimentCredits,
-                newSentimentCredits: limits.sentiment,
+                newSentimentCredits: limits.sentimentQuota,
                 tier: user.tier,
                 resetDate: now.toISOString(),
                 nextResetDate: nextResetDate.toISOString(),
@@ -490,7 +490,7 @@ export async function resetMonthlyCredits(): Promise<{
           userId: user.id,
           tier: user.tier,
           creditsReset: limits.credits,
-          sentimentReset: limits.sentiment,
+          sentimentReset: limits.sentimentQuota,
         });
       } catch (userError) {
         const errorMessage = userError instanceof Error ? userError.message : "Unknown error";
