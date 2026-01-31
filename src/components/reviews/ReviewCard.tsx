@@ -16,7 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
   Coins,
-  AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -212,7 +212,7 @@ export function ReviewCard({ review, onDelete }: ReviewCardProps) {
                               className="text-xs text-muted-foreground"
                             >
                               Sentiment
-                              <AlertCircle className="ml-1 h-3 w-3" />
+                              <AlertTriangle className="ml-1 h-3 w-3" />
                             </Badge>
                           </span>
                         </TooltipTrigger>

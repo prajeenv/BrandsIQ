@@ -17,7 +17,6 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  AlertCircle,
   AlertTriangle,
   X,
 } from "lucide-react";
@@ -355,7 +354,7 @@ export default function ReviewDetailPage() {
                           className="text-muted-foreground"
                         >
                           Sentiment
-                          <AlertCircle className="ml-1 h-3 w-3" />
+                          <AlertTriangle className="ml-1 h-3 w-3" />
                         </Badge>
                       </span>
                     </TooltipTrigger>
