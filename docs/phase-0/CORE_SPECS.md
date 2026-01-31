@@ -343,6 +343,12 @@ GET    /credits/usage         → Get usage history
 GET    /sentiment/usage       → Get sentiment quota usage
 ```
 
+### Cron Jobs
+
+```
+GET    /cron/reset-credits    → Reset credits for users (secured with CRON_SECRET)
+```
+
 ---
 
 ## API Request/Response Formats
@@ -585,3 +591,57 @@ When sentiment analysis is skipped (no credits), reviews display a visual indica
 **Components:**
 - `ReviewCard.tsx` - Shows indicator in review list
 - `reviews/[id]/page.tsx` - Shows indicator + alert banner
+
+---
+
+## Cron Jobs
+
+### Credit Reset (`/api/cron/reset-credits`)
+
+Resets credits for all users whose reset date has passed. Uses anniversary-based billing (each user's cycle is 30 days from their signup/last reset).
+
+**Schedule:** Daily at midnight UTC (`0 0 * * *`)
+
+**What it does:**
+1. Finds all users where `creditsResetDate < now`
+2. For each user:
+   - Resets `credits` to tier limit (FREE: 15, STARTER: 60, GROWTH: 200)
+   - Resets `sentimentCredits` to tier limit (FREE: 35, STARTER: 150, GROWTH: 500)
+   - Updates `creditsResetDate` and `sentimentResetDate` to 30 days forward
+   - Creates audit log in `CreditUsage` table with action `MONTHLY_RESET`
+
+**Security:** Requires `CRON_SECRET` environment variable. Vercel sends this automatically when calling scheduled endpoints.
+
+**Configuration:**
+- Endpoint: `src/app/api/cron/reset-credits/route.ts`
+- Vercel config: `vercel.json`
+
+**Testing locally:**
+```bash
+# No CRON_SECRET set (development mode)
+curl http://localhost:3000/api/cron/reset-credits
+
+# With CRON_SECRET set
+curl http://localhost:3000/api/cron/reset-credits \
+  -H "Authorization: Bearer your-secret"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "usersReset": 5,
+    "errors": [],
+    "details": [
+      {
+        "userId": "user_123",
+        "tier": "FREE",
+        "creditsReset": 15,
+        "sentimentReset": 35
+      }
+    ],
+    "timestamp": "2026-02-01T00:00:00.000Z"
+  }
+}
+```
