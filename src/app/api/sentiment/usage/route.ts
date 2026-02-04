@@ -7,6 +7,13 @@ import type { SubscriptionTier } from "@/lib/constants";
 /**
  * GET /api/sentiment/usage - Get sentiment usage history
  * Returns list of sentiment analysis records with review previews
+ *
+ * Query params:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ * - sentiment: Filter by sentiment type (positive, neutral, negative)
+ * - startDate: Filter by start date (ISO string)
+ * - endDate: Filter by end date (ISO string)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,13 +30,52 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limitParam = searchParams.get("limit");
-    const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
 
-    // Get sentiment usage history
+    // Pagination params
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10)) : 1;
+    const limit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10)), 100) : 20;
+    const skip = (page - 1) * limit;
+
+    // Filter params
+    const sentimentFilter = searchParams.get("sentiment");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+
+    // Build where clause
+    const whereClause: {
+      userId: string;
+      sentiment?: string;
+      createdAt?: { gte?: Date; lte?: Date };
+    } = {
+      userId: session.user.id,
+    };
+
+    if (sentimentFilter && ["positive", "neutral", "negative"].includes(sentimentFilter)) {
+      whereClause.sentiment = sentimentFilter;
+    }
+
+    if (startDate || endDate) {
+      whereClause.createdAt = {};
+      if (startDate) {
+        whereClause.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        whereClause.createdAt.lte = new Date(endDate);
+      }
+    }
+
+    // Get total count for pagination
+    const totalCount = await prisma.sentimentUsage.count({
+      where: whereClause,
+    });
+
+    // Get sentiment usage history with pagination
     const usageRecords = await prisma.sentimentUsage.findMany({
-      where: { userId: session.user.id },
+      where: whereClause,
       orderBy: { createdAt: "desc" },
+      skip,
       take: limit,
       include: {
         review: {
@@ -42,7 +88,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get sentiment distribution stats
+    // Get sentiment distribution stats (unfiltered - always show overall distribution)
     const sentimentCounts = await prisma.review.groupBy({
       by: ["sentiment"],
       where: {
@@ -85,6 +131,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limit);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -114,6 +163,14 @@ export async function GET(request: NextRequest) {
             preview: details.preview || null,
           };
         }),
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
         distribution: {
           positive: distribution.positive,
           neutral: distribution.neutral,

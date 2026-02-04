@@ -992,6 +992,7 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 | 5 | Sentiment balance model | Post-Prompt 9 | Jan 20 | Low ✅ | ✅ Implemented |
 | 6 | No sentiment backfill on reset | Prompt 8 | Feb 4 | Low ✅ | ✅ By design |
 | 7 | Cron job for credit reset | Post-Prompt 9 | Feb 4 | Low ✅ | ✅ Implemented |
+| 8 | Tabbed Credit History page | Post-Prompt 9 | Feb 4 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
@@ -1005,6 +1006,13 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 - Documented CRON_SECRET in `.env.example`
 - Refactored db-utils.ts to use TIER_LIMITS from constants.ts (single source of truth)
 - Documented decision: No sentiment backfill on credit reset (deferred to Phase 2 with batch analysis)
+- Refactored Credit History page with tabbed interface:
+  - Renamed "Credit Usage History" → "Credit History"
+  - Added tabs: "Response Credits" and "Sentiment Credits"
+  - Created `src/components/ui/tabs.tsx` (shadcn/ui component)
+  - Updated `/api/sentiment/usage` with pagination and filters
+  - Sentiment tab shows: Date, Sentiment (badge), Credits (-1), Platform, Review Preview
+  - Each tab has independent filters, pagination, and CSV export
 
 **January 31, 2026**
 - Added "Sentiment ⚠" indicator with tooltip for reviews without sentiment analysis
@@ -1067,4 +1075,4 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** February 4, 2026 (Cron job and no-backfill decision)
+**Last Reviewed:** February 4, 2026 (Tabbed Credit History page)

@@ -14,6 +14,7 @@ import {
   Sparkles,
   RefreshCw,
   Undo2,
+  Brain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -35,8 +36,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-interface UsageRecord {
+// ============================================
+// TYPES
+// ============================================
+
+interface ResponseUsageRecord {
   id: string;
   date: string;
   action: string;
@@ -49,6 +55,16 @@ interface UsageRecord {
   toneUsed: string | null;
 }
 
+interface SentimentUsageRecord {
+  id: string;
+  sentiment: string;
+  createdAt: string;
+  reviewId: string | null;
+  platform: string | null;
+  rating: number | null;
+  preview: string | null;
+}
+
 interface Pagination {
   page: number;
   limit: number;
@@ -58,10 +74,19 @@ interface Pagination {
   hasPrevPage: boolean;
 }
 
-interface UsageData {
-  records: UsageRecord[];
+interface ResponseUsageData {
+  records: ResponseUsageRecord[];
   pagination: Pagination;
 }
+
+interface SentimentUsageData {
+  usage: SentimentUsageRecord[];
+  pagination: Pagination;
+}
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
 
 function formatTimeAgo(dateString: string) {
   const date = new Date(dateString);
@@ -106,60 +131,139 @@ function getActionBadgeVariant(action: string) {
   }
 }
 
-export default function UsagePage() {
-  const [data, setData] = useState<UsageData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [actionFilter, setActionFilter] = useState<string>("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+function getSentimentBadgeColor(sentiment: string): string {
+  switch (sentiment) {
+    case "positive":
+      return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+    case "negative":
+      return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+    case "neutral":
+    default:
+      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+  }
+}
 
-  const fetchUsage = useCallback(async () => {
-    setIsLoading(true);
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
+export default function UsagePage() {
+  const [activeTab, setActiveTab] = useState<"response" | "sentiment">("response");
+
+  // Response credits state
+  const [responseData, setResponseData] = useState<ResponseUsageData | null>(null);
+  const [responseLoading, setResponseLoading] = useState(true);
+  const [responsePage, setResponsePage] = useState(1);
+  const [actionFilter, setActionFilter] = useState<string>("all");
+  const [responseStartDate, setResponseStartDate] = useState("");
+  const [responseEndDate, setResponseEndDate] = useState("");
+
+  // Sentiment credits state
+  const [sentimentData, setSentimentData] = useState<SentimentUsageData | null>(null);
+  const [sentimentLoading, setSentimentLoading] = useState(true);
+  const [sentimentPage, setSentimentPage] = useState(1);
+  const [sentimentFilter, setSentimentFilter] = useState<string>("all");
+  const [sentimentStartDate, setSentimentStartDate] = useState("");
+  const [sentimentEndDate, setSentimentEndDate] = useState("");
+
+  // ============================================
+  // FETCH FUNCTIONS
+  // ============================================
+
+  const fetchResponseUsage = useCallback(async () => {
+    setResponseLoading(true);
     try {
       const params = new URLSearchParams({
-        page: currentPage.toString(),
+        page: responsePage.toString(),
         limit: "20",
       });
 
       if (actionFilter && actionFilter !== "all") {
         params.append("action", actionFilter);
       }
-      if (startDate) {
-        params.append("startDate", new Date(startDate).toISOString());
+      if (responseStartDate) {
+        params.append("startDate", new Date(responseStartDate).toISOString());
       }
-      if (endDate) {
-        params.append("endDate", new Date(endDate).toISOString());
+      if (responseEndDate) {
+        params.append("endDate", new Date(responseEndDate).toISOString());
       }
 
       const response = await fetch(`/api/credits/usage?${params}`);
       const result = await response.json();
 
       if (result.success) {
-        setData(result.data);
+        setResponseData(result.data);
       } else {
-        toast.error(result.error?.message || "Failed to load usage history");
+        toast.error(result.error?.message || "Failed to load response credit history");
       }
     } catch {
       toast.error("Unable to connect to server");
     } finally {
-      setIsLoading(false);
+      setResponseLoading(false);
     }
-  }, [currentPage, actionFilter, startDate, endDate]);
+  }, [responsePage, actionFilter, responseStartDate, responseEndDate]);
+
+  const fetchSentimentUsage = useCallback(async () => {
+    setSentimentLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: sentimentPage.toString(),
+        limit: "20",
+      });
+
+      if (sentimentFilter && sentimentFilter !== "all") {
+        params.append("sentiment", sentimentFilter);
+      }
+      if (sentimentStartDate) {
+        params.append("startDate", new Date(sentimentStartDate).toISOString());
+      }
+      if (sentimentEndDate) {
+        params.append("endDate", new Date(sentimentEndDate).toISOString());
+      }
+
+      const response = await fetch(`/api/sentiment/usage?${params}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setSentimentData(result.data);
+      } else {
+        toast.error(result.error?.message || "Failed to load sentiment credit history");
+      }
+    } catch {
+      toast.error("Unable to connect to server");
+    } finally {
+      setSentimentLoading(false);
+    }
+  }, [sentimentPage, sentimentFilter, sentimentStartDate, sentimentEndDate]);
+
+  // ============================================
+  // EFFECTS
+  // ============================================
 
   useEffect(() => {
-    fetchUsage();
-  }, [fetchUsage]);
+    if (activeTab === "response") {
+      fetchResponseUsage();
+    }
+  }, [activeTab, fetchResponseUsage]);
 
-  const handleExportCSV = () => {
-    if (!data || data.records.length === 0) {
+  useEffect(() => {
+    if (activeTab === "sentiment") {
+      fetchSentimentUsage();
+    }
+  }, [activeTab, fetchSentimentUsage]);
+
+  // ============================================
+  // EXPORT FUNCTIONS
+  // ============================================
+
+  const handleExportResponseCSV = () => {
+    if (!responseData || responseData.records.length === 0) {
       toast.error("No data to export");
       return;
     }
 
-    // Build CSV content
     const headers = ["Date", "Action", "Credits Used", "Platform", "Reviewer", "Review Preview"];
-    const rows = data.records.map((record) => [
+    const rows = responseData.records.map((record) => [
       format(new Date(record.date), "yyyy-MM-dd HH:mm:ss"),
       record.actionLabel,
       record.creditsUsed.toString(),
@@ -173,24 +277,69 @@ export default function UsagePage() {
       ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
     ].join("\n");
 
-    // Download file
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `credit-usage-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.download = `response-credit-usage-${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
 
-    toast.success("Usage history exported");
+    toast.success("Response credit history exported");
   };
 
-  const handleClearFilters = () => {
+  const handleExportSentimentCSV = () => {
+    if (!sentimentData || sentimentData.usage.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const headers = ["Date", "Sentiment", "Credits", "Platform", "Rating", "Review Preview"];
+    const rows = sentimentData.usage.map((record) => [
+      format(new Date(record.createdAt), "yyyy-MM-dd HH:mm:ss"),
+      record.sentiment,
+      "-1",
+      record.platform || "",
+      record.rating?.toString() || "",
+      record.preview?.replace(/"/g, '""') || "",
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `sentiment-credit-usage-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+
+    toast.success("Sentiment credit history exported");
+  };
+
+  // ============================================
+  // CLEAR FILTER FUNCTIONS
+  // ============================================
+
+  const handleClearResponseFilters = () => {
     setActionFilter("all");
-    setStartDate("");
-    setEndDate("");
-    setCurrentPage(1);
+    setResponseStartDate("");
+    setResponseEndDate("");
+    setResponsePage(1);
   };
 
-  const hasActiveFilters = actionFilter !== "all" || startDate || endDate;
+  const handleClearSentimentFilters = () => {
+    setSentimentFilter("all");
+    setSentimentStartDate("");
+    setSentimentEndDate("");
+    setSentimentPage(1);
+  };
+
+  const hasResponseFilters = actionFilter !== "all" || responseStartDate || responseEndDate;
+  const hasSentimentFilters = sentimentFilter !== "all" || sentimentStartDate || sentimentEndDate;
+
+  // ============================================
+  // RENDER
+  // ============================================
 
   return (
     <div className="space-y-6">
@@ -202,213 +351,424 @@ export default function UsagePage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Credit Usage History</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Credit History</h1>
           <p className="text-muted-foreground">
-            View your credit usage and response generation history
+            View your response and sentiment credit usage history
           </p>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filters
-            </CardTitle>
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={handleClearFilters}>
-                Clear filters
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-muted-foreground">Action Type</label>
-              <Select value={actionFilter} onValueChange={(value) => {
-                setActionFilter(value);
-                setCurrentPage(1);
-              }}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All actions" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All actions</SelectItem>
-                  <SelectItem value="GENERATE_RESPONSE">Generate Response</SelectItem>
-                  <SelectItem value="REGENERATE">Regenerate Response</SelectItem>
-                  <SelectItem value="REFUND">Credit Refund</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-muted-foreground">Start Date</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-[180px] pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-muted-foreground">End Date</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-[180px] pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5 justify-end">
-              <label className="text-sm text-muted-foreground invisible">Export</label>
-              <Button variant="outline" onClick={handleExportCSV} disabled={isLoading || !data?.records.length}>
-                <Download className="mr-2 h-4 w-4" />
-                Export CSV
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "response" | "sentiment")}>
+        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+          <TabsTrigger value="response">Response Credits</TabsTrigger>
+          <TabsTrigger value="sentiment">Sentiment Credits</TabsTrigger>
+        </TabsList>
 
-      {/* Usage Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Usage Records</CardTitle>
-          <CardDescription>
-            {data?.pagination.totalCount
-              ? `Showing ${(data.pagination.page - 1) * data.pagination.limit + 1}-${Math.min(data.pagination.page * data.pagination.limit, data.pagination.totalCount)} of ${data.pagination.totalCount} records`
-              : "No records found"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="h-10 w-24" />
-                  <Skeleton className="h-10 flex-1" />
-                  <Skeleton className="h-10 w-20" />
+        {/* Response Credits Tab */}
+        <TabsContent value="response" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </CardTitle>
+                {hasResponseFilters && (
+                  <Button variant="ghost" size="sm" onClick={handleClearResponseFilters}>
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm text-muted-foreground">Action Type</label>
+                  <Select value={actionFilter} onValueChange={(value) => {
+                    setActionFilter(value);
+                    setResponsePage(1);
+                  }}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="All actions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All actions</SelectItem>
+                      <SelectItem value="GENERATE_RESPONSE">Generate Response</SelectItem>
+                      <SelectItem value="REGENERATE">Regenerate Response</SelectItem>
+                      <SelectItem value="REFUND">Credit Refund</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-            </div>
-          ) : data?.records && data.records.length > 0 ? (
-            <>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Credits</TableHead>
-                      <TableHead className="hidden sm:table-cell">Review Preview</TableHead>
-                      <TableHead className="hidden md:table-cell">Tone</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.records.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium whitespace-nowrap">
-                          {formatTimeAgo(record.date)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getActionIcon(record.action)}
-                            <Badge variant={getActionBadgeVariant(record.action) as "default" | "secondary" | "outline"}>
-                              {record.actionLabel}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={record.creditsUsed < 0 ? "text-green-600" : ""}>
-                            {record.creditsUsed > 0 ? `-${record.creditsUsed}` : `+${Math.abs(record.creditsUsed)}`}
-                          </span>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell max-w-[200px]">
-                          {record.reviewPreview ? (
-                            <Link
-                              href={`/dashboard/reviews/${record.reviewId}`}
-                              className="text-sm text-muted-foreground hover:text-foreground truncate block"
-                            >
-                              {record.reviewPreview}
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {record.toneUsed ? (
-                            <Badge variant="outline" className="capitalize text-xs">
-                              {record.toneUsed}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Pagination */}
-              {data.pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Page {data.pagination.page} of {data.pagination.totalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={!data.pagination.hasPrevPage}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => p + 1)}
-                      disabled={!data.pagination.hasNextPage}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm text-muted-foreground">Start Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="date"
+                      value={responseStartDate}
+                      onChange={(e) => {
+                        setResponseStartDate(e.target.value);
+                        setResponsePage(1);
+                      }}
+                      className="w-[180px] pl-10"
+                    />
                   </div>
                 </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm text-muted-foreground">End Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="date"
+                      value={responseEndDate}
+                      onChange={(e) => {
+                        setResponseEndDate(e.target.value);
+                        setResponsePage(1);
+                      }}
+                      className="w-[180px] pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5 justify-end">
+                  <label className="text-sm text-muted-foreground invisible">Export</label>
+                  <Button variant="outline" onClick={handleExportResponseCSV} disabled={responseLoading || !responseData?.records.length}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Response Usage Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Usage Records</CardTitle>
+              <CardDescription>
+                {responseData?.pagination.totalCount
+                  ? `Showing ${(responseData.pagination.page - 1) * responseData.pagination.limit + 1}-${Math.min(responseData.pagination.page * responseData.pagination.limit, responseData.pagination.totalCount)} of ${responseData.pagination.totalCount} records`
+                  : "No records found"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {responseLoading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-24" />
+                      <Skeleton className="h-10 flex-1" />
+                      <Skeleton className="h-10 w-20" />
+                    </div>
+                  ))}
+                </div>
+              ) : responseData?.records && responseData.records.length > 0 ? (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Action</TableHead>
+                          <TableHead>Credits</TableHead>
+                          <TableHead className="hidden sm:table-cell">Review Preview</TableHead>
+                          <TableHead className="hidden md:table-cell">Tone</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {responseData.records.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell className="font-medium whitespace-nowrap">
+                              {formatTimeAgo(record.date)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {getActionIcon(record.action)}
+                                <Badge variant={getActionBadgeVariant(record.action) as "default" | "secondary" | "outline"}>
+                                  {record.actionLabel}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className={record.creditsUsed < 0 ? "text-green-600" : ""}>
+                                {record.creditsUsed > 0 ? `-${record.creditsUsed}` : `+${Math.abs(record.creditsUsed)}`}
+                              </span>
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell max-w-[200px]">
+                              {record.reviewPreview ? (
+                                <Link
+                                  href={`/dashboard/reviews/${record.reviewId}`}
+                                  className="text-sm text-muted-foreground hover:text-foreground truncate block"
+                                >
+                                  {record.reviewPreview}
+                                </Link>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {record.toneUsed ? (
+                                <Badge variant="outline" className="capitalize text-xs">
+                                  {record.toneUsed}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Pagination */}
+                  {responseData.pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <p className="text-sm text-muted-foreground">
+                        Page {responseData.pagination.page} of {responseData.pagination.totalPages}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setResponsePage((p) => Math.max(1, p - 1))}
+                          disabled={!responseData.pagination.hasPrevPage}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setResponsePage((p) => p + 1)}
+                          disabled={!responseData.pagination.hasNextPage}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <Sparkles className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <h3 className="mt-4 text-lg font-medium">No usage records yet</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Your response credit usage history will appear here once you start generating responses.
+                  </p>
+                  <Button className="mt-4" asChild>
+                    <Link href="/dashboard/reviews">
+                      View Reviews
+                    </Link>
+                  </Button>
+                </div>
               )}
-            </>
-          ) : (
-            <div className="text-center py-12">
-              <Sparkles className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-medium">No usage records yet</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Your credit usage history will appear here once you start generating responses.
-              </p>
-              <Button className="mt-4" asChild>
-                <Link href="/dashboard/reviews">
-                  View Reviews
-                </Link>
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Sentiment Credits Tab */}
+        <TabsContent value="sentiment" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </CardTitle>
+                {hasSentimentFilters && (
+                  <Button variant="ghost" size="sm" onClick={handleClearSentimentFilters}>
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm text-muted-foreground">Sentiment</label>
+                  <Select value={sentimentFilter} onValueChange={(value) => {
+                    setSentimentFilter(value);
+                    setSentimentPage(1);
+                  }}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="All sentiments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All sentiments</SelectItem>
+                      <SelectItem value="positive">Positive</SelectItem>
+                      <SelectItem value="neutral">Neutral</SelectItem>
+                      <SelectItem value="negative">Negative</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm text-muted-foreground">Start Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="date"
+                      value={sentimentStartDate}
+                      onChange={(e) => {
+                        setSentimentStartDate(e.target.value);
+                        setSentimentPage(1);
+                      }}
+                      className="w-[180px] pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm text-muted-foreground">End Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="date"
+                      value={sentimentEndDate}
+                      onChange={(e) => {
+                        setSentimentEndDate(e.target.value);
+                        setSentimentPage(1);
+                      }}
+                      className="w-[180px] pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5 justify-end">
+                  <label className="text-sm text-muted-foreground invisible">Export</label>
+                  <Button variant="outline" onClick={handleExportSentimentCSV} disabled={sentimentLoading || !sentimentData?.usage.length}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sentiment Usage Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Usage Records</CardTitle>
+              <CardDescription>
+                {sentimentData?.pagination.totalCount
+                  ? `Showing ${(sentimentData.pagination.page - 1) * sentimentData.pagination.limit + 1}-${Math.min(sentimentData.pagination.page * sentimentData.pagination.limit, sentimentData.pagination.totalCount)} of ${sentimentData.pagination.totalCount} records`
+                  : "No records found"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {sentimentLoading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-24" />
+                      <Skeleton className="h-10 flex-1" />
+                      <Skeleton className="h-10 w-20" />
+                    </div>
+                  ))}
+                </div>
+              ) : sentimentData?.usage && sentimentData.usage.length > 0 ? (
+                <>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Sentiment</TableHead>
+                          <TableHead>Credits</TableHead>
+                          <TableHead className="hidden sm:table-cell">Platform</TableHead>
+                          <TableHead className="hidden md:table-cell">Review Preview</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sentimentData.usage.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell className="font-medium whitespace-nowrap">
+                              {formatTimeAgo(record.createdAt)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Brain className="h-4 w-4 text-purple-500" />
+                                <Badge className={`capitalize ${getSentimentBadgeColor(record.sentiment)}`}>
+                                  {record.sentiment}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>-1</TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              {record.platform ? (
+                                <Badge variant="outline" className="capitalize text-xs">
+                                  {record.platform}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell max-w-[200px]">
+                              {record.preview ? (
+                                <Link
+                                  href={`/dashboard/reviews/${record.reviewId}`}
+                                  className="text-sm text-muted-foreground hover:text-foreground truncate block"
+                                >
+                                  {record.preview}
+                                </Link>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Pagination */}
+                  {sentimentData.pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <p className="text-sm text-muted-foreground">
+                        Page {sentimentData.pagination.page} of {sentimentData.pagination.totalPages}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSentimentPage((p) => Math.max(1, p - 1))}
+                          disabled={!sentimentData.pagination.hasPrevPage}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSentimentPage((p) => p + 1)}
+                          disabled={!sentimentData.pagination.hasNextPage}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <Brain className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <h3 className="mt-4 text-lg font-medium">No sentiment records yet</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Your sentiment credit usage history will appear here once you start adding reviews.
+                  </p>
+                  <Button className="mt-4" asChild>
+                    <Link href="/dashboard/reviews/new">
+                      Add Review
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -13,8 +13,8 @@ const settingsSections = [
     available: true,
   },
   {
-    title: "Credit Usage History",
-    description: "View your credit usage history and response generation records.",
+    title: "Credit History",
+    description: "View your response and sentiment credit usage history.",
     href: "/dashboard/settings/usage",
     icon: History,
     available: true,
