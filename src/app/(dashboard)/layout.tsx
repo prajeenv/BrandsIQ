@@ -64,7 +64,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <DashboardHeader
           onMenuClick={() => setIsMobileMenuOpen(true)}
-          credits={credits}
           tier={tier}
         />
 

@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
-import { Menu, LogOut, Settings, User, CreditCard, Sparkles } from "lucide-react";
+import { Menu, LogOut, Settings, User, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,20 +14,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface DashboardHeaderProps {
   onMenuClick?: () => void;
-  credits?: number;
   tier?: string;
 }
 
-export function DashboardHeader({ onMenuClick, credits = 0, tier = "FREE" }: DashboardHeaderProps) {
+export function DashboardHeader({ onMenuClick, tier = "FREE" }: DashboardHeaderProps) {
   const { data: session } = useSession();
 
   const userInitials = session?.user?.name
@@ -67,27 +60,6 @@ export function DashboardHeader({ onMenuClick, credits = 0, tier = "FREE" }: Das
 
         {/* Spacer */}
         <div className="flex-1" />
-
-        {/* Credits badge */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/dashboard/settings">
-                <Badge
-                  variant="secondary"
-                  className="cursor-pointer gap-1.5 px-3 py-1 transition-colors hover:bg-secondary/80"
-                >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  <span className="font-medium">{credits}</span>
-                  <span className="text-muted-foreground">credits</span>
-                </Badge>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Available credits for AI responses</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
 
         {/* User dropdown */}
         <DropdownMenu>
