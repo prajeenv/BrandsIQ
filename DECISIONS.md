@@ -468,7 +468,8 @@ This is displayed in:
 | Spec | Implementation | Why | Risk |
 |------|----------------|-----|------|
 | Spec mentioned batch analysis | Not implemented | Manual review input doesn't need batch; will add for CSV import in Phase 2 | Low - deferred to appropriate phase |
-| Spec mentioned cron job for quota reset | Not yet implemented | Quota tracking works; reset logic can be triggered manually or via Vercel cron in Prompt 10 | Low - already tracking dates |
+| Spec mentioned cron job for quota reset | Implemented (Feb 2026) | Cron endpoint created at `/api/cron/reset-credits`; scheduled daily via `vercel.json` | Low ✅ |
+| No backfill after credit reset | By design | Reviews with `sentiment: null` remain unchanged after credit reset; backfill deferred to Phase 2 with batch analysis | Low ✅ |
 | Sentiment emoji badges | Text-only badges | Cleaner UI; emojis can be distracting in professional context | None - preference |
 
 ### 3. Key Implementation Details
@@ -500,6 +501,23 @@ This is displayed in:
 - `user.sentimentResetDate` stores next reset date
 - `SentimentUsage` table logs each analysis for audit trail
 - Note: Previously used `sentimentUsed` + `sentimentQuota` (usage model), now standardized to balance model
+
+**No Backfill on Credit Reset (Documented February 4, 2026):**
+When credits are reset after 30 days, reviews that were created without sentiment analysis (due to exhausted credits) are **NOT automatically re-analyzed**. This is by design:
+
+| Timeline | Event | Result |
+|----------|-------|--------|
+| Day 1 | User adds Review A | Sentiment analyzed ✓ |
+| Day 15 | Sentiment credits exhausted | - |
+| Day 16 | User adds Review B | `sentiment: null`, shows "Sentiment ⚠" indicator |
+| Day 30 | Credit reset | User gets fresh credits, **Review B still has `sentiment: null`** |
+| Day 31 | User adds Review C | Sentiment analyzed ✓ |
+
+**Rationale:**
+1. **Simplicity**: Automatic backfill adds complexity (batch processing, rate limiting, error handling)
+2. **Cost predictability**: Users know exactly what they're paying for - analysis at creation time
+3. **Deferred to Phase 2**: Batch analysis feature will be added alongside CSV import, which has similar batch processing needs
+4. **User visibility**: "Sentiment ⚠" indicator clearly shows which reviews weren't analyzed
 
 ---
 
@@ -972,12 +990,21 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 | 3 | Three tiers (no Enterprise) | Phase 0 | Jan 5 | Low ✅ | ✅ Spec |
 | 4 | Manual input first | Phase 0 | Jan 5 | Low ✅ | ✅ Spec |
 | 5 | Sentiment balance model | Post-Prompt 9 | Jan 20 | Low ✅ | ✅ Implemented |
+| 6 | No sentiment backfill on reset | Prompt 8 | Feb 4 | Low ✅ | ✅ By design |
+| 7 | Cron job for credit reset | Post-Prompt 9 | Feb 4 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**February 4, 2026**
+- Added cron job endpoint for monthly credit reset (`/api/cron/reset-credits`)
+- Added `vercel.json` with daily cron schedule (midnight UTC)
+- Documented CRON_SECRET in `.env.example`
+- Refactored db-utils.ts to use TIER_LIMITS from constants.ts (single source of truth)
+- Documented decision: No sentiment backfill on credit reset (deferred to Phase 2 with batch analysis)
 
 **January 31, 2026**
 - Added "Sentiment ⚠" indicator with tooltip for reviews without sentiment analysis
@@ -1040,4 +1067,4 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** January 31, 2026 (Sentiment skipped indicator)
+**Last Reviewed:** February 4, 2026 (Cron job and no-backfill decision)
