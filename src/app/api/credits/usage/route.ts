@@ -168,11 +168,11 @@ export async function GET(request: NextRequest) {
 function formatActionLabel(action: string): string {
   switch (action) {
     case "GENERATE_RESPONSE":
-      return "Generate Response";
+      return "Generate";
     case "REGENERATE":
-      return "Regenerate Response";
+      return "Regenerate";
     case "REFUND":
-      return "Credit Refund";
+      return "Refund";
     default:
       return action;
   }
