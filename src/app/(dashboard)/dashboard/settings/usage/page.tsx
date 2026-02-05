@@ -518,9 +518,6 @@ export default function UsagePage() {
                                 </Link>
                               ) : record.isDeleted && record.reviewId ? (
                                 <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                                  {record.rating && (
-                                    <span>★{record.rating}</span>
-                                  )}
                                   <span className="font-mono text-xs text-muted-foreground/70">
                                     ({record.reviewId.slice(0, 6)})
                                   </span>
@@ -738,13 +735,7 @@ export default function UsagePage() {
                                   {record.preview}
                                 </Link>
                               ) : record.isDeleted && record.reviewId ? (
-                                <span className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                                  {record.platform && (
-                                    <span className="capitalize">{record.platform}</span>
-                                  )}
-                                  {record.rating && (
-                                    <span>★{record.rating}</span>
-                                  )}
+                                <span className="text-sm text-muted-foreground flex items-center gap-1.5">
                                   <span className="font-mono text-xs text-muted-foreground/70">
                                     ({record.reviewId.slice(0, 6)})
                                   </span>
