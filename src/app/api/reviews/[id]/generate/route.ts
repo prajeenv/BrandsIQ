@@ -179,11 +179,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       reviewId,
       undefined,
       {
-        reviewSnapshot: {
-          platform: review.platform,
-          rating: review.rating,
-          textPreview: review.reviewText.substring(0, 100),
-        },
+        // Audit trail: reviewId stored here survives FK becoming null on delete
+        reviewId,
+        platform: review.platform,
+        rating: review.rating,
+        tone: tone || "default",
         generatedAt: new Date().toISOString(),
       }
     );

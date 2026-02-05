@@ -97,21 +97,35 @@ export async function GET(request: NextRequest) {
     });
 
     // Format the records for response
-    const formattedRecords = usageRecords.map((record) => ({
-      id: record.id,
-      date: record.createdAt.toISOString(),
-      action: record.action,
-      actionLabel: formatActionLabel(record.action),
-      creditsUsed: record.creditsUsed,
-      reviewPreview: record.review?.reviewText
-        ? truncateText(record.review.reviewText, 50)
-        : null,
-      reviewId: record.review?.id || null,
-      platform: record.review?.platform || null,
-      reviewerName: record.review?.reviewerName || null,
-      toneUsed: record.reviewResponse?.toneUsed || null,
-      details: record.details ? parseDetails(record.details) : null,
-    }));
+    // When review is deleted (FK becomes null), fallback to details JSON for audit trail
+    const formattedRecords = usageRecords.map((record) => {
+      const details = record.details ? parseDetails(record.details) : null;
+
+      // If review exists, use live data; otherwise fallback to details JSON
+      const reviewId = record.review?.id || (details?.reviewId as string | null) || null;
+      const platform = record.review?.platform || (details?.platform as string | null) || null;
+      const toneUsed = record.reviewResponse?.toneUsed
+        || (details?.tone as string | null)
+        || (details?.newTone as string | null)
+        || null;
+
+      return {
+        id: record.id,
+        date: record.createdAt.toISOString(),
+        action: record.action,
+        actionLabel: formatActionLabel(record.action),
+        creditsUsed: record.creditsUsed,
+        reviewPreview: record.review?.reviewText
+          ? truncateText(record.review.reviewText, 50)
+          : null,
+        reviewId,
+        platform,
+        reviewerName: record.review?.reviewerName || null,
+        toneUsed,
+        details,
+        isDeleted: !record.review && !!reviewId,
+      };
+    });
 
     // Calculate pagination metadata
     const totalPages = Math.ceil(totalCount / limit);

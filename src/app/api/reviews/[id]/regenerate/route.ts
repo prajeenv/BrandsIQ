@@ -192,11 +192,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       reviewId,
       review.response.id,
       {
-        reviewSnapshot: {
-          platform: review.platform,
-          rating: review.rating,
-          textPreview: review.reviewText.substring(0, 100),
-        },
+        // Audit trail: reviewId stored here survives FK becoming null on delete
+        reviewId,
+        platform: review.platform,
+        rating: review.rating,
         previousTone: review.response.toneUsed,
         newTone: tone,
         regeneratedAt: new Date().toISOString(),

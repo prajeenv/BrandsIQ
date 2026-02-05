@@ -979,6 +979,123 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 
 ---
 
+## Review Audit Trail (Documented February 5, 2026)
+
+### Problem Statement
+
+When a review is deleted, the Credit History page shows `-` for Review Preview and Tone columns because:
+1. The `CreditUsage.reviewId` foreign key becomes `null` (due to `onDelete: SetNull`)
+2. The API reads from live `Review` and `ReviewResponse` records, which no longer exist
+3. No fallback to stored snapshot data
+
+For customer support scenarios, we need to trace "what happened to review X" even after deletion, while remaining GDPR compliant (no PII stored).
+
+### Options Considered
+
+| Option | Description | Pros | Cons |
+|--------|-------------|------|------|
+| **A. New `ReviewActivityLog` table** | Dedicated table tracking review lifecycle events (CREATED, RESPONSE_GENERATED, DELETED, etc.) | Clean separation, tracks all events, single query for activity | New table + migration, code changes everywhere, tracks events we may never need |
+| **B. Enhance existing tables** | Store `reviewId` + metadata in `details` JSON field of `CreditUsage` and `SentimentUsage` | No schema change, minimal code changes, reuses existing infrastructure | Mixed concerns, can't track non-credit events (create, delete) |
+| **C. Soft delete** | Add `deletedAt` column to `Review`, clear PII on delete but keep metadata | Clean data model, normal JOINs work | Schema migration, must update all queries with `WHERE deletedAt IS NULL` |
+
+### Decision: Option B - Enhance Existing Tables
+
+**Rationale:**
+1. The primary problem (Credit History showing `-`) is solved by API fallback to `details` JSON
+2. Full review lifecycle tracking (CREATED, DELETED events) is rarely needed - admin debug only
+3. For rare audit scenarios, a JOIN query across `CreditUsage` + `SentimentUsage` can reconstruct the timeline
+4. Soft delete is overkill - we're solving edge cases, not core functionality like enterprise/banking software
+5. No schema migration required
+
+### Implementation
+
+**Tables affected:**
+| Table | Has `reviewId`? | On Delete Behavior | What Survives |
+|-------|----------------|-------------------|---------------|
+| `CreditUsage` | Yes | `SetNull` (FK becomes null) | Record + `details` JSON |
+| `SentimentUsage` | Yes | `SetNull` (FK becomes null) | Record + `details` JSON |
+
+**`details` JSON structure for `CreditUsage`:**
+```json
+{
+  "reviewId": "abc123",
+  "platform": "google",
+  "rating": 4,
+  "tone": "friendly",
+  "generatedAt": "2026-02-05T10:30:00Z"
+}
+```
+
+**`details` JSON structure for `SentimentUsage`:**
+```json
+{
+  "reviewId": "abc123",
+  "platform": "google",
+  "rating": 4,
+  "analyzedAt": "2026-02-05T10:30:00Z"
+}
+```
+
+**GDPR Compliance:**
+- NO `textPreview` stored (review text may contain PII)
+- NO `reviewerName` stored
+- Only business metadata: `reviewId`, `platform`, `rating`, `tone`, timestamps
+- `reviewId` is a system-generated identifier (cuid), not PII
+
+**API Changes:**
+- `/api/credits/usage`: Fallback to `details` JSON when `review` is null
+- `/api/sentiment/usage`: Fallback to `details` JSON when `review` is null
+
+**Credit History Display:**
+| Review Status | Review Preview Column | Source |
+|---------------|----------------------|--------|
+| Exists | "Great service but the wait was..." | `Review.reviewText` (live JOIN) |
+| Deleted | "Review #abc123 (deleted)" | `details.reviewId` (JSON fallback) |
+
+### What This Does NOT Track
+
+| Event | Tracked? | Why |
+|-------|----------|-----|
+| Review created | No | No credit consumed |
+| Sentiment analyzed | Yes | `SentimentUsage` table |
+| Response generated | Yes | `CreditUsage` table |
+| Response regenerated | Yes | `CreditUsage` table |
+| Response edited | No | No credit consumed |
+| Review deleted | No | No credit consumed |
+
+For the events not tracked, if full lifecycle tracking becomes necessary in the future, implement `ReviewActivityLog` table (see deferred section below).
+
+### Future: `ReviewActivityLog` Table (If Needed)
+
+If full lifecycle tracking becomes a requirement, create:
+
+```prisma
+model ReviewActivityLog {
+  id        String   @id @default(cuid())
+  reviewId  String   // NOT a FK - stored value survives deletion
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  action    String   // CREATED | RESPONSE_GENERATED | RESPONSE_REGENERATED | RESPONSE_EDITED | DELETED
+  metadata  String?  @db.Text  // JSON: { platform, rating, tone, sentiment }
+
+  createdAt DateTime @default(now())
+
+  @@index([reviewId])
+  @@index([userId, createdAt])
+}
+```
+
+**Query for audit:**
+```sql
+SELECT action, metadata, createdAt
+FROM ReviewActivityLog
+WHERE reviewId = 'abc123'
+ORDER BY createdAt;
+```
+
+---
+
 ## Decision Log
 
 ### Quick Reference Table
@@ -993,12 +1110,27 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 | 6 | No sentiment backfill on reset | Prompt 8 | Feb 4 | Low ✅ | ✅ By design |
 | 7 | Cron job for credit reset | Post-Prompt 9 | Feb 4 | Low ✅ | ✅ Implemented |
 | 8 | Tabbed Credit History page | Post-Prompt 9 | Feb 4 | Low ✅ | ✅ Implemented |
+| 9 | Review audit via details JSON | Post-Prompt 9 | Feb 5 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**February 5, 2026**
+- Implemented Review Audit Trail:
+  - Problem: Credit History shows `-` for deleted reviews (no traceability)
+  - Decision: Enhance `CreditUsage` and `SentimentUsage` with `details` JSON containing `reviewId` and metadata
+  - Rejected alternatives: New `ReviewActivityLog` table (overkill), Soft delete (unnecessary complexity)
+  - GDPR compliant: Removed `textPreview`/`preview` (PII), only business metadata stored
+  - Files modified:
+    - `src/app/api/reviews/[id]/generate/route.ts` - Updated details JSON structure
+    - `src/app/api/reviews/[id]/regenerate/route.ts` - Updated details JSON structure
+    - `src/app/api/reviews/route.ts` - Updated sentiment details JSON structure
+    - `src/app/api/credits/usage/route.ts` - Added fallback to details JSON when review deleted
+    - `src/app/api/sentiment/usage/route.ts` - Added fallback to details JSON when review deleted
+  - Added `isDeleted` flag to API responses for UI to show "(Review deleted)" indicator
 
 **February 4, 2026**
 - Added cron job endpoint for monthly credit reset (`/api/cron/reset-credits`)

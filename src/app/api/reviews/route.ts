@@ -125,10 +125,11 @@ export async function POST(request: NextRequest) {
             userId: session.user.id,
             reviewId: review.id,
             sentiment,
+            // Audit trail: reviewId stored here survives FK becoming null on delete
             details: JSON.stringify({
+              reviewId: review.id,
               platform,
               rating,
-              preview: reviewText.substring(0, 100),
               analyzedAt: new Date().toISOString(),
             }),
           },

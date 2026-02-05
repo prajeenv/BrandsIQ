@@ -137,12 +137,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        // When review is deleted (FK becomes null), fallback to details JSON for audit trail
         usage: usageRecords.map((record) => {
           // Parse details JSON if available
           let details: {
+            reviewId?: string;
             platform?: string;
             rating?: number;
-            preview?: string;
             analyzedAt?: string;
           } = {};
           if (record.details) {
@@ -153,14 +154,19 @@ export async function GET(request: NextRequest) {
             }
           }
 
+          // If review exists, use live data; otherwise fallback to details JSON
+          const reviewId = record.reviewId || details.reviewId || null;
+          const platform = record.review?.platform || details.platform || null;
+          const rating = record.review?.rating ?? details.rating ?? null;
+
           return {
             id: record.id,
             sentiment: record.sentiment,
             createdAt: record.createdAt.toISOString(),
-            reviewId: record.reviewId,
-            platform: details.platform || record.review?.platform || null,
-            rating: details.rating ?? record.review?.rating ?? null,
-            preview: details.preview || null,
+            reviewId,
+            platform,
+            rating,
+            isDeleted: !record.review && !!reviewId,
           };
         }),
         pagination: {
