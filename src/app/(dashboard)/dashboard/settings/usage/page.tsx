@@ -715,7 +715,7 @@ export default function UsagePage() {
                           <TableHead>Sentiment</TableHead>
                           <TableHead>Credits</TableHead>
                           <TableHead className="hidden sm:table-cell">Platform</TableHead>
-                          <TableHead className="hidden md:table-cell">Review Preview</TableHead>
+                          <TableHead className="hidden md:table-cell">Review</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
