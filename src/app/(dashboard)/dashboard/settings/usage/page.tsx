@@ -475,8 +475,9 @@ export default function UsagePage() {
                           <TableHead>Date</TableHead>
                           <TableHead>Action</TableHead>
                           <TableHead>Credits</TableHead>
-                          <TableHead className="hidden sm:table-cell">Review Preview</TableHead>
-                          <TableHead className="hidden md:table-cell">Tone</TableHead>
+                          <TableHead className="hidden sm:table-cell">Platform</TableHead>
+                          <TableHead className="hidden md:table-cell">Review</TableHead>
+                          <TableHead className="hidden lg:table-cell">Tone</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -498,7 +499,16 @@ export default function UsagePage() {
                                 {record.creditsUsed > 0 ? `-${record.creditsUsed}` : `+${Math.abs(record.creditsUsed)}`}
                               </span>
                             </TableCell>
-                            <TableCell className="hidden sm:table-cell max-w-[200px]">
+                            <TableCell className="hidden sm:table-cell">
+                              {record.platform ? (
+                                <Badge variant="outline" className="capitalize text-xs">
+                                  {record.platform}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell max-w-[200px]">
                               {record.reviewPreview ? (
                                 <Link
                                   href={`/dashboard/reviews/${record.reviewId}`}
@@ -507,10 +517,7 @@ export default function UsagePage() {
                                   {record.reviewPreview}
                                 </Link>
                               ) : record.isDeleted && record.reviewId ? (
-                                <span className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                                  {record.platform && (
-                                    <span className="capitalize">{record.platform}</span>
-                                  )}
+                                <span className="text-sm text-muted-foreground flex items-center gap-1.5">
                                   {record.rating && (
                                     <span>★{record.rating}</span>
                                   )}
@@ -525,7 +532,7 @@ export default function UsagePage() {
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">
+                            <TableCell className="hidden lg:table-cell">
                               {record.toneUsed ? (
                                 <Badge variant="outline" className="capitalize text-xs">
                                   {record.toneUsed}
