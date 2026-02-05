@@ -147,6 +147,29 @@ function getSentimentBadgeColor(sentiment: string): string {
 }
 
 // ============================================
+// DELETED REVIEW ID COMPONENT
+// ============================================
+
+function DeletedReviewId({ reviewId }: { reviewId: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="font-mono text-xs text-muted-foreground/70 hover:text-muted-foreground cursor-pointer transition-colors"
+        title={expanded ? "Click to collapse" : "Click to show full ID"}
+      >
+        ({expanded ? reviewId : reviewId.slice(0, 8)})
+      </button>
+      <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+        Deleted
+      </Badge>
+    </span>
+  );
+}
+
+// ============================================
 // MAIN COMPONENT
 // ============================================
 
@@ -517,14 +540,7 @@ export default function UsagePage() {
                                   {record.reviewPreview}
                                 </Link>
                               ) : record.isDeleted && record.reviewId ? (
-                                <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                                  <span className="font-mono text-xs text-muted-foreground/70">
-                                    ({record.reviewId.slice(0, 6)})
-                                  </span>
-                                  <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                                    Deleted
-                                  </Badge>
-                                </span>
+                                <DeletedReviewId reviewId={record.reviewId} />
                               ) : (
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
@@ -735,14 +751,7 @@ export default function UsagePage() {
                                   {record.preview}
                                 </Link>
                               ) : record.isDeleted && record.reviewId ? (
-                                <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                                  <span className="font-mono text-xs text-muted-foreground/70">
-                                    ({record.reviewId.slice(0, 6)})
-                                  </span>
-                                  <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
-                                    Deleted
-                                  </Badge>
-                                </span>
+                                <DeletedReviewId reviewId={record.reviewId} />
                               ) : (
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
