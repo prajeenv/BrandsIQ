@@ -53,6 +53,7 @@ interface ResponseUsageRecord {
   platform: string | null;
   reviewerName: string | null;
   toneUsed: string | null;
+  isDeleted: boolean;
 }
 
 interface SentimentUsageRecord {
@@ -63,6 +64,7 @@ interface SentimentUsageRecord {
   platform: string | null;
   rating: number | null;
   preview: string | null;
+  isDeleted: boolean;
 }
 
 interface Pagination {
@@ -503,6 +505,13 @@ export default function UsagePage() {
                                 >
                                   {record.reviewPreview}
                                 </Link>
+                              ) : record.isDeleted && record.reviewId ? (
+                                <span className="text-sm text-muted-foreground">
+                                  <span className="font-mono text-xs">{record.reviewId.slice(0, 8)}...</span>
+                                  <Badge variant="outline" className="ml-2 text-xs text-orange-600 border-orange-300">
+                                    Deleted
+                                  </Badge>
+                                </span>
                               ) : (
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
@@ -712,6 +721,13 @@ export default function UsagePage() {
                                 >
                                   {record.preview}
                                 </Link>
+                              ) : record.isDeleted && record.reviewId ? (
+                                <span className="text-sm text-muted-foreground">
+                                  <span className="font-mono text-xs">{record.reviewId.slice(0, 8)}...</span>
+                                  <Badge variant="outline" className="ml-2 text-xs text-orange-600 border-orange-300">
+                                    Deleted
+                                  </Badge>
+                                </span>
                               ) : (
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
