@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
         actionLabel: formatActionLabel(record.action),
         creditsUsed: record.creditsUsed,
         reviewPreview: record.review?.reviewText
-          ? truncateText(record.review.reviewText, 50)
+          ? truncateText(record.review.reviewText, 60)
           : null,
         reviewId,
         platform,

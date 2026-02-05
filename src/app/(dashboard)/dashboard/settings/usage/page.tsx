@@ -495,12 +495,12 @@ export default function UsagePage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Action</TableHead>
-                          <TableHead>Credits</TableHead>
-                          <TableHead className="hidden sm:table-cell">Platform</TableHead>
+                          <TableHead className="w-[80px]">Date</TableHead>
+                          <TableHead className="w-[120px]">Action</TableHead>
+                          <TableHead className="w-[50px]">Credits</TableHead>
+                          <TableHead className="hidden sm:table-cell w-[80px]">Platform</TableHead>
                           <TableHead className="hidden md:table-cell">Review</TableHead>
-                          <TableHead className="hidden lg:table-cell">Tone</TableHead>
+                          <TableHead className="hidden lg:table-cell w-[90px]">Tone</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -522,7 +522,7 @@ export default function UsagePage() {
                                 {record.creditsUsed > 0 ? `-${record.creditsUsed}` : `+${Math.abs(record.creditsUsed)}`}
                               </span>
                             </TableCell>
-                            <TableCell className="hidden sm:table-cell">
+                            <TableCell className="hidden sm:table-cell w-[80px]">
                               {record.platform ? (
                                 <Badge variant="outline" className="capitalize text-xs">
                                   {record.platform}
@@ -531,7 +531,7 @@ export default function UsagePage() {
                                 <span className="text-muted-foreground text-sm">-</span>
                               )}
                             </TableCell>
-                            <TableCell className="hidden md:table-cell max-w-[200px]">
+                            <TableCell className="hidden md:table-cell">
                               {record.reviewPreview ? (
                                 <Link
                                   href={`/dashboard/reviews/${record.reviewId}`}
