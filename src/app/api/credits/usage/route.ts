@@ -104,9 +104,11 @@ export async function GET(request: NextRequest) {
       // If review exists, use live data; otherwise fallback to details JSON
       const reviewId = record.review?.id || (details?.reviewId as string | null) || null;
       const platform = record.review?.platform || (details?.platform as string | null) || null;
-      const toneUsed = record.reviewResponse?.toneUsed
-        || (details?.tone as string | null)
+      // For tone, prioritize details JSON (captures tone at time of action)
+      // reviewResponse.toneUsed shows CURRENT tone which changes on regeneration
+      const toneUsed = (details?.tone as string | null)
         || (details?.newTone as string | null)
+        || record.reviewResponse?.toneUsed
         || null;
 
       return {
