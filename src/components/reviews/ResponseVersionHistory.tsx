@@ -17,6 +17,7 @@ interface Version {
   creditsUsed: number;
   isEdited: boolean;
   createdAt: string;
+  originalCreatedAt: string;
 }
 
 interface ResponseVersionHistoryProps {
@@ -142,7 +143,7 @@ export function ResponseVersionHistory({
                 </div>
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {formatTimeAgo(version.createdAt)}
+                  {formatTimeAgo(version.originalCreatedAt)}
                 </span>
               </div>
 

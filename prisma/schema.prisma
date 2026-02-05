@@ -193,7 +193,8 @@ model ResponseVersion {
   creditsUsed       Int      @default(1)
   isEdited          Boolean  @default(false)  // true if this version was manually edited
 
-  createdAt         DateTime @default(now())
+  originalCreatedAt DateTime?             // When the response was originally generated (null for legacy records)
+  createdAt         DateTime @default(now())  // When this version record was created (moved to history)
 
   @@index([reviewResponseId, createdAt])
   @@map("response_versions")

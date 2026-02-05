@@ -31,6 +31,7 @@ interface ResponseVersion {
   creditsUsed: number;
   isEdited: boolean;
   createdAt: string;
+  originalCreatedAt: string;
 }
 
 interface Response {

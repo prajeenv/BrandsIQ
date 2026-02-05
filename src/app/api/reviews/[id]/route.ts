@@ -93,6 +93,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                   creditsUsed: v.creditsUsed,
                   isEdited: v.isEdited,
                   createdAt: v.createdAt.toISOString(),
+                  originalCreatedAt: v.originalCreatedAt?.toISOString() ?? v.createdAt.toISOString(),
                 })),
               }
             : null,

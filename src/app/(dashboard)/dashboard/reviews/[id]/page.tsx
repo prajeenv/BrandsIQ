@@ -79,6 +79,7 @@ interface ReviewDetail {
       creditsUsed: number;
       isEdited: boolean;
       createdAt: string;
+      originalCreatedAt: string;
     }>;
   } | null;
 }
