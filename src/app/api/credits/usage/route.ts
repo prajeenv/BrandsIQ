@@ -82,6 +82,7 @@ export async function GET(request: NextRequest) {
             platform: true,
             reviewText: true,
             reviewerName: true,
+            rating: true,
           },
         },
         reviewResponse: {
@@ -104,6 +105,7 @@ export async function GET(request: NextRequest) {
       // If review exists, use live data; otherwise fallback to details JSON
       const reviewId = record.review?.id || (details?.reviewId as string | null) || null;
       const platform = record.review?.platform || (details?.platform as string | null) || null;
+      const rating = record.review?.rating ?? (details?.rating as number | null) ?? null;
       // For tone, prioritize details JSON (captures tone at time of action)
       // reviewResponse.toneUsed shows CURRENT tone which changes on regeneration
       const toneUsed = (details?.tone as string | null)
@@ -122,9 +124,9 @@ export async function GET(request: NextRequest) {
           : null,
         reviewId,
         platform,
+        rating,
         reviewerName: record.review?.reviewerName || null,
         toneUsed,
-        details,
         isDeleted: !record.review && !!reviewId,
       };
     });

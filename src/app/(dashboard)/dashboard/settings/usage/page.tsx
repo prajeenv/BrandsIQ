@@ -53,6 +53,7 @@ interface ResponseUsageRecord {
   platform: string | null;
   reviewerName: string | null;
   toneUsed: string | null;
+  rating: number | null;
   isDeleted: boolean;
 }
 
@@ -506,9 +507,17 @@ export default function UsagePage() {
                                   {record.reviewPreview}
                                 </Link>
                               ) : record.isDeleted && record.reviewId ? (
-                                <span className="text-sm text-muted-foreground">
-                                  <span className="font-mono text-xs">{record.reviewId.slice(0, 8)}...</span>
-                                  <Badge variant="outline" className="ml-2 text-xs text-orange-600 border-orange-300">
+                                <span className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                  {record.platform && (
+                                    <span className="capitalize">{record.platform}</span>
+                                  )}
+                                  {record.rating && (
+                                    <span>★{record.rating}</span>
+                                  )}
+                                  <span className="font-mono text-xs text-muted-foreground/70">
+                                    ({record.reviewId.slice(0, 6)})
+                                  </span>
+                                  <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
                                     Deleted
                                   </Badge>
                                 </span>
@@ -722,9 +731,17 @@ export default function UsagePage() {
                                   {record.preview}
                                 </Link>
                               ) : record.isDeleted && record.reviewId ? (
-                                <span className="text-sm text-muted-foreground">
-                                  <span className="font-mono text-xs">{record.reviewId.slice(0, 8)}...</span>
-                                  <Badge variant="outline" className="ml-2 text-xs text-orange-600 border-orange-300">
+                                <span className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                                  {record.platform && (
+                                    <span className="capitalize">{record.platform}</span>
+                                  )}
+                                  {record.rating && (
+                                    <span>★{record.rating}</span>
+                                  )}
+                                  <span className="font-mono text-xs text-muted-foreground/70">
+                                    ({record.reviewId.slice(0, 6)})
+                                  </span>
+                                  <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
                                     Deleted
                                   </Badge>
                                 </span>
