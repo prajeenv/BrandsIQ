@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
             id: true,
             platform: true,
             rating: true,
+            reviewText: true,
           },
         },
       },
@@ -159,6 +160,13 @@ export async function GET(request: NextRequest) {
           const platform = record.review?.platform || details.platform || null;
           const rating = record.review?.rating ?? details.rating ?? null;
 
+          // Truncate review text for preview
+          const preview = record.review?.reviewText
+            ? record.review.reviewText.length > 60
+              ? record.review.reviewText.substring(0, 60) + "..."
+              : record.review.reviewText
+            : null;
+
           return {
             id: record.id,
             sentiment: record.sentiment,
@@ -166,6 +174,7 @@ export async function GET(request: NextRequest) {
             reviewId,
             platform,
             rating,
+            preview,
             isDeleted: !record.review && !!reviewId,
           };
         }),
