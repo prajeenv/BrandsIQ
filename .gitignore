@@ -24,6 +24,7 @@ node_modules/
 # Misc
 .DS_Store
 *.pem
+CLAUDE.local.md
 
 # Debug
 npm-debug.log*
