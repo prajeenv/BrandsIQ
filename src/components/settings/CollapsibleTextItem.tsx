@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 interface CollapsibleTextItemProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (_value: string) => void;
   onRemove: () => void;
   disabled?: boolean;
   maxLength?: number;

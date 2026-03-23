@@ -12,7 +12,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { credits, tier, refreshCredits } = useCredits();
+  const { tier, refreshCredits } = useCredits();
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Redirect if not authenticated

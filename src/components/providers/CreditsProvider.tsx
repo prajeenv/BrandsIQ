@@ -10,7 +10,7 @@ interface CreditsContextType {
   sentimentTotal: number;
   sentimentResetDate: string | null;
   tier: string;
-  setCredits: (credits: number) => void;
+  setCredits: (_credits: number) => void;
   refreshCredits: () => Promise<void>;
 }
 

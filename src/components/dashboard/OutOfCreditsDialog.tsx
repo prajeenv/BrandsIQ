@@ -15,7 +15,7 @@ import { getNextResetDate } from "@/lib/utils";
 
 interface OutOfCreditsDialogProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (_open: boolean) => void;
   creditsRemaining: number;
   creditsTotal: number;
   resetDate?: string;

@@ -18,7 +18,7 @@ import { Sparkles, Briefcase, Smile, Heart } from "lucide-react";
 type ToneOption = "professional" | "friendly" | "empathetic";
 
 interface ToneModifierProps {
-  onRegenerate: (tone: ToneOption) => Promise<void>;
+  onRegenerate: (_tone: ToneOption) => Promise<void>;
   isLoading?: boolean;
   disabled?: boolean;
   currentTone?: string;

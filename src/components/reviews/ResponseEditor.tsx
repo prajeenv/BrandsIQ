@@ -7,7 +7,7 @@ import { VALIDATION_LIMITS } from "@/lib/constants";
 
 interface ResponseEditorProps {
   initialText: string;
-  onSave: (text: string) => Promise<void>;
+  onSave: (_text: string) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
   textDirection?: "ltr" | "rtl";

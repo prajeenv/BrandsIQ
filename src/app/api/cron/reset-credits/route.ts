@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     // Log summary
     if (result.usersReset > 0) {
-      console.log(
+      console.warn(
         `[CRON] Credit reset completed: ${result.usersReset} users reset`
       );
     }

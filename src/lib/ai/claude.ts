@@ -139,7 +139,7 @@ export async function generateReviewResponse(
       if (isRetryable && attempt < maxRetries) {
         // Exponential backoff: 1s, 2s, 4s
         const delay = Math.pow(2, attempt - 1) * 1000;
-        console.log(
+        console.warn(
           `Claude API error (${error.status}), retrying in ${delay}ms... (attempt ${attempt}/${maxRetries})`
         );
         await sleep(delay);
