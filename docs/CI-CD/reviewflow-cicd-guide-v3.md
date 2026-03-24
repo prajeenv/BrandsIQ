@@ -271,41 +271,41 @@ When adding a variable, you'll see checkboxes for Production, Preview, and Devel
 
 **Add these for PREVIEW environment (= staging):**
 
-| Variable Name | Value | Check only |
-|---|---|---|
-| DATABASE_URL | Staging pooler connection string (port 6543) | Preview |
-| DIRECT_URL | Staging direct connection string (port 5432) | Preview |
-| NEXTAUTH_URL | Your Vercel preview/staging URL | Preview |
-| NEXTAUTH_SECRET | Run: `openssl rand -base64 32` | Preview |
-| NEXT_PUBLIC_APP_URL | Your Vercel preview/staging URL | Preview |
-| GOOGLE_CLIENT_ID | Your Google OAuth client ID | Preview |
-| GOOGLE_CLIENT_SECRET | Your Google OAuth client secret | Preview |
-| ANTHROPIC_API_KEY | Your Anthropic API key | Preview |
-| DEEPSEEK_API_KEY | Your DeepSeek API key | Preview |
-| RESEND_API_KEY | Your Resend API key | Preview |
-| EMAIL_FROM | Your verified sender email | Preview |
-| UPSTASH_REDIS_REST_URL | Staging Redis REST URL | Preview |
-| UPSTASH_REDIS_REST_TOKEN | Staging Redis REST token | Preview |
-| CRON_SECRET | Run: `openssl rand -base64 32` | Preview |
+| Variable Name            | Value                                        | Check only |
+| ------------------------ | -------------------------------------------- | ---------- |
+| DATABASE_URL             | Staging pooler connection string (port 6543) | Preview    |
+| DIRECT_URL               | Staging direct connection string (port 5432) | Preview    |
+| NEXTAUTH_URL             | Your Vercel preview/staging URL              | Preview    |
+| NEXTAUTH_SECRET          | Run: `openssl rand -base64 32`               | Preview    |
+| NEXT_PUBLIC_APP_URL      | Your Vercel preview/staging URL              | Preview    |
+| GOOGLE_CLIENT_ID         | Your Google OAuth client ID                  | Preview    |
+| GOOGLE_CLIENT_SECRET     | Your Google OAuth client secret              | Preview    |
+| ANTHROPIC_API_KEY        | Your Anthropic API key                       | Preview    |
+| DEEPSEEK_API_KEY         | Your DeepSeek API key                        | Preview    |
+| RESEND_API_KEY           | Your Resend API key                          | Preview    |
+| EMAIL_FROM               | Your verified sender email                   | Preview    |
+| UPSTASH_REDIS_REST_URL   | Staging Redis REST URL                       | Preview    |
+| UPSTASH_REDIS_REST_TOKEN | Staging Redis REST token                     | Preview    |
+| CRON_SECRET              | Run: `openssl rand -base64 32`               | Preview    |
 
 **Add these for PRODUCTION environment:**
 
-| Variable Name | Value | Check only |
-|---|---|---|
-| DATABASE_URL | Production pooler connection string (port 6543) | Production |
-| DIRECT_URL | Production direct connection string (port 5432) | Production |
-| NEXTAUTH_URL | Your production domain/URL | Production |
-| NEXTAUTH_SECRET | Generate a DIFFERENT one | Production |
-| NEXT_PUBLIC_APP_URL | Your production domain/URL | Production |
-| GOOGLE_CLIENT_ID | Same Google OAuth client ID | Production |
-| GOOGLE_CLIENT_SECRET | Same Google OAuth client secret | Production |
-| ANTHROPIC_API_KEY | Same Anthropic API key (or separate one) | Production |
-| DEEPSEEK_API_KEY | Same DeepSeek API key (or separate one) | Production |
-| RESEND_API_KEY | Same Resend API key | Production |
-| EMAIL_FROM | Your verified sender email | Production |
-| UPSTASH_REDIS_REST_URL | Production Redis REST URL | Production |
-| UPSTASH_REDIS_REST_TOKEN | Production Redis REST token | Production |
-| CRON_SECRET | Generate a DIFFERENT one | Production |
+| Variable Name            | Value                                           | Check only |
+| ------------------------ | ----------------------------------------------- | ---------- |
+| DATABASE_URL             | Production pooler connection string (port 6543) | Production |
+| DIRECT_URL               | Production direct connection string (port 5432) | Production |
+| NEXTAUTH_URL             | Your production domain/URL                      | Production |
+| NEXTAUTH_SECRET          | Generate a DIFFERENT one                        | Production |
+| NEXT_PUBLIC_APP_URL      | Your production domain/URL                      | Production |
+| GOOGLE_CLIENT_ID         | Same Google OAuth client ID                     | Production |
+| GOOGLE_CLIENT_SECRET     | Same Google OAuth client secret                 | Production |
+| ANTHROPIC_API_KEY        | Same Anthropic API key (or separate one)        | Production |
+| DEEPSEEK_API_KEY         | Same DeepSeek API key (or separate one)         | Production |
+| RESEND_API_KEY           | Same Resend API key                             | Production |
+| EMAIL_FROM               | Your verified sender email                      | Production |
+| UPSTASH_REDIS_REST_URL   | Production Redis REST URL                       | Production |
+| UPSTASH_REDIS_REST_TOKEN | Production Redis REST token                     | Production |
+| CRON_SECRET              | Generate a DIFFERENT one                        | Production |
 
 **Where to find Supabase connection strings:**
 Go to Supabase Dashboard → your project → Settings → Database → Connection string
@@ -773,15 +773,15 @@ Go to your GitHub repo (on github.com) → **Settings** → **Secrets and variab
 
 Add each of these one by one:
 
-| Secret Name | What It Is | Where to Find It |
-|---|---|---|
-| STAGING_DATABASE_URL | Staging Supabase pooler connection string | Supabase Dashboard → reviewflow-staging → Settings → Database → Connection string (port 6543, append `?pgbouncer=true`) |
-| STAGING_DIRECT_URL | Staging Supabase direct connection string | Supabase Dashboard → reviewflow-staging → Settings → Database → Connection string (port 5432) |
-| PROD_DATABASE_URL | Production Supabase pooler connection string | Supabase Dashboard → your production project → Settings → Database → Connection string (port 6543, append `?pgbouncer=true`) |
-| PROD_DIRECT_URL | Production Supabase direct connection string | Supabase Dashboard → your production project → Settings → Database → Connection string (port 5432) |
-| VERCEL_TOKEN | Vercel API token | Created in Phase 2, Step 2.5 |
-| VERCEL_ORG_ID | Your Vercel organization ID | From `.vercel/project.json` (Phase 2, Step 2.4) |
-| VERCEL_PROJECT_ID | Your Vercel project ID | From `.vercel/project.json` (Phase 2, Step 2.4) |
+| Secret Name          | What It Is                                   | Where to Find It                                                                                                             |
+| -------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| STAGING_DATABASE_URL | Staging Supabase pooler connection string    | Supabase Dashboard → reviewflow-staging → Settings → Database → Connection string (port 6543, append `?pgbouncer=true`)      |
+| STAGING_DIRECT_URL   | Staging Supabase direct connection string    | Supabase Dashboard → reviewflow-staging → Settings → Database → Connection string (port 5432)                                |
+| PROD_DATABASE_URL    | Production Supabase pooler connection string | Supabase Dashboard → your production project → Settings → Database → Connection string (port 6543, append `?pgbouncer=true`) |
+| PROD_DIRECT_URL      | Production Supabase direct connection string | Supabase Dashboard → your production project → Settings → Database → Connection string (port 5432)                           |
+| VERCEL_TOKEN         | Vercel API token                             | Created in Phase 2, Step 2.5                                                                                                 |
+| VERCEL_ORG_ID        | Your Vercel organization ID                  | From `.vercel/project.json` (Phase 2, Step 2.4)                                                                              |
+| VERCEL_PROJECT_ID    | Your Vercel project ID                       | From `.vercel/project.json` (Phase 2, Step 2.4)                                                                              |
 
 > **Note:** You do NOT need `SUPABASE_ACCESS_TOKEN` or Supabase project refs. Prisma connects directly to the database using the connection string — no Supabase CLI involved.
 
