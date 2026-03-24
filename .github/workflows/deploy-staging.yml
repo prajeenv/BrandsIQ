@@ -1,0 +1,38 @@
+name: Staging — Apply Migrations
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  migrate-staging:
+    name: Apply Migrations to Staging DB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply Prisma migrations to staging database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}
+
+      - name: Staging deployment summary
+        run: |
+          echo "## Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Prisma migrations applied to staging database" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Vercel auto-deploys this push as a Preview deployment" >> $GITHUB_STEP_SUMMARY

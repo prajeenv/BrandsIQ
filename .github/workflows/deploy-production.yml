@@ -1,0 +1,116 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm production deployment'
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm deployment intent
+        if: github.event.inputs.confirm != 'deploy'
+        run: |
+          echo "You must type 'deploy' to confirm. Got: ${{ github.event.inputs.confirm }}"
+          exit 1
+
+  test:
+    name: Run All Tests
+    needs: validate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: reviewflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run linting
+        run: npm run lint:strict
+
+      - name: Run type check
+        run: npm run type-check
+
+      - name: Apply migrations to test database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+
+      - name: Run all tests
+        run: npm run test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+  deploy-production:
+    name: Deploy to Production
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply Prisma migrations to production database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
+
+      - name: Push to production branch (triggers Vercel production deploy)
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git checkout production
+          git merge main --ff-only
+          git push origin production
