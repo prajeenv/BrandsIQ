@@ -46,7 +46,7 @@ export default async function middleware(request: NextRequest) {
   // Get the JWT token (works in Edge runtime)
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   });
 
   // Redirect unauthenticated users from protected routes to signin
