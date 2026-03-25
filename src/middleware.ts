@@ -44,9 +44,14 @@ export default async function middleware(request: NextRequest) {
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
   // Get the JWT token (works in Edge runtime)
+  // NextAuth v5 uses "authjs" cookie prefix instead of "next-auth"
+  const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
   const token = await getToken({
     req: request,
-    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    secret,
+    cookieName: request.nextUrl.protocol === "https:"
+      ? "__Secure-authjs.session-token"
+      : "authjs.session-token",
   });
 
   // Redirect unauthenticated users from protected routes to signin
