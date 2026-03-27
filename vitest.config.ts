@@ -11,6 +11,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
+      exclude: [
+        'src/components/ui/**',
+        'node_modules/**',
+        'tests/**',
+        '*.config.*',
+        'prisma/**',
+        'scripts/**',
+        'docs/**',
+      ],
     },
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
   },
