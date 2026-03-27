@@ -166,10 +166,10 @@ describe('analyzeSentiment', () => {
       await analyzeSentiment(reviewText);
 
       const requestBody = mockedAxios.post.mock.calls[0][1] as {
-        messages: Array<{ content: string }>;
+        messages: Array<{ content: string; role?: string }>;
       };
       const userMessage = requestBody.messages.find(
-        (m: { role?: string }) => (m as { role: string }).role === 'user',
+        (m) => m.role === 'user',
       );
       expect(userMessage?.content).toContain(reviewText);
     });

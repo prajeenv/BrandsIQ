@@ -3,6 +3,7 @@
  * These tests run against a real PostgreSQL database in CI
  */
 import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 
 let prisma: PrismaClient;
 
@@ -16,33 +17,40 @@ export function getTestPrisma(): PrismaClient {
 }
 
 /**
- * Clean all tables in the test database
+ * Clean all tables in the test database using TRUNCATE CASCADE
  * Must be called in beforeEach to ensure test isolation
  */
 export async function cleanDatabase() {
   const db = getTestPrisma();
 
-  // Delete in dependency order (children first)
-  await db.responseVersion.deleteMany();
-  await db.creditUsage.deleteMany();
-  await db.sentimentUsage.deleteMany();
-  await db.reviewResponse.deleteMany();
-  await db.review.deleteMany();
-  await db.brandVoice.deleteMany();
-  await db.verificationToken.deleteMany();
-  await db.session.deleteMany();
-  await db.account.deleteMany();
-  await db.user.deleteMany();
+  // Use raw SQL TRUNCATE CASCADE for reliable cleanup
+  await db.$executeRawUnsafe(`
+    TRUNCATE TABLE
+      response_versions,
+      credit_usage,
+      sentiment_usage,
+      review_responses,
+      reviews,
+      brand_voices,
+      verification_tokens,
+      sessions,
+      accounts,
+      users
+    CASCADE
+  `);
 }
 
 /**
- * Create a test user with default values
+ * Create a test user with a guaranteed unique email
  */
+let userCounter = 0;
 export async function createTestUser(overrides?: Record<string, unknown>) {
   const db = getTestPrisma();
+  const uniqueId = `${Date.now()}-${++userCounter}-${crypto.randomBytes(4).toString('hex')}`;
+
   return db.user.create({
     data: {
-      email: `test-${Date.now()}@example.com`,
+      email: `test-${uniqueId}@example.com`,
       name: 'Test User',
       password: '$2a$12$LJ3/mF.QJeGtq7aREj7sYeX/0GKGx8MhD.gX/3BZ.vR8oE3t3VkWi', // "Password1"
       emailVerified: new Date(),

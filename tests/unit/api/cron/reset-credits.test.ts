@@ -101,7 +101,7 @@ describe('GET /api/cron/reset-credits', () => {
 
   it('allows access when no CRON_SECRET in env (development mode)', async () => {
     delete process.env.CRON_SECRET;
-    process.env.NODE_ENV = 'development';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development', writable: true, configurable: true });
 
     const req = createRequest('/api/cron/reset-credits');
     const res = await GET(req);

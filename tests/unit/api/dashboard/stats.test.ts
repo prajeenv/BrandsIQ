@@ -40,7 +40,7 @@ import { GET } from '@/app/api/dashboard/stats/route';
 function createRequest(
   url: string,
   opts?: { method?: string; body?: unknown; searchParams?: Record<string, string> }
-): Request {
+): any {
   const u = new URL(url, 'http://localhost:3000');
   if (opts?.searchParams)
     for (const [k, v] of Object.entries(opts.searchParams)) u.searchParams.set(k, v);
@@ -63,8 +63,7 @@ describe('GET /api/dashboard/stats', () => {
   it('returns 401 when not authenticated', async () => {
     mockAuth.mockResolvedValue(null);
 
-    const req = createRequest('/api/dashboard/stats');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(401);
     const json = await res.json();
@@ -74,8 +73,7 @@ describe('GET /api/dashboard/stats', () => {
   it('returns 404 when user not found', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
 
-    const req = createRequest('/api/dashboard/stats');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(404);
     const json = await res.json();
@@ -99,8 +97,7 @@ describe('GET /api/dashboard/stats', () => {
     mockPrisma.reviewResponse.count.mockResolvedValue(0); // both total and edited counts
     mockPrisma.review.groupBy.mockResolvedValue([]);
 
-    const req = createRequest('/api/dashboard/stats');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -130,8 +127,7 @@ describe('GET /api/dashboard/stats', () => {
       { sentiment: 'negative', _count: { sentiment: 1 } },
     ]);
 
-    const req = createRequest('/api/dashboard/stats');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -180,8 +176,7 @@ describe('GET /api/dashboard/stats', () => {
     mockPrisma.reviewResponse.count.mockResolvedValue(1);
     mockPrisma.review.groupBy.mockResolvedValue([]);
 
-    const req = createRequest('/api/dashboard/stats');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();

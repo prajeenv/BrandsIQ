@@ -40,7 +40,7 @@ import { GET, PUT } from '@/app/api/brand-voice/route';
 function createRequest(
   url: string,
   opts?: { method?: string; body?: unknown; searchParams?: Record<string, string> }
-): Request {
+): any {
   const u = new URL(url, 'http://localhost:3000');
   if (opts?.searchParams)
     for (const [k, v] of Object.entries(opts.searchParams)) u.searchParams.set(k, v);
@@ -75,8 +75,7 @@ describe('GET /api/brand-voice', () => {
   it('returns 401 when not authenticated', async () => {
     mockAuth.mockResolvedValue(null);
 
-    const req = createRequest('/api/brand-voice');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(401);
     const json = await res.json();
@@ -86,8 +85,7 @@ describe('GET /api/brand-voice', () => {
   it('returns existing brand voice', async () => {
     mockPrisma.brandVoice.findUnique.mockResolvedValue(defaultBrandVoice);
 
-    const req = createRequest('/api/brand-voice');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -100,8 +98,7 @@ describe('GET /api/brand-voice', () => {
     mockPrisma.brandVoice.findUnique.mockResolvedValue(null);
     mockPrisma.brandVoice.create.mockResolvedValue(defaultBrandVoice);
 
-    const req = createRequest('/api/brand-voice');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();

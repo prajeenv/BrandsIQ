@@ -850,6 +850,87 @@ Without sentiment:  ★★★★☆  Google  Sentiment ⚠  Jan 15
 
 ---
 
+## Prompt 10: Testing & CI/CD Integration
+
+### 1. Technical Decisions Made
+
+| Decision | Reason |
+|----------|--------|
+| Vitest over Jest | Already configured in project; faster, native ESM, better Vite compatibility |
+| Playwright over Cypress for E2E | Lighter, faster, better CI support, native `extraHTTPHeaders` for Vercel bypass |
+| `vi.hoisted()` pattern for mocks | Required by Vitest's module hoisting; avoids `ReferenceError` when mocking `@/lib/prisma` |
+| E2E against live staging URL (not local server) | Tests real deployment, catches Vercel-specific issues, no need to build/serve locally in CI |
+| Vercel Protection Bypass header | Keeps staging protected from public while allowing CI to test |
+| GitHub Issue creation on E2E failure | Reliable notification without external services; user gets email via normal issue notifications |
+| Production deploy gates on E2E status | Prevents deploying broken code; checks latest `e2e-staging.yml` run conclusion |
+| Integration tests skip without DB | Uses `describe.skipIf(!canRunIntegration)` to skip locally, run in CI with PostgreSQL container |
+| Coverage excludes `src/components/ui/` | shadcn/ui components are third-party generated primitives; not worth testing |
+| Shared test helpers in `tests/helpers/` | DRY mocking patterns: prisma-mock, auth-mock, fixtures, api-helpers, ai-mocks, email-mock |
+
+### 2. Deviations from Phase 0 Specifications
+
+| Spec | Implementation | Why | Risk |
+|------|----------------|-----|------|
+| Spec mentioned Sentry for monitoring | Not implemented | Testing focus for Prompt 10; Sentry is a separate deployment concern | Low ✅ |
+| Spec mentioned 5 beta users | Not addressed | Operational task, not code | None |
+| E2E described as "bonus phase" in CI-CD guide | Fully implemented | High value for catching deployment issues; natural fit after staging deploy | None |
+
+### 3. Testing Architecture
+
+**Test pyramid:**
+```
+     E2E (16 tests)           ← Playwright against staging
+    ─────────────────
+   Integration (11 tests)      ← Real PostgreSQL in CI
+  ───────────────────────
+ Unit Tests (447 tests)         ← Vitest with mocks
+─────────────────────────────
+```
+
+**CI/CD test flow:**
+```
+PR → pr-checks.yml
+├── lint + typecheck
+├── unit tests (npm run test:unit)
+└── integration tests (npm run test:integration) [PostgreSQL]
+
+Merge to main → e2e-staging.yml
+├── Wait for Vercel staging deploy (90s)
+├── Verify staging reachable (with bypass header)
+├── Run Playwright E2E (npm run test:e2e)
+├── On failure: Create GitHub Issue with run link
+└── Upload Playwright report artifact
+
+Production deploy → deploy-production.yml
+├─�� Validate confirmation ("deploy")
+├── Check latest E2E staging passed ← NEW GATE
+├── Re-run all tests (unit + integration)
+└── Apply migrations + push to production branch
+```
+
+**Test file organization:**
+```
+tests/
+├── helpers/          ← Shared mocks and fixtures (7 files)
+├── unit/
+│   ├── lib/          ← Pure logic + library tests (10 files)
+│   ├── api/          ← API route handler tests (17 files)
+��   └─��� components/   ← React component tests (3 files)
+├── integration/      ← Real DB tests (2 files + helpers)
+└── e2e/              ← Playwright specs (3 files)
+```
+
+**Required secrets for CI:**
+| Secret | Used By | Purpose |
+|--------|---------|---------|
+| `STAGING_DATABASE_URL` | deploy-staging.yml | Prisma migrations |
+| `STAGING_DIRECT_URL` | deploy-staging.yml | Prisma migrations |
+| `PROD_DATABASE_URL` | deploy-production.yml | Prisma migrations |
+| `PROD_DIRECT_URL` | deploy-production.yml | Prisma migrations |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | e2e-staging.yml | Bypass Vercel Deployment Protection |
+
+---
+
 ## Deviations from Specifications
 
 **Purpose:** Track any implementation that differs from Phase 0 documentation.
@@ -1111,12 +1192,40 @@ ORDER BY createdAt;
 | 7 | Cron job for credit reset | Post-Prompt 9 | Feb 4 | Low ✅ | ✅ Implemented |
 | 8 | Tabbed Credit History page | Post-Prompt 9 | Feb 4 | Low ✅ | ✅ Implemented |
 | 9 | Review audit via details JSON | Post-Prompt 9 | Feb 5 | Low ✅ | ✅ Implemented |
+| 10 | Vitest for unit/integration tests | Prompt 10 | Mar 27 | Low ✅ | ✅ Implemented |
+| 11 | Playwright for E2E tests | Prompt 10 | Mar 27 | Low ✅ | ✅ Implemented |
+| 12 | E2E runs post-staging deploy, gates production | Prompt 10 | Mar 27 | Low ✅ | ✅ Implemented |
+| 13 | GitHub Issue on E2E failure (notification) | Prompt 10 | Mar 27 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**March 27, 2026**
+- Implemented comprehensive test suite (Prompt 10 - Testing):
+  - 447 unit tests across 30 files (Vitest + Testing Library)
+  - 11 integration tests with PostgreSQL (2 files)
+  - 16 E2E tests with Playwright (3 files: landing, auth, pricing)
+  - 7 shared test helper files (fixtures, prisma-mock, auth-mock, api-helpers, ai-mocks, email-mock, integration helpers)
+  - Updated `vitest.config.ts` with coverage exclusions
+  - Updated `tests/setup.ts` with default env vars for CI
+- Added Playwright E2E infrastructure:
+  - `playwright.config.ts` with Vercel bypass header support
+  - `test:e2e` and `test:e2e:headed` scripts in `package.json`
+  - `.gitignore` updated for Playwright artifacts
+- Created `e2e-staging.yml` workflow:
+  - Triggers on push to main (after staging deploy)
+  - Waits 90s for Vercel deploy, verifies staging reachable
+  - Runs Playwright against live staging URL with `x-vercel-protection-bypass` header
+  - Creates GitHub Issue automatically on failure with run link and reproduction steps
+  - Uploads Playwright report as artifact (7-day retention)
+- Updated `deploy-production.yml`:
+  - Added `check-e2e` job that verifies latest E2E staging run passed
+  - Production deploy now depends on: validate → check-e2e → test → deploy
+  - Blocks production deployment if E2E failed on staging
+- PR: prajeenv/ReviewFlow#6
 
 **February 5, 2026**
 - Implemented Review Audit Trail:

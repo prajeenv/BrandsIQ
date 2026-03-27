@@ -40,7 +40,7 @@ import { GET } from '@/app/api/credits/route';
 function createRequest(
   url: string,
   opts?: { method?: string; body?: unknown; searchParams?: Record<string, string> }
-): Request {
+): any {
   const u = new URL(url, 'http://localhost:3000');
   if (opts?.searchParams)
     for (const [k, v] of Object.entries(opts.searchParams)) u.searchParams.set(k, v);
@@ -63,8 +63,7 @@ describe('GET /api/credits', () => {
   it('returns 401 when not authenticated', async () => {
     mockAuth.mockResolvedValue(null);
 
-    const req = createRequest('/api/credits');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(401);
     const json = await res.json();
@@ -74,8 +73,7 @@ describe('GET /api/credits', () => {
   it('returns 404 when user not found', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
 
-    const req = createRequest('/api/credits');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(404);
     const json = await res.json();
@@ -95,8 +93,7 @@ describe('GET /api/credits', () => {
       sentimentResetDate: sentimentResetDate,
     });
 
-    const req = createRequest('/api/credits');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -116,8 +113,7 @@ describe('GET /api/credits', () => {
       sentimentResetDate: new Date(),
     });
 
-    const req = createRequest('/api/credits');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -135,8 +131,7 @@ describe('GET /api/credits', () => {
       sentimentResetDate: new Date(),
     });
 
-    const req = createRequest('/api/credits');
-    const res = await GET(req);
+    const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();

@@ -40,7 +40,7 @@ import { POST, DELETE } from '@/app/api/reviews/[id]/publish/route';
 function createRequest(
   url: string,
   opts?: { method?: string; body?: unknown; searchParams?: Record<string, string> }
-): Request {
+): any {
   const u = new URL(url, 'http://localhost:3000');
   if (opts?.searchParams)
     for (const [k, v] of Object.entries(opts.searchParams)) u.searchParams.set(k, v);
@@ -51,7 +51,7 @@ function createRequest(
   });
 }
 
-function routeParams(p: Record<string, string>) {
+function routeParams(p: Record<string, string>): any {
   return { params: Promise.resolve(p) };
 }
 

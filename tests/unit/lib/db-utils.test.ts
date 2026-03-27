@@ -247,7 +247,7 @@ describe('deductCreditsAtomic', () => {
 
     const result = await deductCreditsAtomic(TEST_USER.id, 1, 'GENERATE_RESPONSE');
     expect(result.success).toBe(false);
-    expect(result.error).toBe('INSUFFICIENT_CREDITS');
+    expect((result as any).error).toBe('INSUFFICIENT_CREDITS');
   });
 
   it('returns USER_NOT_FOUND for non-existent user', async () => {
@@ -255,7 +255,7 @@ describe('deductCreditsAtomic', () => {
 
     const result = await deductCreditsAtomic('nonexistent', 1, 'GENERATE_RESPONSE');
     expect(result.success).toBe(false);
-    expect(result.error).toBe('USER_NOT_FOUND');
+    expect((result as any).error).toBe('USER_NOT_FOUND');
   });
 
   it('logs details JSON when provided', async () => {
@@ -315,7 +315,7 @@ describe('refundCreditsAtomic', () => {
 
     const result = await refundCreditsAtomic(TEST_USER.id, 1, 'reason');
     expect(result.success).toBe(false);
-    expect(result.error).toBe('DB_ERROR');
+    expect((result as any).error).toBe('DB_ERROR');
   });
 });
 
@@ -370,7 +370,7 @@ describe('deductSentimentCredits', () => {
 
     const result = await deductSentimentCredits(TEST_USER.id, TEST_REVIEW.id, 'positive');
     expect(result.success).toBe(false);
-    expect(result.error).toBe('INSUFFICIENT_SENTIMENT_CREDITS');
+    expect((result as any).error).toBe('INSUFFICIENT_SENTIMENT_CREDITS');
   });
 
   it('creates sentimentUsage audit record', async () => {
