@@ -1,0 +1,116 @@
+name: E2E Tests — Staging
+
+on:
+  push:
+    branches: [main]
+
+# Wait for staging deploy to complete before running E2E
+# Vercel typically deploys within 1-3 minutes after push
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  e2e-staging:
+    name: E2E Tests Against Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Wait for Vercel staging deployment
+        run: |
+          echo "Waiting 90 seconds for Vercel to deploy staging..."
+          sleep 90
+
+      - name: Verify staging is reachable
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "x-vercel-protection-bypass: $VERCEL_BYPASS" "$STAGING_URL")
+          echo "Staging URL returned HTTP $STATUS"
+          if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 400 ]; then
+            echo "Staging is not reachable (HTTP $STATUS). Retrying in 60s..."
+            sleep 60
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "x-vercel-protection-bypass: $VERCEL_BYPASS" "$STAGING_URL")
+            echo "Retry: Staging URL returned HTTP $STATUS"
+            if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 400 ]; then
+              echo "Staging still not reachable. Failing."
+              exit 1
+            fi
+          fi
+        env:
+          STAGING_URL: https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app
+          VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+      - name: Run E2E tests against staging
+        run: npm run test:e2e
+        env:
+          STAGING_URL: https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Create GitHub Issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const commitSha = context.sha.substring(0, 7);
+            const commitUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔴 E2E Tests Failed on Staging (${commitSha})`,
+              body: [
+                `## E2E Tests Failed After Staging Deploy`,
+                ``,
+                `**Commit:** [\`${commitSha}\`](${commitUrl})`,
+                `**Branch:** \`main\``,
+                `**Workflow Run:** [View logs](${runUrl})`,
+                `**Staging URL:** https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app`,
+                ``,
+                `### What to do`,
+                `1. Check the [workflow run logs](${runUrl}) and download the Playwright report artifact`,
+                `2. Reproduce locally: \`STAGING_URL=https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app npm run test:e2e\``,
+                `3. Fix the issue and push to \`main\``,
+                `4. **Do NOT deploy to production** until E2E passes`,
+                ``,
+                `---`,
+                `*This issue was automatically created by the E2E staging workflow.*`,
+              ].join('\n'),
+              labels: ['bug', 'e2e-failure', 'automated'],
+            });
+
+      - name: E2E summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "## ✅ E2E Tests Passed" >> $GITHUB_STEP_SUMMARY
+            echo "All E2E tests passed against staging." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ E2E Tests Failed" >> $GITHUB_STEP_SUMMARY
+            echo "E2E tests failed. A GitHub Issue has been created." >> $GITHUB_STEP_SUMMARY
+            echo "Download the Playwright report from the artifacts." >> $GITHUB_STEP_SUMMARY
+          fi

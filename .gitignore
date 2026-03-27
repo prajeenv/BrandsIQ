@@ -76,6 +76,11 @@ Desktop.ini
 /docs/_private/
 
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
 # Claude Code temp files
 tmpclaude-*
 dev.log
