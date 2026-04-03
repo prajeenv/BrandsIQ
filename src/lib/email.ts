@@ -3,7 +3,7 @@ import { EMAIL_CONFIG } from "./constants";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = process.env.EMAIL_FROM || "ReviewFlow <noreply@reviewflow.com>";
+const FROM_EMAIL = process.env.EMAIL_FROM || "BrandsIQ <noreply@brandsiq.app>";
 
 export async function sendVerificationEmail(email: string, token: string) {
   const verificationUrl = `${process.env.NEXTAUTH_URL}/auth/verify-email?token=${token}`;
@@ -12,7 +12,7 @@ export async function sendVerificationEmail(email: string, token: string) {
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: "Verify your email address - ReviewFlow",
+      subject: "Verify your email address - BrandsIQ",
       html: `
         <!DOCTYPE html>
         <html>
@@ -23,7 +23,7 @@ export async function sendVerificationEmail(email: string, token: string) {
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to ReviewFlow!</h1>
+              <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to BrandsIQ!</h1>
             </div>
             <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
               <p style="margin-top: 0;">Thank you for signing up! Please verify your email address by clicking the button below:</p>
@@ -36,7 +36,7 @@ export async function sendVerificationEmail(email: string, token: string) {
               <p style="color: #4f46e5; font-size: 14px; word-break: break-all;">${verificationUrl}</p>
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
               <p style="color: #999; font-size: 12px; margin-bottom: 0;">
-                This link expires in ${EMAIL_CONFIG.VERIFICATION_EXPIRY_HOURS} hours. If you didn't create an account with ReviewFlow, you can safely ignore this email.
+                This link expires in ${EMAIL_CONFIG.VERIFICATION_EXPIRY_HOURS} hours. If you didn't create an account with BrandsIQ, you can safely ignore this email.
               </p>
             </div>
           </body>
@@ -63,7 +63,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: "Reset your password - ReviewFlow",
+      subject: "Reset your password - BrandsIQ",
       html: `
         <!DOCTYPE html>
         <html>
@@ -114,18 +114,18 @@ export async function sendWelcomeEmail(email: string, name?: string) {
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: "Welcome to ReviewFlow! Let's get started",
+      subject: "Welcome to BrandsIQ! Let's get started",
       html: `
         <!DOCTYPE html>
         <html>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Welcome to ReviewFlow</title>
+            <title>Welcome to BrandsIQ</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to ReviewFlow${name ? `, ${name}` : ""}!</h1>
+              <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to BrandsIQ${name ? `, ${name}` : ""}!</h1>
             </div>
             <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
               <p style="margin-top: 0;">Your account has been verified and you're all set to start managing your review responses with AI.</p>

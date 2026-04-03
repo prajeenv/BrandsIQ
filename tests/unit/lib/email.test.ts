@@ -111,7 +111,7 @@ describe('email.ts', () => {
       expect(mockSend).toHaveBeenCalledTimes(1);
       const callArgs = mockSend.mock.calls[0][0];
       expect(callArgs.to).toBe('user@example.com');
-      expect(callArgs.subject).toContain('Welcome to ReviewFlow');
+      expect(callArgs.subject).toContain('Welcome to BrandsIQ');
     });
 
     it('should personalize with name when provided', async () => {
