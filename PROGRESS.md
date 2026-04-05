@@ -1,6 +1,6 @@
-# ReviewFlow Development Progress
+# BrandsIQ Development Progress
 
-**Project:** ReviewFlow - AI-Powered Review Response Management Platform  
+**Project:** BrandsIQ - AI-Powered Review Response Management Platform  
 **Started:** January 7, 2026  
 **Developer:** Prajeen  
 **Current Phase:** Phase 1 - Core MVP
@@ -250,7 +250,7 @@ Type Definitions	Re-exported Prisma types + custom composite types
 Utility Functions	11 database utilities including atomic credit operations
 Test Script	Database connection and CRUD test
 Documentation	PROMPT_2_OUTCOME.md
-Repository: https://github.com/prajeenv/ReviewFlow
+Repository: https://github.com/prajeenv/BrandsIQ
 
 Latest Commit: ea0483c - feat: Implement database schema with Prisma (Prompt 2)
 
@@ -307,7 +307,7 @@ Components	LoginForm, SignupForm with password strength indicator, SessionProvid
 Utilities	Email service (Resend), Rate limiting (Upstash/in-memory), Token management
 Middleware	Protected routes for /dashboard, /reviews, /settings, /api/*
 Security	Headers (X-Frame-Options, HSTS, etc.), bcrypt (12 rounds), rate limiting
-Repository: https://github.com/prajeenv/ReviewFlow
+Repository: https://github.com/prajeenv/BrandsIQ
 
 Commit: 4c90aa9 - feat: Implement complete authentication system (Prompt 3
 
@@ -837,7 +837,7 @@ Test the brand voice test panel with different review texts and tones
 - Updated `deploy-production.yml` — gates production deploy on latest E2E status
 - Scripts: `test:e2e`, `test:e2e:headed`
 
-**PR:** prajeenv/ReviewFlow#6
+**PR:** prajeenv/BrandsIQ#6
 
 ---
 

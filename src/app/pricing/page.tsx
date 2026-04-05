@@ -29,7 +29,7 @@ const plans: Plan[] = [
   {
     tier: "FREE",
     name: "Free",
-    description: "Perfect for trying out ReviewFlow",
+    description: "Perfect for trying out BrandsIQ",
     price: 0,
     credits: TIER_LIMITS.FREE.credits,
     sentimentQuota: TIER_LIMITS.FREE.sentimentQuota,
@@ -239,7 +239,7 @@ export default function PricingPage() {
             <div>
               <h3 className="font-semibold mb-2">What languages are supported?</h3>
               <p className="text-muted-foreground text-sm">
-                ReviewFlow supports 40+ languages including English, Spanish, French, German,
+                BrandsIQ supports 40+ languages including English, Spanish, French, German,
                 Japanese, Chinese, Arabic, and many more. Responses are generated natively in
                 the detected language.
               </p>

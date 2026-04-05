@@ -1,4 +1,4 @@
-# ReviewFlow
+# BrandsIQ
 ## AI-Powered Review Response Management Platform
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
@@ -8,11 +8,11 @@
 
 > **Save 10+ hours per week** responding to customer reviews with AI-powered, on-brand responses in 40+ languages.
 
-ReviewFlow helps SMBs automatically generate personalized, brand-aligned responses to customer reviews across multiple platforms (Google Business, Amazon, Shopify, Trustpilot) with built-in sentiment analysis and multi-language support.
+BrandsIQ helps SMBs automatically generate personalized, brand-aligned responses to customer reviews across multiple platforms (Google Business, Amazon, Shopify, Trustpilot) with built-in sentiment analysis and multi-language support.
 
 ---
 
-## 🎯 Why ReviewFlow?
+## 🎯 Why BrandsIQ?
 
 **The Problem:**
 - Businesses spend 5-15 hours/week manually responding to reviews
@@ -102,8 +102,8 @@ ReviewFlow helps SMBs automatically generate personalized, brand-aligned respons
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/reviewflow.git
-   cd reviewflow
+   git clone https://github.com/yourusername/brandsiq.git
+   cd brandsiq
    ```
 
 2. **Install dependencies**
@@ -119,7 +119,7 @@ ReviewFlow helps SMBs automatically generate personalized, brand-aligned respons
    Edit `.env.local` with your credentials:
    ```bash
    # Database
-   DATABASE_URL="postgresql://user:password@host:5432/reviewflow"
+   DATABASE_URL="postgresql://user:password@host:5432/brandsiq"
    
    # NextAuth
    NEXTAUTH_URL="http://localhost:3000"
@@ -187,7 +187,7 @@ Comprehensive documentation is available in the `docs/` directory:
 ## 🏗 Project Structure
 
 ```
-reviewflow/
+brandsiq/
 ├── src/
 │   ├── app/                      # Next.js 14 App Router
 │   │   ├── (auth)/               # Authentication pages
@@ -484,8 +484,8 @@ Contributions are welcome! Please follow these steps:
 ## 📞 Support
 
 - **Documentation:** Check `docs/` folder first
-- **Issues:** [GitHub Issues](https://github.com/yourusername/reviewflow/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/reviewflow/discussions)
+- **Issues:** [GitHub Issues](https://github.com/yourusername/brandsiq/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/yourusername/brandsiq/discussions)
 
 ---
 
@@ -548,6 +548,6 @@ Contributions are welcome! Please follow these steps:
 
 **Built with ❤️ using AI-assisted development**
 
-[Documentation](docs/) • [Implementation Guide](IMPLEMENTATION.md) • [Report Bug](https://github.com/yourusername/reviewflow/issues) • [Request Feature](https://github.com/yourusername/reviewflow/issues)
+[Documentation](docs/) • [Implementation Guide](IMPLEMENTATION.md) • [Report Bug](https://github.com/yourusername/brandsiq/issues) • [Request Feature](https://github.com/yourusername/brandsiq/issues)
 
 </div>

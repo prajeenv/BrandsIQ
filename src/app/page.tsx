@@ -8,10 +8,10 @@ export default function HomePage() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold">
-              R
+            <div className="flex h-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold px-2 text-sm">
+              IQ
             </div>
-            <span className="text-xl font-bold">ReviewFlow</span>
+            <span className="text-xl font-bold">BrandsIQ</span>
           </div>
           <nav className="flex items-center gap-4">
             <Link
@@ -322,13 +322,13 @@ export default function HomePage() {
       <footer className="border-t py-8">
         <div className="container flex flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-brand-500 text-white text-xs font-bold">
-              R
+            <div className="flex h-6 items-center justify-center rounded bg-brand-500 text-white text-xs font-bold px-1.5">
+              IQ
             </div>
-            <span className="text-sm font-medium">ReviewFlow</span>
+            <span className="text-sm font-medium">BrandsIQ</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} ReviewFlow. All rights reserved.
+            &copy; {new Date().getFullYear()} BrandsIQ. All rights reserved.
           </p>
         </div>
       </footer>

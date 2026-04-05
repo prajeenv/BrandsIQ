@@ -5,7 +5,7 @@
 
 ## Summary
 
-Implemented the complete authentication system for ReviewFlow using NextAuth.js v5 (beta) with email/password credentials and Google OAuth support. The system includes email verification, password reset flows, rate limiting, and protected routes.
+Implemented the complete authentication system for BrandsIQ using NextAuth.js v5 (beta) with email/password credentials and Google OAuth support. The system includes email verification, password reset flows, rate limiting, and protected routes.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Last Updated:** January 2025  
-**Product:** ReviewFlow (AI Review Management Platform)
+**Product:** BrandsIQ (AI Review Management Platform)
 
 ---
 
@@ -47,7 +47,7 @@
 ### Contents:
 
 ```markdown
-# ReviewFlow: AI Review Management Platform
+# BrandsIQ: AI Review Management Platform
 
 ## Who Uses It
 - Local businesses (restaurants, retail, services) managing Google/Yelp reviews
@@ -1838,7 +1838,7 @@ export async function GET() {
 ```bash
 GOOGLE_OAUTH_CLIENT_ID="..."
 GOOGLE_OAUTH_CLIENT_SECRET="..."
-GOOGLE_OAUTH_REDIRECT_URI="https://app.reviewflow.com/api/integrations/google/callback"
+GOOGLE_OAUTH_REDIRECT_URI="https://app.brandsiq.app/api/integrations/google/callback"
 ```
 
 ### Feature Flag
@@ -2295,7 +2295,7 @@ Allow user to export:
 ## Legal Request Handling
 
 ### Law Enforcement Requests
-1. Receive request via security@reviewflow.com
+1. Receive request via security@brandsiq.app
 2. Verify legitimacy (legal team)
 3. Extract requested data
 4. Log access
@@ -2719,7 +2719,7 @@ At 100% of quota:
 
 ## Overview
 
-Allow third-party developers to integrate with ReviewFlow.
+Allow third-party developers to integrate with BrandsIQ.
 
 ## Authentication
 

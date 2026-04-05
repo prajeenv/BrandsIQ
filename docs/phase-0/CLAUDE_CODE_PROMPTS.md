@@ -1,9 +1,9 @@
-# ReviewFlow: Claude Code Implementation Prompts
+# BrandsIQ: Claude Code Implementation Prompts
 ## Complete Development Sequence for MVP Phase 1
 
 **Version:** 2.0 (Regenerated from condensed documentation)  
 **Created:** January 2026  
-**Purpose:** Step-by-step prompts for Claude Code to implement ReviewFlow MVP  
+**Purpose:** Step-by-step prompts for Claude Code to implement BrandsIQ MVP  
 **Timeline:** 14 days (2 weeks)  
 **Tech Stack:** Next.js 14, TypeScript, Prisma, Supabase, NextAuth.js, Tailwind CSS, shadcn/ui
 
@@ -50,7 +50,7 @@ Review the 3 condensed documentation files to understand the complete project sc
 ## Prompt
 
 ```
-I'm building ReviewFlow, an AI-powered review response management platform for SMBs. 
+I'm building BrandsIQ, an AI-powered review response management platform for SMBs. 
 I've completed Phase 0 documentation condensed into 3 files.
 
 Please review all 3 documentation files and create an implementation plan that includes:
@@ -128,13 +128,13 @@ Reference: `docs/phase-0/CORE_SPECS.md` (tech stack section)
 ## Prompt
 
 ```
-Set up the ReviewFlow project from scratch with all necessary configurations.
+Set up the BrandsIQ project from scratch with all necessary configurations.
 
 **Tasks:**
 
 1. **Initialize Next.js Project**
    ```bash
-   npx create-next-app@latest reviewflow \
+   npx create-next-app@latest brandsiq \
      --typescript \
      --tailwind \
      --app \
@@ -186,7 +186,7 @@ Set up the ReviewFlow project from scratch with all necessary configurations.
 
 6. **Create Folder Structure**
    ```
-   reviewflow/
+   brandsiq/
      src/
        app/
          (auth)/
@@ -239,7 +239,7 @@ Set up the ReviewFlow project from scratch with all necessary configurations.
    Update `tsconfig.json` with strict mode and path aliases.
 
 8. **Configure Tailwind**
-   Add custom colors for ReviewFlow brand (indigo/blue theme).
+   Add custom colors for BrandsIQ brand (indigo/blue theme).
 
 9. **Create .gitignore**
    Ensure `.env.local`, `node_modules/`, `.next/` are ignored.

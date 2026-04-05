@@ -1,4 +1,4 @@
-# ReviewFlow Implementation Guide
+# BrandsIQ Implementation Guide
 ## AI-Assisted Development with Claude Code
 
 **Project Status:** Phase 0 Complete ✅ | Ready for Phase 1 Development
@@ -13,7 +13,7 @@
 
 ---
 
-## What is ReviewFlow?
+## What is BrandsIQ?
 
 An AI-powered review response management platform that helps SMBs automatically generate personalized, on-brand responses to customer reviews across multiple platforms (Google Business, Amazon, Shopify, Trustpilot) with:
 
@@ -153,7 +153,7 @@ Open [`docs/phase-0/10_CLAUDE_CODE_PROMPTS.md`](docs/phase-0/10_CLAUDE_CODE_PROM
 ```bash
 # 1. Clone repository
 git clone <repository-url>
-cd reviewflow
+cd brandsiq
 
 # 2. Install dependencies
 npm install
@@ -304,7 +304,7 @@ Phase 1 MVP is complete when:
 ## Project Structure After Setup
 
 ```
-reviewflow/
+brandsiq/
 ├── IMPLEMENTATION.md              ← You are here
 ├── README.md                      ← Project overview
 ├── docs/

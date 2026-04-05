@@ -1,14 +1,14 @@
-# ReviewFlow Project Summary
+# BrandsIQ Project Summary
 
 **Last Updated:** January 20, 2026
-**Repository:** https://github.com/prajeenv/ReviewFlow
+**Repository:** https://github.com/prajeenv/BrandsIQ
 **Current Status:** Prompt 9 Complete - Credit System & Sentiment Standardization
 
 ---
 
 ## Project Overview
 
-**ReviewFlow** is an AI-powered review response management platform for SMBs. It helps businesses respond to customer reviews across multiple platforms (Google, Amazon, Yelp, etc.) using AI-generated, brand-aligned responses in 40+ languages.
+**BrandsIQ** is an AI-powered review response management platform for SMBs. It helps businesses respond to customer reviews across multiple platforms (Google, Amazon, Yelp, etc.) using AI-generated, brand-aligned responses in 40+ languages.
 
 ### Core Loop
 Reviews added → AI generates response in same language → User edits (optional) → User approves → User publishes
@@ -116,7 +116,7 @@ Reviews added → AI generates response in same language → User edits (optiona
 ## Project Structure
 
 ```
-reviewflow/
+brandsiq/
 ├── docs/phase-0/           # Specification & outcome docs
 │   ├── CORE_SPECS.md       # Product overview, database schema, API contracts
 │   ├── SECURITY_AUTH.md    # NextAuth config, security requirements

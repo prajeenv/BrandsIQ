@@ -48,7 +48,7 @@ export function Sidebar({ isOpen = true, onClose, isMobile = false }: SidebarPro
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Sparkles className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold">ReviewFlow</span>
+          <span className="text-xl font-bold">BrandsIQ</span>
         </Link>
         {isMobile && onClose && (
           <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
@@ -88,7 +88,7 @@ export function Sidebar({ isOpen = true, onClose, isMobile = false }: SidebarPro
       {/* Footer */}
       <div className="border-t p-4">
         <p className="text-xs text-muted-foreground text-center">
-          ReviewFlow v1.0
+          BrandsIQ v1.0
         </p>
       </div>
     </>

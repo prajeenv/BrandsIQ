@@ -1,4 +1,4 @@
-# ReviewFlow: Security & Authentication (Condensed)
+# BrandsIQ: Security & Authentication (Condensed)
 **Version:** 1.0 | **Phase:** MVP | **Focus:** NextAuth.js, Security, GDPR
 
 ---
@@ -16,7 +16,7 @@ npm install -D @types/bcryptjs
 # .env.local
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="<generate with: openssl rand -base64 32>"
-DATABASE_URL="postgresql://user:password@host:5432/reviewflow"
+DATABASE_URL="postgresql://user:password@host:5432/brandsiq"
 RESEND_API_KEY="re_..."
 GOOGLE_CLIENT_ID="123456789-abcdefg.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="GOCSPX-abc123def456"
@@ -232,11 +232,11 @@ export async function sendVerificationEmail(email: string, token: string) {
   const verificationUrl = `${process.env.NEXTAUTH_URL}/auth/verify-email?token=${token}`;
   
   await resend.emails.send({
-    from: "ReviewFlow <noreply@reviewflow.com>",
+    from: "BrandsIQ <noreply@brandsiq.app>",
     to: email,
     subject: "Verify your email address",
     html: `
-      <h1>Welcome to ReviewFlow!</h1>
+      <h1>Welcome to BrandsIQ!</h1>
       <p>Please verify your email address by clicking the link below:</p>
       <a href="${verificationUrl}">Verify Email</a>
       <p>This link expires in 24 hours.</p>
@@ -248,7 +248,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   const resetUrl = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${token}`;
   
   await resend.emails.send({
-    from: "ReviewFlow <noreply@reviewflow.com>",
+    from: "BrandsIQ <noreply@brandsiq.app>",
     to: email,
     subject: "Reset your password",
     html: `
@@ -405,7 +405,7 @@ export async function GET(req: Request) {
   // Return as JSON download
   return NextResponse.json(userData, {
     headers: {
-      "Content-Disposition": `attachment; filename="reviewflow-data-${userId}.json"`,
+      "Content-Disposition": `attachment; filename="brandsiq-data-${userId}.json"`,
       "Content-Type": "application/json"
     }
   });

@@ -1,5 +1,5 @@
 /**
- * Application constants for ReviewFlow
+ * Application constants for BrandsIQ
  */
 
 // Review platforms supported

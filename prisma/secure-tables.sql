@@ -1,5 +1,5 @@
 -- ============================================
--- ReviewFlow: Disable Supabase API Access for All Tables
+-- BrandsIQ: Disable Supabase API Access for All Tables
 -- ============================================
 -- This script revokes ALL permissions from anon and authenticated roles.
 -- Since we use Prisma (with postgres/service_role) for all database

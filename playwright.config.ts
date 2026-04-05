@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 /**
- * Playwright E2E test configuration for ReviewFlow
+ * Playwright E2E test configuration for BrandsIQ
  *
  * Tests run against the staging URL after deployment.
  * Set STAGING_URL env var to override the default.

@@ -1,4 +1,4 @@
-# ReviewFlow Technical Decisions
+# BrandsIQ Technical Decisions
 
 **Purpose:** Document all significant technical decisions, architectural choices, and deviations from original specifications.
 
@@ -1225,7 +1225,7 @@ ORDER BY createdAt;
   - Added `check-e2e` job that verifies latest E2E staging run passed
   - Production deploy now depends on: validate → check-e2e → test → deploy
   - Blocks production deployment if E2E failed on staging
-- PR: prajeenv/ReviewFlow#6
+- PR: prajeenv/BrandsIQ#6
 
 **February 5, 2026**
 - Implemented Review Audit Trail:

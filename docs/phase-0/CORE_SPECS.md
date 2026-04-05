@@ -1,11 +1,11 @@
-# ReviewFlow: Core Specifications (Condensed)
+# BrandsIQ: Core Specifications (Condensed)
 **Version:** 1.0 | **Phase:** MVP | **Timeline:** Weeks 1-2
 
 ---
 
 ## Product Overview
 
-**ReviewFlow** = AI-powered review response management platform for SMBs. Supports 40+ languages, multiple platforms (Google, Amazon, Shopify, Trustpilot, etc.), generates brand-aligned responses using Claude AI.
+**BrandsIQ** = AI-powered review response management platform for SMBs. Supports 40+ languages, multiple platforms (Google, Amazon, Shopify, Trustpilot, etc.), generates brand-aligned responses using Claude AI.
 
 **Core Loop:**
 Reviews added → AI generates response in same language → User edits (optional) → User approves → User publishes

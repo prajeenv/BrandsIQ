@@ -5,7 +5,7 @@ test.describe('Landing Page', () => {
     await page.goto('/');
 
     // Check page title
-    await expect(page).toHaveTitle(/ReviewFlow/);
+    await expect(page).toHaveTitle(/BrandsIQ/);
 
     // Hero heading visible
     await expect(page.locator('h1')).toContainText('Respond to Reviews');
