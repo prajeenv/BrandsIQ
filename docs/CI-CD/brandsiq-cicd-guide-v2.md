@@ -1,13 +1,13 @@
-# ReviewFlow CI/CD Pipeline — Complete Setup Guide (v2)
+# BrandsIQ CI/CD Pipeline — Complete Setup Guide (v2)
 
 ## Overview
 
-This guide walks you through setting up a professional CI/CD pipeline for ReviewFlow, starting from scratch.
+This guide walks you through setting up a professional CI/CD pipeline for BrandsIQ, starting from scratch.
 
 **Your Stack:** Next.js + TypeScript + Supabase + Google OAuth + Upstash Redis + Vercel
 
 **Current State:**
-- ReviewFlow code exists locally and on GitHub
+- BrandsIQ code exists locally and on GitHub
 - Supabase project exists with tables (created by Claude Code)
 - Vercel account exists but NO project set up yet
 - No test cases written yet (that's okay — we set up the pipeline first)
@@ -37,7 +37,7 @@ You'll use **both** the dashboard (browser) and CLI (terminal) for different pur
 **Dashboard** = configuration and monitoring (point and click)
 **CLI** = automation and reproducibility (commands that can run in CI/CD)
 
-The CLIs run on **your local machine** (in your terminal, inside the ReviewFlow project folder). They talk to the cloud services via API. During CI/CD, the same CLI commands run on GitHub's servers automatically.
+The CLIs run on **your local machine** (in your terminal, inside the BrandsIQ project folder). They talk to the cloud services via API. During CI/CD, the same CLI commands run on GitHub's servers automatically.
 
 ---
 
@@ -71,7 +71,7 @@ vercel --version
 ```
 
 Also make sure you have:
-- [ ] ReviewFlow repo on GitHub
+- [ ] BrandsIQ repo on GitHub
 - [ ] Node.js 18+ installed locally
 - [ ] Access to your Supabase dashboard
 - [ ] Access to your Vercel dashboard
@@ -82,12 +82,12 @@ Also make sure you have:
 
 Your tables were created by Claude Code directly in Supabase. Right now, the schema exists only in the Supabase cloud — it's not tracked in your codebase. This phase fixes that.
 
-**Where:** Run all commands in your terminal, inside your ReviewFlow project folder.
+**Where:** Run all commands in your terminal, inside your BrandsIQ project folder.
 
 ### Step 1.1: Initialize Supabase in your repo
 
 ```bash
-cd reviewflow    # or wherever your project folder is
+cd brandsiq    # or wherever your project folder is
 supabase init
 ```
 
@@ -101,7 +101,7 @@ supabase link --project-ref <your-project-ref>
 
 **Where to find your project ref:**
 1. Go to Supabase Dashboard (https://supabase.com/dashboard)
-2. Click on your ReviewFlow project
+2. Click on your BrandsIQ project
 3. Go to Project Settings (gear icon) → General
 4. Copy the "Reference ID" — it looks something like `abcdefghijklmnop`
 
@@ -123,7 +123,7 @@ Create a file called `supabase/seed.sql` with fake test data. This gets loaded i
 
 ```sql
 -- Example: Insert test data for staging/testing
--- Customize this based on your actual ReviewFlow tables
+-- Customize this based on your actual BrandsIQ tables
 INSERT INTO public.reviews (id, title, content, rating, created_at)
 VALUES
   ('test-1', 'Great product', 'Really loved using this', 5, now()),
@@ -164,7 +164,7 @@ You have a Vercel account but no project. Let's set it up.
 
 1. Go to Vercel Dashboard (https://vercel.com/dashboard)
 2. Click **"Add New..."** → **"Project"**
-3. Import your ReviewFlow GitHub repository
+3. Import your BrandsIQ GitHub repository
 4. Vercel will auto-detect it as a Next.js project
 5. **Don't add environment variables yet** — we'll do that in Phase 3
 6. Click **Deploy** — it will likely fail or show a broken app (that's fine, no env vars yet)
@@ -181,7 +181,7 @@ By default, Vercel treats `main` as the production branch. We want `main` to be 
 - Pushes to `main` → Vercel creates a **Preview deployment** (this becomes your staging)
 - Pushes to `production` branch → Vercel creates a **Production deployment**
 
-**Nothing else is needed in Vercel for staging.** Vercel's built-in Preview deployment feature + the staging-specific environment variables you set in Phase 3 together create your staging environment. No separate Vercel project or special configuration required. Vercel generates a unique URL for each Preview deploy (like `reviewflow-abc123.vercel.app`). If you want a consistent staging URL, you can optionally assign one under Settings → Domains later.
+**Nothing else is needed in Vercel for staging.** Vercel's built-in Preview deployment feature + the staging-specific environment variables you set in Phase 3 together create your staging environment. No separate Vercel project or special configuration required. Vercel generates a unique URL for each Preview deploy (like `brandsiq-abc123.vercel.app`). If you want a consistent staging URL, you can optionally assign one under Settings → Domains later.
 
 ### Step 2.3: Create the `production` branch in GitHub
 
@@ -203,7 +203,7 @@ Either method works. The branch just needs to exist on GitHub.
 ### Step 2.4: Get Vercel IDs for GitHub Actions
 
 ```bash
-# In your terminal, inside the ReviewFlow project
+# In your terminal, inside the BrandsIQ project
 vercel link
 ```
 
@@ -240,18 +240,18 @@ You'll reuse this same token for any future project's CI/CD pipeline.
 
 1. Go to Supabase Dashboard (https://supabase.com/dashboard)
 2. Click **New Project** (same account, same organization)
-3. Name: `reviewflow-staging`
+3. Name: `brandsiq-staging`
 4. Region: **same region** as your production project
 5. Set a database password — **save it securely**
 6. Wait for it to provision
 
 **You now have two Supabase projects in your account:**
-- `reviewflow` (or whatever you named it) → production
-- `reviewflow-staging` → staging
+- `brandsiq` (or whatever you named it) → production
+- `brandsiq-staging` → staging
 
 ### Step 3.2: Apply your schema to the staging database
 
-**Run this in your terminal** (on your local machine, inside the ReviewFlow folder):
+**Run this in your terminal** (on your local machine, inside the BrandsIQ folder):
 
 ```bash
 # Link to the STAGING project
@@ -280,13 +280,13 @@ supabase link --project-ref <production-project-ref>
 **Simplest approach:** Create a second free Redis database in Upstash.
 
 1. Go to Upstash Console (https://console.upstash.com/)
-2. Create a new Redis database: `reviewflow-staging`
+2. Create a new Redis database: `brandsiq-staging`
 3. Same region as your app
 4. Note the REST URL and REST Token
 
 ### Step 3.5: Set environment variables in Vercel
 
-Go to Vercel Dashboard → your ReviewFlow project → **Settings** → **Environment Variables**
+Go to Vercel Dashboard → your BrandsIQ project → **Settings** → **Environment Variables**
 
 For **each** variable, you'll add it twice — once for Preview (staging) and once for Production.
 
@@ -334,7 +334,7 @@ Go to Supabase Dashboard → your project → Settings → API
 
 ### Step 4.1: Install testing dependencies
 
-Run in your terminal, inside the ReviewFlow project:
+Run in your terminal, inside the BrandsIQ project:
 
 ```bash
 npm install --save-dev vitest @testing-library/react @testing-library/jest-dom jsdom @vitest/coverage-v8 @vitejs/plugin-react
@@ -517,7 +517,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: reviewflow_test
+          POSTGRES_DB: brandsiq_test
         ports:
           - 5432:5432
         options: >-
@@ -542,19 +542,19 @@ jobs:
       - name: Apply database migrations to test database
         run: |
           for f in supabase/migrations/*.sql; do
-            PGPASSWORD=postgres psql -h localhost -U postgres -d reviewflow_test -f "$f"
+            PGPASSWORD=postgres psql -h localhost -U postgres -d brandsiq_test -f "$f"
           done
 
       - name: Seed test data
         run: |
           if [ -f supabase/seed.sql ]; then
-            PGPASSWORD=postgres psql -h localhost -U postgres -d reviewflow_test -f supabase/seed.sql
+            PGPASSWORD=postgres psql -h localhost -U postgres -d brandsiq_test -f supabase/seed.sql
           fi
 
       - name: Run integration tests
         run: npm run test:integration
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXT_PUBLIC_APP_URL: http://localhost:3000
 
@@ -647,7 +647,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: reviewflow_test
+          POSTGRES_DB: brandsiq_test
         ports:
           - 5432:5432
         options: >-
@@ -680,13 +680,13 @@ jobs:
       - name: Apply migrations to test database
         run: |
           for f in supabase/migrations/*.sql; do
-            PGPASSWORD=postgres psql -h localhost -U postgres -d reviewflow_test -f "$f"
+            PGPASSWORD=postgres psql -h localhost -U postgres -d brandsiq_test -f "$f"
           done
 
       - name: Run all tests
         run: npm run test
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXT_PUBLIC_APP_URL: http://localhost:3000
 
@@ -756,7 +756,7 @@ Add each of these one by one:
 | Secret Name | What It Is | Where to Find It |
 |---|---|---|
 | SUPABASE_ACCESS_TOKEN | Your personal Supabase API token | Supabase Dashboard → click your avatar (bottom left) → Account → Access Tokens → Generate new token |
-| STAGING_SUPABASE_PROJECT_REF | Staging project reference ID | Supabase Dashboard → reviewflow-staging → Settings → General → Reference ID |
+| STAGING_SUPABASE_PROJECT_REF | Staging project reference ID | Supabase Dashboard → brandsiq-staging → Settings → General → Reference ID |
 | STAGING_SUPABASE_DB_PASSWORD | Staging database password | The password you set when creating the staging project |
 | PROD_SUPABASE_PROJECT_REF | Production project reference ID | Supabase Dashboard → your original project → Settings → General → Reference ID |
 | PROD_SUPABASE_DB_PASSWORD | Production database password | The password you set when creating your original project |
@@ -840,7 +840,7 @@ Your daily workflow:
 ## File Structure After Setup
 
 ```
-reviewflow/
+brandsiq/
 ├── .github/
 │   └── workflows/
 │       ├── pr-checks.yml           <- PR quality gate
@@ -881,7 +881,7 @@ reviewflow/
 
 ## Tips
 
-- **You can hand this document to Claude Code** for each phase and say "help me execute Phase X for ReviewFlow"
+- **You can hand this document to Claude Code** for each phase and say "help me execute Phase X for BrandsIQ"
 - **If a workflow fails**, check the Actions tab for error logs. Usually it's a missing secret or wrong project ref.
 - **Your first PR after setup** is the best test. Create a small change, open a PR, and watch the Actions tab.
 - **Test cases come later.** Pipeline works immediately with linting and type checks. Add tests at your own pace.

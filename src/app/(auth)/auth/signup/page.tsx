@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SignupForm } from "@/components/auth";
 
 export const metadata: Metadata = {
-  title: "Sign Up - ReviewFlow",
-  description: "Create your ReviewFlow account",
+  title: "Sign Up - BrandsIQ",
+  description: "Create your BrandsIQ account",
 };
 
 function SignupFormWrapper() {
@@ -17,13 +17,13 @@ export default function SignUpPage() {
     <Card>
       <CardHeader className="space-y-1 text-center">
         <div className="flex justify-center mb-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xl font-bold">
-            R
+          <div className="flex h-12 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xl font-bold px-3">
+            IQ
           </div>
         </div>
         <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
         <CardDescription>
-          Get started with ReviewFlow for free
+          Get started with BrandsIQ for free
         </CardDescription>
       </CardHeader>
       <CardContent>

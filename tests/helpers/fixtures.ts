@@ -1,5 +1,5 @@
 /**
- * Shared test fixtures for ReviewFlow tests
+ * Shared test fixtures for BrandsIQ tests
  */
 
 export const TEST_USER = {

@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { LoginForm } from "@/components/auth";
 
 export const metadata: Metadata = {
-  title: "Sign In - ReviewFlow",
-  description: "Sign in to your ReviewFlow account",
+  title: "Sign In - BrandsIQ",
+  description: "Sign in to your BrandsIQ account",
 };
 
 function LoginFormWrapper() {

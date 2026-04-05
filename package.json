@@ -1,5 +1,5 @@
 {
-  "name": "reviewflow",
+  "name": "brandsiq",
   "version": "1.0.1",
   "private": true,
   "description": "AI-powered review response management platform for SMBs",
@@ -30,7 +30,7 @@
     "nextjs",
     "typescript"
   ],
-  "author": "ReviewFlow",
+  "author": "BrandsIQ",
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

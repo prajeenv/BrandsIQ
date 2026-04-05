@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ReviewFlow is an AI-powered review response management platform for SMBs. It helps businesses respond to customer reviews across multiple platforms (Google, Amazon, Yelp, etc.) using Claude-generated, brand-aligned responses in 40+ languages.
+BrandsIQ is an AI-powered review response management platform for SMBs. It helps businesses respond to customer reviews across multiple platforms (Google, Amazon, Yelp, etc.) using Claude-generated, brand-aligned responses in 40+ languages.
 
 **Tech Stack:** Next.js 14 (App Router), TypeScript, Prisma 5.22, PostgreSQL (Supabase), NextAuth.js v5, shadcn/ui, Claude API, DeepSeek API
 

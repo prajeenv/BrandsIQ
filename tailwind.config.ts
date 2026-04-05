@@ -17,7 +17,7 @@ const config: Config = {
     },
     extend: {
       colors: {
-        // ReviewFlow Brand Colors (Indigo/Blue theme)
+        // BrandsIQ Brand Colors (Indigo/Blue theme)
         brand: {
           50: "#eef2ff",
           100: "#e0e7ff",

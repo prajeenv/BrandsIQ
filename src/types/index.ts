@@ -1,5 +1,5 @@
 /**
- * Type definitions for ReviewFlow
+ * Type definitions for BrandsIQ
  */
 
 export * from "./api";

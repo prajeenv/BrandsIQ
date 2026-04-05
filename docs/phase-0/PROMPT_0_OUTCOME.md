@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Prompt 0 validated the Phase 0 specifications and created a comprehensive implementation plan for ReviewFlow. All technology choices were confirmed as compatible, the 11-prompt sequence was validated as logical, and potential challenges were identified with mitigations.
+Prompt 0 validated the Phase 0 specifications and created a comprehensive implementation plan for BrandsIQ. All technology choices were confirmed as compatible, the 11-prompt sequence was validated as logical, and potential challenges were identified with mitigations.
 
 ---
 
@@ -43,7 +43,7 @@ Prompt 0 validated the Phase 0 specifications and created a comprehensive implem
 ### Approved Folder Structure
 
 ```
-reviewflow/
+brandsiq/
 ├── app/                          # Next.js 14 App Router
 │   ├── (auth)/                   # Auth route group
 │   │   ├── auth/
@@ -302,7 +302,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 **Prompt 1: Project Setup & Configuration**
 
 Once all API keys are obtained, proceed with:
-1. `npx create-next-app@latest reviewflow`
+1. `npx create-next-app@latest brandsiq`
 2. Install all dependencies
 3. Configure TypeScript, Tailwind, ESLint
 4. Set up shadcn/ui

@@ -1,4 +1,4 @@
-# ReviewFlow: Implementation Guide (Condensed)
+# BrandsIQ: Implementation Guide (Condensed)
 **Version:** 1.0 | **Phase:** MVP | **Focus:** User Flows, Multi-Language, Sentiment, Edge Cases
 
 ---

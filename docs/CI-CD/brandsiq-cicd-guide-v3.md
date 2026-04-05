@@ -1,15 +1,15 @@
-# ReviewFlow CI/CD Pipeline — Complete Setup Guide (v3)
+# BrandsIQ CI/CD Pipeline — Complete Setup Guide (v3)
 
 > **v3 Changes from v2:** Fixed migration strategy (Prisma instead of Supabase CLI), corrected environment variables to match actual `.env.example`, fixed Vitest path alias, added missing `prisma generate` steps in CI, added `--max-warnings 0` for ESLint strictness, added `type-check` script, safer production merge strategy. See [Changelog](#changelog-v2--v3) at the bottom for full diff.
 
 ## Overview
 
-This guide walks you through setting up a professional CI/CD pipeline for ReviewFlow, starting from scratch.
+This guide walks you through setting up a professional CI/CD pipeline for BrandsIQ, starting from scratch.
 
 **Your Stack:** Next.js 14 + TypeScript + Prisma + Supabase (PostgreSQL) + Google OAuth + Upstash Redis + Vercel
 
 **Current State:**
-- ReviewFlow code exists locally and on GitHub
+- BrandsIQ code exists locally and on GitHub
 - Supabase project exists with tables (managed by Prisma via `db push`)
 - Database schema is defined in `prisma/schema.prisma` but **no migration files exist yet** — Phase 1 creates the baseline migration
 - Vercel account exists but NO project set up yet
@@ -39,7 +39,7 @@ You'll use **both** the dashboard (browser) and CLI (terminal) for different pur
 **Dashboard** = configuration and monitoring (point and click)
 **CLI** = automation and reproducibility (commands that can run in CI/CD)
 
-The CLIs run on **your local machine** (in your terminal, inside the ReviewFlow project folder). They talk to the cloud services via API. During CI/CD, the same CLI commands run on GitHub's servers automatically.
+The CLIs run on **your local machine** (in your terminal, inside the BrandsIQ project folder). They talk to the cloud services via API. During CI/CD, the same CLI commands run on GitHub's servers automatically.
 
 ---
 
@@ -69,12 +69,12 @@ vercel --version
 ```
 
 Also make sure you have:
-- [ ] ReviewFlow repo on GitHub
+- [ ] BrandsIQ repo on GitHub
 - [ ] Node.js 18+ installed locally
 - [ ] Access to your Supabase dashboard
 - [ ] Access to your Vercel dashboard
 
-> **Note:** You do NOT need the Supabase CLI. ReviewFlow uses Prisma for all database migrations. Prisma is already a project dependency.
+> **Note:** You do NOT need the Supabase CLI. BrandsIQ uses Prisma for all database migrations. Prisma is already a project dependency.
 
 ---
 
@@ -82,7 +82,7 @@ Also make sure you have:
 
 Your schema is defined in `prisma/schema.prisma`, but there are no migration files yet — you've been using `prisma db push` to sync the schema directly. The CI/CD pipeline uses `prisma migrate deploy`, which requires migration files. This phase creates the initial baseline migration.
 
-**Where:** Run all commands in your terminal, inside your ReviewFlow project folder.
+**Where:** Run all commands in your terminal, inside your BrandsIQ project folder.
 
 ### Step 1.1: Create the baseline migration
 
@@ -139,7 +139,7 @@ You have a Vercel account but no project. Let's set it up.
 
 1. Go to Vercel Dashboard (https://vercel.com/dashboard)
 2. Click **"Add New..."** → **"Project"**
-3. Import your ReviewFlow GitHub repository
+3. Import your BrandsIQ GitHub repository
 4. Vercel will auto-detect it as a Next.js project
 5. **Don't add environment variables yet** — we'll do that in Phase 3
 6. Click **Deploy** — it will likely fail or show a broken app (that's fine, no env vars yet)
@@ -156,7 +156,7 @@ By default, Vercel treats `main` as the production branch. We want `main` to be 
 - Pushes to `main` → Vercel creates a **Preview deployment** (this becomes your staging)
 - Pushes to `production` branch → Vercel creates a **Production deployment**
 
-**Nothing else is needed in Vercel for staging.** Vercel's built-in Preview deployment feature + the staging-specific environment variables you set in Phase 3 together create your staging environment. No separate Vercel project or special configuration required. Vercel generates a unique URL for each Preview deploy (like `reviewflow-abc123.vercel.app`). If you want a consistent staging URL, you can optionally assign one under Settings → Domains later.
+**Nothing else is needed in Vercel for staging.** Vercel's built-in Preview deployment feature + the staging-specific environment variables you set in Phase 3 together create your staging environment. No separate Vercel project or special configuration required. Vercel generates a unique URL for each Preview deploy (like `brandsiq-abc123.vercel.app`). If you want a consistent staging URL, you can optionally assign one under Settings → Domains later.
 
 ### Step 2.3: Create the `production` branch in GitHub
 
@@ -178,7 +178,7 @@ Either method works. The branch just needs to exist on GitHub.
 ### Step 2.4: Get Vercel IDs for GitHub Actions
 
 ```bash
-# In your terminal, inside the ReviewFlow project
+# In your terminal, inside the BrandsIQ project
 vercel link
 ```
 
@@ -215,24 +215,24 @@ You'll reuse this same token for any future project's CI/CD pipeline.
 
 1. Go to Supabase Dashboard (https://supabase.com/dashboard)
 2. Click **New Project** (same account, same organization)
-3. Name: `reviewflow-staging`
+3. Name: `brandsiq-staging`
 4. Region: **same region** as your production project
 5. Set a database password — **save it securely**
 6. Wait for it to provision
 
 **You now have two Supabase projects in your account:**
-- `reviewflow` (or whatever you named it) → production
-- `reviewflow-staging` → staging
+- `brandsiq` (or whatever you named it) → production
+- `brandsiq-staging` → staging
 
 ### Step 3.2: Apply your schema to the staging database
 
-Get the staging database connection strings from Supabase Dashboard → `reviewflow-staging` → Settings → Database → Connection string.
+Get the staging database connection strings from Supabase Dashboard → `brandsiq-staging` → Settings → Database → Connection string.
 
 You need two URLs:
 - **Pooler URL** (port 6543, with `?pgbouncer=true`) → this is `DATABASE_URL`
 - **Direct URL** (port 5432) → this is `DIRECT_URL`
 
-**Run this in your terminal** (on your local machine, inside the ReviewFlow folder):
+**Run this in your terminal** (on your local machine, inside the BrandsIQ folder):
 
 ```bash
 # Temporarily set the staging database URL and apply migrations
@@ -249,20 +249,20 @@ This applies all existing migrations to the staging database. Now staging has th
 2. Under **Authorized redirect URIs**, add your staging URL:
    - `https://<your-staging-url>/api/auth/callback/google`
 
-> **Note:** ReviewFlow uses NextAuth.js for OAuth, not Supabase Auth. The redirect URI points to your Next.js app, not Supabase.
+> **Note:** BrandsIQ uses NextAuth.js for OAuth, not Supabase Auth. The redirect URI points to your Next.js app, not Supabase.
 
 ### Step 3.4: Configure Upstash Redis for staging
 
 **Simplest approach:** Create a second free Redis database in Upstash.
 
 1. Go to Upstash Console (https://console.upstash.com/)
-2. Create a new Redis database: `reviewflow-staging`
+2. Create a new Redis database: `brandsiq-staging`
 3. Same region as your app
 4. Note the REST URL and REST Token
 
 ### Step 3.5: Set environment variables in Vercel
 
-Go to Vercel Dashboard → your ReviewFlow project → **Settings** → **Environment Variables**
+Go to Vercel Dashboard → your BrandsIQ project → **Settings** → **Environment Variables**
 
 For **each** variable, you'll add it twice — once for Preview (staging) and once for Production.
 
@@ -318,7 +318,7 @@ Go to Supabase Dashboard → your project → Settings → Database → Connecti
 
 ### Step 4.1: Install testing dependencies
 
-Run in your terminal, inside the ReviewFlow project:
+Run in your terminal, inside the BrandsIQ project:
 
 ```bash
 npm install --save-dev vitest @testing-library/react @testing-library/jest-dom jsdom @vitest/coverage-v8 @vitejs/plugin-react
@@ -529,7 +529,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: reviewflow_test
+          POSTGRES_DB: brandsiq_test
         ports:
           - 5432:5432
         options: >-
@@ -557,14 +557,14 @@ jobs:
       - name: Apply database migrations to test database
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
-          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
 
       - name: Run integration tests
         run: npm run test:integration
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
-          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXT_PUBLIC_APP_URL: http://localhost:3000
 
@@ -660,7 +660,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: reviewflow_test
+          POSTGRES_DB: brandsiq_test
         ports:
           - 5432:5432
         options: >-
@@ -696,14 +696,14 @@ jobs:
       - name: Apply migrations to test database
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
-          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
 
       - name: Run all tests
         run: npm run test
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
-          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/reviewflow_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brandsiq_test
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXT_PUBLIC_APP_URL: http://localhost:3000
 
@@ -775,8 +775,8 @@ Add each of these one by one:
 
 | Secret Name          | What It Is                                   | Where to Find It                                                                                                             |
 | -------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| STAGING_DATABASE_URL | Staging Supabase pooler connection string    | Supabase Dashboard → reviewflow-staging → Settings → Database → Connection string (port 6543, append `?pgbouncer=true`)      |
-| STAGING_DIRECT_URL   | Staging Supabase direct connection string    | Supabase Dashboard → reviewflow-staging → Settings → Database → Connection string (port 5432)                                |
+| STAGING_DATABASE_URL | Staging Supabase pooler connection string    | Supabase Dashboard → brandsiq-staging → Settings → Database → Connection string (port 6543, append `?pgbouncer=true`)      |
+| STAGING_DIRECT_URL   | Staging Supabase direct connection string    | Supabase Dashboard → brandsiq-staging → Settings → Database → Connection string (port 5432)                                |
 | PROD_DATABASE_URL    | Production Supabase pooler connection string | Supabase Dashboard → your production project → Settings → Database → Connection string (port 6543, append `?pgbouncer=true`) |
 | PROD_DIRECT_URL      | Production Supabase direct connection string | Supabase Dashboard → your production project → Settings → Database → Connection string (port 5432)                           |
 | VERCEL_TOKEN         | Vercel API token                             | Created in Phase 2, Step 2.5                                                                                                 |
@@ -862,7 +862,7 @@ Your daily workflow:
 ## File Structure After Setup
 
 ```
-reviewflow/
+brandsiq/
 ├── .github/
 │   └── workflows/
 │       ├── pr-checks.yml           <- PR quality gate
@@ -904,7 +904,7 @@ reviewflow/
 
 ## Tips
 
-- **You can hand this document to Claude Code** for each phase and say "help me execute Phase X for ReviewFlow"
+- **You can hand this document to Claude Code** for each phase and say "help me execute Phase X for BrandsIQ"
 - **If a workflow fails**, check the Actions tab for error logs. Usually it's a missing secret or wrong connection string.
 - **Your first PR after setup** is the best test. Create a small change, open a PR, and watch the Actions tab.
 - **Test cases come later.** Pipeline works immediately with linting and type checks. Add tests at your own pace.
@@ -928,7 +928,7 @@ reviewflow/
 | **Production merge** | `git merge main --no-edit` | `git merge main --ff-only` | Fast-forward only is safer. Fails loudly if branches diverged instead of creating a potentially broken merge. |
 | **Staging workflow name** | "Deploy to Staging" | "Staging — Apply Migrations" | More accurate. The workflow only applies DB migrations. Vercel handles the actual app deploy via Git integration. |
 | **GitHub secrets** | `SUPABASE_ACCESS_TOKEN`, `STAGING_SUPABASE_PROJECT_REF`, `STAGING_SUPABASE_DB_PASSWORD`, `PROD_SUPABASE_PROJECT_REF`, `PROD_SUPABASE_DB_PASSWORD` | `STAGING_DATABASE_URL`, `STAGING_DIRECT_URL`, `PROD_DATABASE_URL`, `PROD_DIRECT_URL` | Prisma connects via connection string directly — no Supabase CLI auth needed. Fewer secrets, simpler setup. |
-| **OAuth redirect URI** | `https://<ref>.supabase.co/auth/v1/callback` | `https://<staging-url>/api/auth/callback/google` | ReviewFlow uses NextAuth.js, not Supabase Auth. Redirect URI points to Next.js app. |
+| **OAuth redirect URI** | `https://<ref>.supabase.co/auth/v1/callback` | `https://<staging-url>/api/auth/callback/google` | BrandsIQ uses NextAuth.js, not Supabase Auth. Redirect URI points to Next.js app. |
 | **Prerequisites** | Install Supabase CLI + Vercel CLI | Install Vercel CLI only | Supabase CLI not needed. Prisma is already a project dependency. |
 | **`DIRECT_URL` in CI tests** | Not included | Added alongside `DATABASE_URL` | Prisma requires `DIRECT_URL` for migrations (defined in `schema.prisma`). Missing it causes migration failures. |
 | **Integration test migrations** | Raw SQL via `psql` loop over `supabase/migrations/*.sql` | `npx prisma migrate deploy` | Prisma handles migration ordering, state tracking, and application. Raw SQL doesn't track migration state. |

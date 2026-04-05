@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Prompt 1 successfully set up the ReviewFlow project from scratch with all necessary configurations. The project is now ready for development with a working `npm run dev` command.
+Prompt 1 successfully set up the BrandsIQ project from scratch with all necessary configurations. The project is now ready for development with a working `npm run dev` command.
 
 ---
 
@@ -15,7 +15,7 @@ Prompt 1 successfully set up the ReviewFlow project from scratch with all necess
 ### Project Initialization
 - [x] Initialized Next.js 14.2.35 with App Router
 - [x] Configured TypeScript 5.x with strict mode
-- [x] Set up Tailwind CSS 3.4 with ReviewFlow brand colors
+- [x] Set up Tailwind CSS 3.4 with BrandsIQ brand colors
 - [x] Created src/ directory structure
 
 ### Dependencies Installed
@@ -53,7 +53,7 @@ Prompt 1 successfully set up the ReviewFlow project from scratch with all necess
 ### Folder Structure Created
 
 ```
-reviewflow/
+brandsiq/
 ├── src/
 │   ├── app/
 │   │   ├── (auth)/
@@ -165,7 +165,7 @@ reviewflow/
    npm run dev
    ```
    - Visit http://localhost:3000
-   - Verify landing page loads with ReviewFlow branding
+   - Verify landing page loads with BrandsIQ branding
    - Check "Sign In" and "Get Started" links work
 
 2. **Page Routes**

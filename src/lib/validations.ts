@@ -2,7 +2,7 @@ import { z } from "zod";
 import { PLATFORMS, SENTIMENTS, RESPONSE_TONES, VALIDATION_LIMITS } from "./constants";
 
 /**
- * Zod validation schemas for ReviewFlow
+ * Zod validation schemas for BrandsIQ
  */
 
 // Auth schemas
