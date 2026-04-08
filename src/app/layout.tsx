@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Toaster } from "sonner";
-import { SessionProvider } from "@/components/providers";
+import { SessionProvider, PostHogProvider } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -50,10 +50,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <SessionProvider>
-          {children}
-          <Toaster position="top-right" richColors closeButton />
-        </SessionProvider>
+        <PostHogProvider>
+          <SessionProvider>
+            {children}
+            <Toaster position="top-right" richColors closeButton />
+          </SessionProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

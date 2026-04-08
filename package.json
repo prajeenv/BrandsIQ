@@ -65,6 +65,7 @@
     "lucide-react": "^0.562.0",
     "next": "^14.2.35",
     "next-auth": "^5.0.0-beta.30",
+    "posthog-js": "^1.365.1",
     "prisma": "^5.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
