@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- temporary diagnostic logging, will be reverted */
 import * as Sentry from "@sentry/nextjs";
 
 console.log("[sentry-debug] server config loading", {
