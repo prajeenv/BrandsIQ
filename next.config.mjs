@@ -28,6 +28,10 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "2mb",
     },
+    // Required in Next.js 14.2 to enable instrumentation.ts hook.
+    // Without this, Sentry server/edge configs never load.
+    // Promoted to stable in Next.js 15 — can be removed after upgrade.
+    instrumentationHook: true,
   },
 
   // Security headers
