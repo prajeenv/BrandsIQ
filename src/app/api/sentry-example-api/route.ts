@@ -1,23 +1,15 @@
-/* eslint-disable no-console -- temporary diagnostic logging */
 import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  console.log("[sentry-debug] route handler invoked", {
-    hasDsn: !!process.env.SENTRY_DSN,
-    clientReady: !!Sentry.getClient(),
-    nodeEnv: process.env.NODE_ENV,
-    nextRuntime: process.env.NEXT_RUNTIME,
-  });
-
   try {
-    throw new Error("Sentry server test error v2");
+    throw new Error("Sentry server test error");
   } catch (error) {
-    const eventId = Sentry.captureException(error);
-    console.log("[sentry-debug] captureException returned", { eventId });
-    const flushed = await Sentry.flush(2000);
-    console.log("[sentry-debug] flush returned", { flushed });
+    Sentry.captureException(error);
+    // Required on Vercel serverless: Lambda shuts down before Sentry's
+    // background flush completes. Must await flush to force event send.
+    await Sentry.flush(2000);
     throw error;
   }
 }
