@@ -5,5 +5,4 @@ Sentry.init({
   enabled: process.env.NODE_ENV === "production",
   environment: process.env.NODE_ENV,
   tracesSampleRate: 0,
-  integrations: [],
 });
