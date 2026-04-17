@@ -8,13 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     globals: true,
-    // Run test files sequentially in a single thread to prevent
-    // @vitejs/plugin-react config collisions across parallel jsdom workers
-    poolOptions: {
-      threads: {
-        singleThread: true,
-      },
-    },
+    // Disable file parallelism to prevent @vitejs/plugin-react config
+    // collisions across parallel jsdom workers (vitest 4.x)
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

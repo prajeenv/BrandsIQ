@@ -59,7 +59,7 @@ describe("GET /api/sentiment/usage", () => {
 
     const request = createNextRequest("/api/sentiment/usage");
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.status).toBe(401);
     expect(result.body.error.code).toBe("UNAUTHORIZED");
@@ -98,7 +98,7 @@ describe("GET /api/sentiment/usage", () => {
 
     const request = createNextRequest("/api/sentiment/usage");
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.status).toBe(200);
     expect(result.body.success).toBe(true);
@@ -125,7 +125,7 @@ describe("GET /api/sentiment/usage", () => {
 
     const request = createNextRequest("/api/sentiment/usage");
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.body.data.distribution.positive).toBe(60);
     expect(result.body.data.distribution.negative).toBe(20);
@@ -145,7 +145,7 @@ describe("GET /api/sentiment/usage", () => {
 
     const request = createNextRequest("/api/sentiment/usage", { sentiment: "positive" });
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.status).toBe(200);
     // Verify sentiment filter was passed to count and findMany
@@ -173,7 +173,7 @@ describe("GET /api/sentiment/usage", () => {
       endDate: "2026-01-31",
     });
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.status).toBe(200);
     expect(mockPrisma.sentimentUsage.count).toHaveBeenCalledWith(
@@ -200,7 +200,7 @@ describe("GET /api/sentiment/usage", () => {
 
     const request = createNextRequest("/api/sentiment/usage");
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.body.data.quota.remaining).toBe(30);
     expect(result.body.data.quota.total).toBe(35); // FREE tier total
@@ -235,7 +235,7 @@ describe("GET /api/sentiment/usage", () => {
 
     const request = createNextRequest("/api/sentiment/usage");
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.body.data.usage[0].reviewId).toBe("rev_deleted");
     expect(result.body.data.usage[0].platform).toBe("Amazon");
@@ -256,7 +256,7 @@ describe("GET /api/sentiment/usage", () => {
 
     const request = createNextRequest("/api/sentiment/usage", { page: "2", limit: "10" });
     const response = await GET(request);
-    const result = await parseResponse(response);
+    const result = await parseResponse<any>(response);
 
     expect(result.body.data.pagination.page).toBe(2);
     expect(result.body.data.pagination.limit).toBe(10);
