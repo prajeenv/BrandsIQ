@@ -1,0 +1,36 @@
+name: Health Check — Staging DB Ping
+
+on:
+  schedule:
+    - cron: '0 6 * * *'    # Daily at 6 AM UTC
+  workflow_dispatch:         # Manual trigger
+
+jobs:
+  ping-staging-db:
+    name: Ping Staging Database
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Curl staging health endpoint
+        run: |
+          STATUS=$(curl -s -o response.json -w "%{http_code}" \
+            -H "x-vercel-protection-bypass: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}" \
+            "https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app/api/health")
+          echo "Health check returned HTTP $STATUS"
+          cat response.json
+          if [ "$STATUS" -ne 200 ]; then
+            echo "::error::Health check failed with status $STATUS"
+            exit 1
+          fi
+          echo "Staging database is healthy."
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "## ✅ Staging DB Health Check: Healthy" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ Staging DB Health Check: FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "The staging database may be paused. Check Supabase dashboard." >> $GITHUB_STEP_SUMMARY
+          fi
