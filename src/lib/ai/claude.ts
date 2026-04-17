@@ -82,6 +82,16 @@ export async function generateReviewResponse(
     toneModifier,
   } = params;
 
+  // E2E mock mode: return canned response without calling Claude API
+  // Set E2E_MOCK_AI=true on the Vercel Preview environment to enable
+  if (process.env.E2E_MOCK_AI === "true") {
+    return {
+      responseText:
+        "Thank you for your feedback! We truly appreciate you taking the time to share your experience with us. Your input helps us continue to improve our service.",
+      model: "mock-e2e",
+    };
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {

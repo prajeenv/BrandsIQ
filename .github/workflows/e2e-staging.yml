@@ -61,6 +61,7 @@ jobs:
         env:
           STAGING_URL: https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
 
       - name: Upload Playwright report
         if: always()
