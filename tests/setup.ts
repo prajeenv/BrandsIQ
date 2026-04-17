@@ -1,5 +1,14 @@
 import '@testing-library/jest-dom';
 
+// Polyfill ResizeObserver for Radix UI components (Slider, etc.) in jsdom
+if (typeof global.ResizeObserver === 'undefined') {
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // Set default environment variables for tests (prevents failures in CI)
 process.env.NEXTAUTH_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000';
 process.env.AUTH_SECRET = process.env.AUTH_SECRET || 'test-secret-for-vitest-unit-tests';

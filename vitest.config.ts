@@ -8,6 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     globals: true,
+    // Disable file parallelism to prevent @vitejs/plugin-react config
+    // collisions across parallel jsdom workers (vitest 4.x)
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
@@ -20,6 +23,12 @@ export default defineConfig({
         'scripts/**',
         'docs/**',
       ],
+      thresholds: {
+        statements: 70,
+        branches: 60,
+        functions: 60,
+        lines: 70,
+      },
     },
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
   },
