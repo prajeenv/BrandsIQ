@@ -3,6 +3,7 @@ name: E2E Tests — Staging
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 # Wait for staging deploy to complete before running E2E
 # Vercel typically deploys within 1-3 minutes after push
