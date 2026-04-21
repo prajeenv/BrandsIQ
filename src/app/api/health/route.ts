@@ -9,6 +9,10 @@ import { prisma } from "@/lib/prisma";
  *
  * No authentication required.
  * Called daily by Vercel cron (production) and GitHub Actions (staging).
+ *
+ * Response shape:
+ *   200 OK    - { success: true, data: { status, database, responseTimeMs, timestamp } }
+ *   503       - { success: false, error: { code: "DATABASE_UNAVAILABLE", message } }
  */
 export async function GET() {
   try {
