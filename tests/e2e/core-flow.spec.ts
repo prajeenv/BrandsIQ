@@ -16,10 +16,32 @@ const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD || "";
 
 async function login(page: Page) {
   await page.goto("/auth/signin");
+
+  // Diagnostic logging (safe — doesn't reveal the password)
+  console.log(`[E2E Login] Email: "${TEST_EMAIL}"`);
+  console.log(`[E2E Login] Password length: ${TEST_PASSWORD.length}`);
+
   await page.locator('input[type="email"]').fill(TEST_EMAIL);
   await page.locator('input[type="password"]').fill(TEST_PASSWORD);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+
+  try {
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    console.log("[E2E Login] Redirected to /dashboard successfully");
+  } catch (err) {
+    const currentUrl = page.url();
+    console.log(`[E2E Login] FAILED. Current URL: ${currentUrl}`);
+
+    // Capture the error message that the LoginForm renders (red bg error div)
+    const errorText = await page
+      .locator(".text-red-600.bg-red-50")
+      .first()
+      .textContent({ timeout: 2000 })
+      .catch(() => null);
+    console.log(`[E2E Login] Visible error: ${errorText ? `"${errorText.trim()}"` : "(none)"}`);
+
+    throw err;
+  }
 }
 
 test.describe("Core User Flow", () => {
