@@ -9,6 +9,11 @@ import { SESSION_CONFIG } from "./constants";
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
 
+  // Trust the X-Forwarded-Host header set by Vercel's edge proxy.
+  // Required for auth to work across Vercel domain aliases (preview URLs,
+  // custom domains, etc.) without explicitly configuring AUTH_URL per host.
+  trustHost: true,
+
   session: {
     strategy: "jwt",
     maxAge: SESSION_CONFIG.MAX_AGE_DAYS * 24 * 60 * 60, // 30 days

@@ -15,7 +15,7 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'html',
 
   use: {
-    baseURL: process.env.STAGING_URL || 'https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app',
+    baseURL: process.env.STAGING_URL || 'https://brandsiq-git-main-prajeens-projects-eb24da7b.vercel.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // Bypass Vercel Deployment Protection for automated testing
