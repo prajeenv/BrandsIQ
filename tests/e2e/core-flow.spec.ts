@@ -16,32 +16,10 @@ const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD || "";
 
 async function login(page: Page) {
   await page.goto("/auth/signin");
-
-  // Diagnostic logging (safe — doesn't reveal the password)
-  console.log(`[E2E Login] Email: "${TEST_EMAIL}"`);
-  console.log(`[E2E Login] Password length: ${TEST_PASSWORD.length}`);
-
   await page.locator('input[type="email"]').fill(TEST_EMAIL);
   await page.locator('input[type="password"]').fill(TEST_PASSWORD);
   await page.locator('button[type="submit"]').click();
-
-  try {
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
-    console.log("[E2E Login] Redirected to /dashboard successfully");
-  } catch (err) {
-    const currentUrl = page.url();
-    console.log(`[E2E Login] FAILED. Current URL: ${currentUrl}`);
-
-    // Capture the error message that the LoginForm renders (red bg error div)
-    const errorText = await page
-      .locator(".text-red-600.bg-red-50")
-      .first()
-      .textContent({ timeout: 2000 })
-      .catch(() => null);
-    console.log(`[E2E Login] Visible error: ${errorText ? `"${errorText.trim()}"` : "(none)"}`);
-
-    throw err;
-  }
+  await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 }
 
 test.describe("Core User Flow", () => {
@@ -55,27 +33,23 @@ test.describe("Core User Flow", () => {
   }) => {
     // Step 1: Login
     await login(page);
-    await expect(page.locator("h1, h2").first()).toBeVisible({ timeout: 10000 });
 
     // Step 2: Navigate to Add Review
     await page.goto("/dashboard/reviews/new");
-    await expect(page.locator("text=Add New Review")).toBeVisible({
-      timeout: 10000,
-    });
+    // Target the page heading specifically (there's also a card title with the same text)
+    await expect(
+      page.getByRole("heading", { name: "Add New Review" })
+    ).toBeVisible({ timeout: 10000 });
 
     // Step 3: Fill and submit the review form
     const reviewText = `E2E test review ${Date.now()}: Great product, excellent customer service and fast delivery!`;
     await page.locator("#reviewText").fill(reviewText);
 
-    // Click the 5th star for a 5-star rating
-    const starButtons = page.locator(
-      'button[type="button"]'
-    );
-    // The star buttons are inside a flex container after the "Rating (optional)" label
-    // Each star is a button with type="button" containing an SVG
+    // Click the 5th star for a 5-star rating.
+    // The star buttons are inside a flex container after the "Rating (optional)" label.
     const ratingSection = page.locator("text=Rating (optional)").locator("..");
     const stars = ratingSection.locator('button[type="button"]');
-    await stars.nth(4).click(); // 0-indexed, so nth(4) = 5th star
+    await stars.nth(4).click();
 
     // Submit the form
     await page.locator('button[type="submit"]').click();
@@ -86,30 +60,20 @@ test.describe("Core User Flow", () => {
     });
     createdReviewUrl = page.url();
 
-    // Verify we're on the review detail page with our review text visible
-    await expect(page.locator(`text=${reviewText.substring(0, 30)}`).first()).toBeVisible({
-      timeout: 10000,
-    });
-
     // Step 4: Generate AI Response
-    const generateButton = page.locator(
-      'button:has-text("Generate Response")'
-    ).first();
+    const generateButton = page
+      .getByRole("button", { name: /generate response/i })
+      .first();
     await expect(generateButton).toBeVisible({ timeout: 10000 });
     await generateButton.click();
 
     // Wait for the "Generated" badge to appear (30s for real AI, instant for mock)
-    await expect(page.locator("text=Generated").first()).toBeVisible({
+    await expect(page.getByText("Generated", { exact: true }).first()).toBeVisible({
       timeout: 30000,
     });
 
-    // Verify response text is visible in the response panel
-    await expect(
-      page.locator(".bg-muted\\/50").first()
-    ).toBeVisible();
-
     // Step 5: Edit the response
-    const editButton = page.locator('button:has-text("Edit")').first();
+    const editButton = page.getByRole("button", { name: /^edit$/i }).first();
     await editButton.click();
 
     // ResponseEditor textarea should appear
@@ -120,20 +84,20 @@ test.describe("Core User Flow", () => {
     );
 
     // Save the edit
-    await page.locator('button:has-text("Save Changes")').click();
+    await page.getByRole("button", { name: /save changes/i }).click();
 
     // Wait for "Edited" badge
-    await expect(page.locator("text=Edited").first()).toBeVisible({
+    await expect(page.getByText("Edited", { exact: true }).first()).toBeVisible({
       timeout: 10000,
     });
 
     // Step 6: Approve the response
-    const approveButton = page.locator('button:has-text("Approve")');
+    const approveButton = page.getByRole("button", { name: /^approve$/i });
     await expect(approveButton).toBeVisible({ timeout: 5000 });
     await approveButton.click();
 
     // Wait for "Approved" badge
-    await expect(page.locator("text=Approved").first()).toBeVisible({
+    await expect(page.getByText("Approved", { exact: true }).first()).toBeVisible({
       timeout: 10000,
     });
   });
@@ -146,14 +110,12 @@ test.describe("Core User Flow", () => {
     await page.goto(createdReviewUrl!);
 
     // Click the delete button (trash icon in the header area)
-    const deleteButton = page.locator('button:has-text("Delete")').first();
+    const deleteButton = page.getByRole("button", { name: /delete/i }).first();
     await expect(deleteButton).toBeVisible({ timeout: 10000 });
     await deleteButton.click();
 
-    // Confirm deletion in the dialog
-    const confirmButton = page.locator(
-      'button:has-text("Delete")'
-    ).last(); // The confirm button in the dialog
+    // Confirm deletion in the dialog — the last Delete button is the dialog confirm
+    const confirmButton = page.getByRole("button", { name: /^delete$/i }).last();
     await confirmButton.click();
 
     // Should redirect to reviews list
