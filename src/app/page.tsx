@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TIER_LIMITS } from "@/lib/constants";
+import { SUPPORT_MAILTO, TIER_LIMITS } from "@/lib/constants";
 
 export default function HomePage() {
   return (
@@ -327,9 +327,17 @@ export default function HomePage() {
             </div>
             <span className="text-sm font-medium">BrandsIQ</span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} BrandsIQ. All rights reserved.
-          </p>
+          <div className="flex flex-col items-center gap-2 md:flex-row md:gap-6">
+            <a
+              href={SUPPORT_MAILTO}
+              className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+            >
+              Contact support
+            </a>
+            <p className="text-sm text-muted-foreground">
+              &copy; {new Date().getFullYear()} BrandsIQ. All rights reserved.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

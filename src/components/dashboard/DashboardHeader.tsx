@@ -2,7 +2,8 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
-import { Menu, LogOut, Settings, User, Sparkles } from "lucide-react";
+import { Menu, LogOut, Settings, User, Sparkles, LifeBuoy } from "lucide-react";
+import { SUPPORT_MAILTO } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +100,13 @@ export function DashboardHeader({ onMenuClick, tier = "FREE" }: DashboardHeaderP
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <a href={SUPPORT_MAILTO} className="cursor-pointer">
+                <LifeBuoy className="mr-2 h-4 w-4" />
+                Contact support
+              </a>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

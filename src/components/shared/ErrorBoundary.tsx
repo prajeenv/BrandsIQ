@@ -4,6 +4,7 @@ import React from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SupportLink } from "@/components/shared/SupportLink";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -63,6 +64,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               <RefreshCw className="mr-2 h-4 w-4" />
               Try again
             </Button>
+            <SupportLink className="mt-4 text-center" />
           </CardContent>
         </Card>
       );
