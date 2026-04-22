@@ -211,3 +211,7 @@ export const EMAIL_CONFIG = {
   VERIFICATION_EXPIRY_HOURS: 24,
   PASSWORD_RESET_EXPIRY_HOURS: 1,
 } as const;
+
+// Support contact
+export const SUPPORT_EMAIL = "support@brandsiq.app";
+export const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`;

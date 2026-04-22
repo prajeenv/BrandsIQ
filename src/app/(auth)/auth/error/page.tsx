@@ -7,6 +7,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SupportLink } from "@/components/shared/SupportLink";
 
 const errorMessages: Record<string, string> = {
   Configuration: "There is a problem with the server configuration.",
@@ -50,6 +51,7 @@ function AuthErrorContent() {
         <Link href="/" className="text-sm text-muted-foreground hover:underline">
           Return to home
         </Link>
+        <SupportLink className="pt-2 text-center" />
       </CardContent>
     </Card>
   );
