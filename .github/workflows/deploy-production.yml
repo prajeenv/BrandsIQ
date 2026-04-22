@@ -157,3 +157,98 @@ jobs:
           git checkout production
           git merge main --ff-only
           git push origin production
+
+  smoke-check:
+    name: Post-Deploy Smoke Check
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Wait for Vercel production deployment
+        run: |
+          echo "Waiting 90 seconds for Vercel to deploy production..."
+          sleep 90
+
+      - name: Ping production /api/health
+        id: health
+        run: |
+          if [ -z "$PRODUCTION_URL" ]; then
+            echo "::error::PRODUCTION_URL secret is not set."
+            exit 1
+          fi
+
+          # Up to 3 attempts, 30s apart — Vercel may still be warming up
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt: curl $PRODUCTION_URL/api/health"
+            STATUS=$(curl -s -o response.json -w "%{http_code}" "$PRODUCTION_URL/api/health")
+            echo "HTTP $STATUS"
+            cat response.json || true
+            echo
+
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Production health check passed."
+              exit 0
+            fi
+
+            if [ $attempt -lt 3 ]; then
+              echo "Retrying in 30s..."
+              sleep 30
+            fi
+          done
+
+          echo "::error::Production health check failed after 3 attempts (last HTTP $STATUS)."
+          exit 1
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+
+      - name: Create GitHub Issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const commitSha = context.sha.substring(0, 7);
+            const commitUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Production Smoke Check Failed (${commitSha})`,
+              body: [
+                `## Production Smoke Check Failed After Deploy`,
+                ``,
+                `**Commit:** [\`${commitSha}\`](${commitUrl})`,
+                `**Workflow Run:** [View logs](${runUrl})`,
+                ``,
+                `The \`/api/health\` endpoint on production did not return 200 after the deploy completed.`,
+                `This usually means one of:`,
+                `- Vercel production env vars are misconfigured (e.g. DATABASE_URL password, URL-encoded chars)`,
+                `- Production database is unreachable`,
+                `- App failed to start due to a runtime error`,
+                ``,
+                `### What to do`,
+                `1. Check the [workflow run logs](${runUrl}) for the exact HTTP status and error`,
+                `2. Check Vercel production function logs for \`/api/health\``,
+                `3. Verify Vercel Production env vars (\`DATABASE_URL\`, \`DIRECT_URL\`, \`AUTH_SECRET\`, etc.)`,
+                `4. Once fixed, redeploy from the Vercel dashboard or push a new commit to main`,
+                ``,
+                `---`,
+                `*Automatically created by the production smoke check.*`,
+              ].join('\n'),
+              labels: ['bug', 'production-incident', 'automated'],
+            });
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "## ✅ Production Deploy Verified" >> $GITHUB_STEP_SUMMARY
+            echo "Production /api/health returned 200 after deployment." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## 🚨 Production Smoke Check FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "The deployment succeeded but the app is unhealthy. Investigate immediately." >> $GITHUB_STEP_SUMMARY
+            echo "A GitHub Issue has been created." >> $GITHUB_STEP_SUMMARY
+          fi
