@@ -54,13 +54,13 @@ jobs:
             fi
           fi
         env:
-          STAGING_URL: https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app
+          STAGING_URL: https://brandsiq-git-main-prajeens-projects-eb24da7b.vercel.app
           VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
 
       - name: Run E2E tests against staging
         run: npm run test:e2e
         env:
-          STAGING_URL: https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app
+          STAGING_URL: https://brandsiq-git-main-prajeens-projects-eb24da7b.vercel.app
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
 
@@ -91,11 +91,11 @@ jobs:
                 `**Commit:** [\`${commitSha}\`](${commitUrl})`,
                 `**Branch:** \`main\``,
                 `**Workflow Run:** [View logs](${runUrl})`,
-                `**Staging URL:** https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app`,
+                `**Staging URL:** https://brandsiq-git-main-prajeens-projects-eb24da7b.vercel.app`,
                 ``,
                 `### What to do`,
                 `1. Check the [workflow run logs](${runUrl}) and download the Playwright report artifact`,
-                `2. Reproduce locally: \`STAGING_URL=https://review-flow-git-main-prajeens-projects-eb24da7b.vercel.app npm run test:e2e\``,
+                `2. Reproduce locally: \`STAGING_URL=https://brandsiq-git-main-prajeens-projects-eb24da7b.vercel.app npm run test:e2e\``,
                 `3. Fix the issue and push to \`main\``,
                 `4. **Do NOT deploy to production** until E2E passes`,
                 ``,
