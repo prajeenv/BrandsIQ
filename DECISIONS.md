@@ -2,7 +2,7 @@
 
 **Purpose:** Document all significant technical decisions, architectural choices, and deviations from original specifications.
 
-**Last Updated:** January 20, 2026
+**Last Updated:** April 22, 2026
 
 ---
 
@@ -1177,6 +1177,57 @@ ORDER BY createdAt;
 
 ---
 
+## DB Health Check Strategy (Documented April 22, 2026)
+
+### Problem Statement
+
+Supabase's free tier auto-pauses databases after a period of inactivity. When the DB is paused:
+- All queries fail until the project is manually unpaused
+- The connection pooler (PgBouncer) can fall out of sync with the DB after unpause, requiring a password reset to fully recover
+- First-time requests after a pause experience a cold start delay
+
+Neither our E2E tests nor our unit tests hit the DB on a daily cadence, so both staging and production DBs are at risk of being paused if the app sits idle.
+
+### Decision
+
+Ping the DB daily from both environments via a lightweight `/api/health` endpoint that executes `SELECT 1` via Prisma.
+
+- **Production** — triggered by a **Vercel cron** job (declared in `vercel.json`).
+- **Staging** — triggered by a **GitHub Actions scheduled workflow** (`health-check-staging.yml`) that curls the staging URL.
+
+### Why two different mechanisms?
+
+Vercel crons only execute on the production domain — they don't run against Preview/staging deployments (platform limitation). So the staging environment needs a separate trigger. GitHub Actions scheduled workflows are free, reliable, and already part of our CI/CD, so we reuse that infrastructure.
+
+### Implementation
+
+| Environment | Trigger | Schedule (UTC) | Config file |
+|-------------|---------|---------------|-------------|
+| Production | Vercel cron → `/api/health` | Daily noon | `vercel.json` |
+| Staging | GitHub Actions → curl staging `/api/health` | Daily 6 AM | `.github/workflows/health-check-staging.yml` |
+
+**Endpoint:** `GET /api/health` — no auth required (not in `protectedApiRoutes` in `src/middleware.ts`), returns 200 + health payload on success, 503 on DB failure.
+
+**Staging workflow auth:** Uses the existing `VERCEL_AUTOMATION_BYPASS_SECRET` to bypass Vercel Deployment Protection.
+
+### Alternatives considered
+
+| Option | Why rejected |
+|--------|--------------|
+| Upgrade Supabase to Pro | Easiest fix but unnecessary cost at current scale |
+| External uptime service (UptimeRobot, Better Stack) | Yet another tool to manage; GitHub Actions is already available |
+| Single cron hitting both environments | Doesn't work — Vercel crons are production-only |
+
+### Related incident
+
+On April 18, 2026, the staging DB got paused (E2E tests at the time didn't touch the DB). After Supabase auto-unpaused, the PgBouncer pooler failed to re-authenticate even with the correct password. The root cause fix was a password reset; this health-check strategy was introduced immediately after to prevent recurrence.
+
+### Risk Level: Low ✅
+
+The ping cost is negligible (one `SELECT 1` per day per environment). The endpoint is unauthenticated but intentionally discloses no sensitive data.
+
+---
+
 ## Decision Log
 
 ### Quick Reference Table
@@ -1196,12 +1247,31 @@ ORDER BY createdAt;
 | 11 | Playwright for E2E tests | Prompt 10 | Mar 27 | Low ✅ | ✅ Implemented |
 | 12 | E2E runs post-staging deploy, gates production | Prompt 10 | Mar 27 | Low ✅ | ✅ Implemented |
 | 13 | GitHub Issue on E2E failure (notification) | Prompt 10 | Mar 27 | Low ✅ | ✅ Implemented |
+| 14 | Real E2E core-flow test gating production deploy | Post-Prompt 10 | Apr 17 | Low ✅ | ✅ Implemented |
+| 15 | Mock AI in E2E via `E2E_MOCK_AI` env var on Vercel Preview | Post-Prompt 10 | Apr 17 | Low ✅ | ✅ Implemented |
+| 16 | DB health check ping (Vercel cron for prod, GitHub Action for staging) | Post-Prompt 10 | Apr 17 | Low ✅ | ✅ Implemented |
+| 17 | Add `trustHost: true` to NextAuth config | Post-Prompt 10 | Apr 22 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**April 22, 2026**
+- Fixed incomplete rebranding: replaced 6 remaining `review-flow-*` URLs with `brandsiq-*` in `playwright.config.ts` and both staging workflows (PR #52)
+- Added `trustHost: true` to NextAuth config in `src/lib/auth.ts` — required for auth to work across Vercel domain aliases without explicit per-host configuration (PR #52)
+- Fixed Playwright strict-mode locator violations in `tests/e2e/core-flow.spec.ts` by switching to `getByRole` / `getByText({ exact: true })` (PR #54)
+- First successful end-to-end production deploy using the new E2E gate: staging E2E passes → production deploy cleared
+
+**April 17, 2026** (extended test coverage + health check strategy)
+- Expanded unit test suite from 447 → 581 tests (PR #38): 13 new component test files + sentiment usage API test
+- Added `GET /api/health` endpoint with Prisma `SELECT 1` ping (PR #39)
+- Added Vercel cron for production DB health check (daily noon UTC via `vercel.json`)
+- Added GitHub Actions scheduled workflow for staging DB health check (`health-check-staging.yml`, daily 6 AM UTC) — needed because Vercel crons only run on production domain
+- Added real E2E core-flow test (`tests/e2e/core-flow.spec.ts`): login → add review → generate response → edit → approve
+- Added `E2E_MOCK_AI` env var support in `src/lib/ai/claude.ts` — when set to `"true"` on Vercel Preview, Claude API calls return a canned response (zero AI cost per merge). Production never has this var set.
+- Added `workflow_dispatch` trigger to `e2e-staging.yml` for manual re-runs (PR #42)
 
 **March 27, 2026**
 - Implemented comprehensive test suite (Prompt 10 - Testing):
@@ -1316,4 +1386,4 @@ ORDER BY createdAt;
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** February 4, 2026 (Tabbed Credit History page)
+**Last Reviewed:** April 22, 2026 (DB health check strategy + NextAuth trustHost + E2E core-flow test)
