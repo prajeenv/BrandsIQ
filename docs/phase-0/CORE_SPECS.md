@@ -30,7 +30,7 @@ Reviews added → AI generates response in same language → User edits (optiona
 **Credit Costs:**
 - Response generation: 1.0 credits
 - Response regeneration: 1.0 credits
-- Sentiment analysis: 0.3 credits (counted against sentiment quota, not credits)
+- Sentiment analysis: 1 sentiment credit per analysis (separate balance from response credits; does not consume response credits)
 
 ---
 
@@ -62,8 +62,7 @@ model User {
   tier                Tier      @default(FREE)
   credits             Int       @default(15)
   creditsResetDate    DateTime  @default(now())
-  sentimentQuota      Int       @default(35)
-  sentimentUsed       Int       @default(0)
+  sentimentCredits    Int       @default(35)   // Balance model: remaining sentiment credits (decremented 1 per analysis)
   sentimentResetDate  DateTime  @default(now())
   
   // Timestamps
@@ -509,10 +508,11 @@ const TIER_LIMITS = {
 
 // Credit costs
 const CREDIT_COSTS = {
-  RESPONSE_GENERATION: 1.0,
-  RESPONSE_REGENERATION: 1.0,
-  SENTIMENT_ANALYSIS: 0.3  // Counted against sentiment quota
+  GENERATE_RESPONSE: 1.0,
+  REGENERATE_RESPONSE: 1.0,
 };
+// Sentiment analysis is NOT in CREDIT_COSTS — it consumes 1 sentimentCredit
+// from a separate balance (see TIER_LIMITS.*.sentiment).
 
 // Supported platforms
 const PLATFORMS = [

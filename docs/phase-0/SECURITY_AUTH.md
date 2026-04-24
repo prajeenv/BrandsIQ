@@ -151,14 +151,13 @@ export const authOptions = {
   events: {
     async signIn({ user, isNewUser }) {
       if (isNewUser) {
-        // Initialize new user
+        // Initialize new user (balance model: sentimentCredits holds remaining balance)
         await prisma.user.update({
           where: { id: user.id },
           data: {
             credits: 15,
             tier: "FREE",
-            sentimentQuota: 35,
-            sentimentUsed: 0
+            sentimentCredits: 35
           }
         });
         

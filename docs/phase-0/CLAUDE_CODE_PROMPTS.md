@@ -284,7 +284,7 @@ Implement the complete database schema using Prisma and connect to Supabase Post
    Copy the COMPLETE Prisma schema from `docs/phase-0/CORE_SPECS.md` into `prisma/schema.prisma`.
    
    The schema includes:
-   - User (with tier, credits, sentimentQuota)
+   - User (with tier, credits, sentimentCredits)
    - Account (OAuth)
    - Session (JWT sessions)
    - VerificationToken (email verification)
@@ -925,22 +925,22 @@ Implement sentiment analysis using DeepSeek API.
 
 2. **Integrate with Review Creation**
    Update `POST /api/reviews` endpoint:
-   - After language detection, check sentiment quota
-   - If quota available:
+   - After language detection, check user.sentimentCredits
+   - If sentimentCredits > 0:
      * Call analyzeSentiment()
      * Save sentiment to Review.sentiment
      * Log usage in SentimentUsage table
-     * Increment user.sentimentUsed
-   - If quota exceeded:
-     * Skip sentiment analysis
+     * Decrement user.sentimentCredits by 1 (atomic with the log insert)
+   - If sentimentCredits === 0:
+     * Skip sentiment analysis (non-blocking — review still created)
      * Set sentiment to null
-     * Show warning to user
+     * Return sentimentWarning in the API response; redirect to detail page with ?sentimentSkipped=true
 
-3. **Sentiment Quota Tracking**
-   - Track usage in user.sentimentUsed
-   - Reset monthly on user.sentimentResetDate
-   - Display quota in dashboard (e.g., "8/35 used")
-   - Show warning when approaching limit (>90%)
+3. **Sentiment Credit Tracking (Balance Model)**
+   - Track remaining balance in user.sentimentCredits (decrement 1 per analysis)
+   - Reset every 30 days on user.sentimentResetDate (anniversary from signup)
+   - Display balance in dashboard (e.g., "27/35 remaining")
+   - Show warning when approaching limit (≤20% remaining)
 
 4. **Sentiment Display**
    Add sentiment badges to ReviewCard:
@@ -1074,9 +1074,9 @@ Implement comprehensive credit tracking and management system.
    Logic:
    - Find users where creditsResetDate < now
    - Reset credits to tier default
-   - Reset sentimentUsed to 0
-   - Update reset dates to next month
-   - Log in system (for audit)
+   - Reset sentimentCredits to tier default (balance model)
+   - Update reset dates +30 days (anniversary-based, not calendar-aligned)
+   - Log MONTHLY_RESET action in CreditUsage (for audit)
 
 7. **Fraud Prevention**
    Implement race condition prevention:

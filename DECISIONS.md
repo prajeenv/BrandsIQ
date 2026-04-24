@@ -259,7 +259,7 @@ Platform filter uses exact match	Filters use the exact platform string from cons
 Spec Said	Implemented	Why Deviated	Impact/Risk
 API base URL /api/v1	Used /api (no version prefix)	Next.js App Router convention; versioning can be added later if needed	Low - easy to add /v1 prefix later
 DeepSeek required for sentiment	Made DeepSeek optional with fallback	Allows testing without API key; ensures feature works even if API is down	Low - fallback has lower accuracy but is functional
-Sentiment cost 0.3 credits	Sentiment counts against separate sentimentQuota, not credits	This matches the schema design where sentiment has its own quota (35/150/500 per tier)	None - follows schema design
+Sentiment cost 0.3 credits	Sentiment counts against separate sentimentCredits balance (1 analysis = 1 sentimentCredit), not response credits. **Superseded Jan 20, 2026:** originally `sentimentUsed`/`sentimentQuota`; standardized to balance model — see "Schema Change: Sentiment Credits Standardization".	Separate balance matches response-credit pattern; quota sized per tier (35/150/500)	None - follows schema design
 externalId and externalUrl in create	Available in schema but not in create form UI	These are for future platform integrations (CSV import), not manual entry	Low - can add to form when needed
 
 ![alt text](image-1.png)
