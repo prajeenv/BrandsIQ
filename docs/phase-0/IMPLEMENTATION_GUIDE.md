@@ -369,23 +369,23 @@ export async function POST(req: Request) {
   
   // Detect language
   const languageResult = detectLanguage(reviewText);
-  
-  // Check sentiment quota
+
+  // Load user (for sentiment credit check — non-blocking)
   const user = await prisma.user.findUnique({
     where: { id: session.user.id }
   });
-  
-  if (!user || user.sentimentUsed >= user.sentimentQuota) {
-    return NextResponse.json(
-      { error: { code: "SENTIMENT_QUOTA_EXCEEDED", message: "Monthly sentiment analysis limit reached" } },
-      { status: 402 }
-    );
+
+  // Analyze sentiment only if credits remain.
+  // If not, review creation still proceeds with sentiment = null (non-blocking).
+  let sentiment: string | null = null;
+  let sentimentAnalyzed = false;
+  if (user && user.sentimentCredits > 0) {
+    const result = await analyzeSentiment(reviewText);
+    sentiment = result.sentiment;
+    sentimentAnalyzed = true;
   }
-  
-  // Analyze sentiment
-  const { sentiment } = await analyzeSentiment(reviewText);
-  
-  // Create review
+
+  // Create review (always — sentiment may be null)
   const review = await prisma.review.create({
     data: {
       userId: session.user.id,
@@ -398,29 +398,38 @@ export async function POST(req: Request) {
       sentiment
     }
   });
-  
-  // Log sentiment usage (audit trail)
-  await prisma.sentimentUsage.create({
-    data: {
-      userId: session.user.id,
-      reviewId: review.id,
-      sentiment,
-      details: JSON.stringify({
-        platform,
-        rating,
-        preview: reviewText.substring(0, 100),
-        analyzedAt: new Date(),
+
+  // Log sentiment usage + decrement balance atomically (only if analyzed)
+  if (sentimentAnalyzed && sentiment) {
+    await prisma.$transaction([
+      prisma.sentimentUsage.create({
+        data: {
+          userId: session.user.id,
+          reviewId: review.id,
+          sentiment,
+          details: JSON.stringify({
+            reviewId: review.id,
+            platform,
+            rating,
+            analyzedAt: new Date(),
+          })
+        }
+      }),
+      prisma.user.update({
+        where: { id: session.user.id },
+        data: { sentimentCredits: { decrement: 1 } }
       })
-    }
-  });
-  
-  // Increment sentiment usage counter
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { sentimentUsed: { increment: 1 } }
-  });
-  
-  return NextResponse.json({ success: true, data: { review } }, { status: 201 });
+    ]);
+  }
+
+  return NextResponse.json(
+    {
+      success: true,
+      data: { review },
+      ...(sentimentAnalyzed ? {} : { sentimentWarning: "Sentiment analysis skipped: no credits remaining" })
+    },
+    { status: 201 }
+  );
 }
 ```
 
@@ -454,30 +463,18 @@ if (user.credits < 1) {
 
 **UI:** Show upgrade modal with pricing options
 
-### 2. Sentiment Quota Exceeded
-**Scenario:** User tries to add review when sentiment quota used up
+### 2. Sentiment Credits Exhausted
+**Scenario:** User adds a review when `sentimentCredits === 0`
 
-**Handling:**
+**Handling (non-blocking):** Review creation proceeds as normal; sentiment is stored as `null` and the API response includes a `sentimentWarning`. No 402 error — the review still gets saved because sentiment is enrichment, not a hard prerequisite.
+
 ```typescript
-if (user.sentimentUsed >= user.sentimentQuota) {
-  return NextResponse.json(
-    {
-      error: {
-        code: "SENTIMENT_QUOTA_EXCEEDED",
-        message: "Monthly sentiment analysis limit reached",
-        details: {
-          quotaUsed: user.sentimentUsed,
-          quotaTotal: user.sentimentQuota,
-          resetDate: user.sentimentResetDate
-        }
-      }
-    },
-    { status: 402 }
-  );
-}
+// See sentiment analysis block above — skipped when user.sentimentCredits === 0.
+// The review is created with sentiment: null and the response carries:
+//   { success: true, data: { review }, sentimentWarning: "Sentiment analysis skipped: no credits remaining" }
 ```
 
-**UI:** Allow review creation but show warning: "Sentiment analysis unavailable (quota reached)"
+**UI:** Redirect to the review detail page with `?sentimentSkipped=true`. The page shows a dismissible yellow alert ("Sentiment Analysis Skipped") with an upgrade CTA, and the review itself displays a `Sentiment ⚠` indicator with tooltip instead of a sentiment badge.
 
 ### 3. Language Detection Low Confidence
 **Scenario:** Review text too short (<50 chars) or mixed languages
