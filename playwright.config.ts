@@ -15,6 +15,9 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'html',
 
   use: {
+    // CI always sets STAGING_URL from the repo variable; the literal below is a
+    // local-DX fallback only. If the staging alias changes, update both this
+    // string and the STAGING_URL repo variable.
     baseURL: process.env.STAGING_URL || 'https://brandsiq-git-main-prajeens-projects-eb24da7b.vercel.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
