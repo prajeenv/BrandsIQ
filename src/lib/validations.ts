@@ -23,6 +23,9 @@ export const signUpSchema = z.object({
     .string()
     .min(1, "Name is required")
     .max(VALIDATION_LIMITS.NAME_MAX, "Name is too long"),
+  // MVP Phase 1: optional beta invite code. If valid, user is created with
+  // isBetaUser=true and beta plan allocation. See MVP.md Section 13.2.
+  betaCode: z.string().min(1).max(64).optional(),
 });
 
 export const signInSchema = z.object({

@@ -1228,6 +1228,84 @@ The ping cost is negligible (one `SELECT 1` per day per environment). The endpoi
 
 ---
 
+## MVP Phase 1: Pre-Launch Beta
+
+This section documents the closed-beta layer added on top of the original MVP build. Source of truth: `docs/MVP_Phase-1/MVP.md`. Implementation tracked in `PROGRESS.md` under "MVP Phase 1 (Closed Beta)".
+
+### Iteration 1 — Schema, Beta Plan, Invite-Code Signup, Admin Page
+
+Branch: `feat/mvp-phase-1-iteration-1`. Five commits: docs amendments, schema, lib helpers, API layer, UI layer, plus tests + doc updates in the closing commit.
+
+#### Decision 1: User-as-account (skip the standalone Account model)
+
+- **Decision:** Treat `User` as the account-equivalent for MVP. `Location`, `BetaInviteLink.usedByUserId`, and `FounderInquiry.userId` all FK to `User`. The proper `Account` rollup is deferred to post-MVP multi-user / Scale-tier work.
+- **Why:** MVP enforces 1 user per account at the application layer (MVP.md Section 4). Renaming the existing NextAuth `Account` to `OAuthAccount` and introducing a new top-level `Account` model would touch ~10+ call sites for zero MVP behavioral benefit.
+- **Migration path when needed:** Standard expand-then-contract — add `Account` table + nullable `accountId` columns, backfill 1:1, dual-write, cutover, drop `userId`. Documented in MVP.md Section 8 amendment and the plan file's open-question section.
+- **Risk:** Low ✅. Reversible.
+
+#### Decision 2: Phase flag stored as a Vercel env var, not a DB row
+
+- **Decision:** `CURRENT_PHASE=phase_1|phase_2` env var, read via `src/lib/system-phase.ts:getCurrentPhase()`. No `SystemConfig` table.
+- **Why:** The phase flips once-ever at commercial launch. A DB row + cache + invalidation path is over-engineering for a one-time flip; a Vercel redeploy (~90s) is acceptable.
+- **Trade-off:** Cannot flip the phase without redeploying. Acceptable because we never want to flip back-and-forth — the transition is monotonic.
+- **Risk:** Low ✅.
+
+#### Decision 3: OAuth invite-code propagation via short-lived HttpOnly cookie
+
+- **Decision:** When the user lands on `/auth/signup?b=<code>` and clicks "Sign up with Google", a `POST /api/auth/stash-invite` sets `bx_invite_code` (HttpOnly, SameSite=Lax, 10-min Max-Age). NextAuth's `events.signIn` reads the cookie when `isNewUser === true` and applies the beta plan + marks the link used in a transaction. Best-effort cookie cleanup after.
+- **Alternatives considered:** NextAuth's `state` parameter (more invasive — requires NextAuth-internal hacks); URL state through OAuth callback (Google strips most params).
+- **Why cookie:** Smallest surface area. The invite code is non-sensitive (it's already in the URL the user clicked), and HttpOnly prevents JS-side reads.
+- **Risk:** Low ✅. Failure mode is "user becomes Free instead of Beta" — visible, recoverable via founder grant.
+
+#### Decision 4: No confirmation email back to founder-inquiry submitters
+
+- **Decision:** When a user submits the founder-inquiry form (iteration 2), no auto-confirmation email is sent. The expired-link page already states the contract ("we'll send you a fresh invite within 24 hours"); the founder responds personally via email/WhatsApp per `BETA_ENGAGEMENT_PLAYBOOK.md`.
+- **Why:** A confirmation email is dev work for zero validation signal. The founder is responding directly anyway.
+- **Risk:** Low ✅.
+
+#### Decision 5: Lo-fi admin gate via `FOUNDER_EMAILS` env var
+
+- **Decision:** Comma-separated list of emails in `FOUNDER_EMAILS`. Middleware gates `/dashboard/admin/*` and `/api/admin/*`; each route handler also calls `isFounder(session)` server-side. Non-founders get a literal 404 (we don't disclose route existence). Initial value: `prajeen.builder@gmail.com`.
+- **Alternative considered:** `User.isAdmin` boolean + admin-management UI. Rejected — proper RBAC adds DB column, UI for managing admins, audit trail. Wrong shape for one founder running a closed beta.
+- **Trade-off:** Adding a new admin requires a Vercel env var change and redeploy. Acceptable at MVP scale.
+- **Risk:** Low ✅.
+
+#### Decision 6: `Review.locationId` nullable in iteration 1, non-null in iteration 3
+
+- **Decision:** Two-phase migration for `Review.locationId`. Iteration 1: add as nullable + run `scripts/backfill-locations.ts`. Iteration 3: contract migration making it non-null after backfill is fully verified on prod.
+- **Why:** Standard Postgres safe-rollout pattern. Allows the column to ship + the backfill to run + verification before the constraint locks it down. If anything goes wrong, a migration rollback doesn't lose data.
+- **Risk:** Low ✅. Standard pattern; well-bounded.
+
+#### Decision 7: Manual one-shot backfill via `tsx`, not Vercel deploy hook
+
+- **Decision:** `scripts/backfill-locations.ts` is run manually (`npx tsx scripts/backfill-locations.ts --apply`) on staging-clone first, then prod. Idempotent — safe to retry.
+- **Why:** A deploy-time hook auto-runs on every redeploy and is harder to roll back. Manual runs are explicit, observable, and reversible.
+- **Risk:** Low ✅.
+
+#### Decision 8: Beta plan is a flag (`isBetaUser`), not a tier
+
+- **Decision:** `User.isBetaUser` boolean overrides tier-based credit allocation when true (150/750 instead of FREE's 15/35). `getEffectiveAllocation(user)` is the single source of truth.
+- **Why:** A user is either on the Beta plan or on a regular tier, never both (MVP.md Section 4). At commercial launch, beta users transition to a real tier — keeping `isBetaUser` as a flag means we don't need a "BETA" enum value that has to be removed later.
+- **Risk:** Low ✅.
+
+#### GDPR `onDelete` semantics for new FKs
+
+| FK | Behavior | Why |
+|---|---|---|
+| `Location.userId` | `Cascade` | Locations belong to user; nothing to preserve |
+| `Review.locationId` (→ Location) | `Cascade` | Reviews belong to location |
+| `BetaInviteLink.usedByUserId` | `SetNull` | Audit trail survives ("invite was used by deleted user") |
+| `FounderInquiry.userId` | `SetNull` | Inquiry record survives user deletion |
+
+#### Test coverage added in iteration 1
+
+- 23 new unit tests across 4 files: admin beta-invites POST/GET, beta-invite validate (5 cases), stash-invite cookie set/clear, signup with betaCode (5 cases including phase_2 short-circuit), beta-reset path in db-utils
+- Integration test file with 5 scenarios: atomic transaction, rollback on partial failure, rejection of expired invites, beta reset to 150/750 alongside FREE reset to 15/35, GDPR `SetNull` on user deletion
+- E2E spec covering 5 public surfaces: signup with no code, signup with unknown code (redirect), beta-link-expired page render, admin route 404 for unauthenticated users, admin API 404
+- Total: **604 unit tests passing** (up from 581) + **5 new integration tests** + **5 new E2E tests**
+
+---
+
 ## Decision Log
 
 ### Quick Reference Table
@@ -1251,12 +1329,35 @@ The ping cost is negligible (one `SELECT 1` per day per environment). The endpoi
 | 15 | Mock AI in E2E via `E2E_MOCK_AI` env var on Vercel Preview | Post-Prompt 10 | Apr 17 | Low ✅ | ✅ Implemented |
 | 16 | DB health check ping (Vercel cron for prod, GitHub Action for staging) | Post-Prompt 10 | Apr 17 | Low ✅ | ✅ Implemented |
 | 17 | Add `trustHost: true` to NextAuth config | Post-Prompt 10 | Apr 22 | Low ✅ | ✅ Implemented |
+| 18 | User-as-account (skip standalone Account model in MVP) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
+| 19 | `CURRENT_PHASE` env var instead of `SystemConfig` DB row | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
+| 20 | OAuth invite-code via short-lived HttpOnly cookie | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
+| 21 | No auto-confirmation email to inquiry submitters | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
+| 22 | `FOUNDER_EMAILS` env-var admin gate (no User.isAdmin) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
+| 23 | `Review.locationId` two-phase migration (nullable → backfill → non-null) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Iter. 1 done; iter. 3 pending |
+| 24 | Manual one-shot backfill via tsx (not Vercel hook) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
+| 25 | Beta plan is `isBetaUser` flag, not a Tier enum value | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**May 9, 2026** — MVP Phase 1 (Closed Beta), Iteration 1
+- Added `docs/MVP_Phase-1/MVP.md` to git with 4 implementation amendments (Sections 2, 8, 13.2, 13.4)
+- New schema: `Location`, `BetaInviteLink`, `FounderInquiry` models; `User.isBetaUser` + 7 profile fields; `Review.locationId` (nullable in this iteration)
+- New constants: `BETA_PLAN` (150/750), `BETA_INVITE_EXPIRY_DAYS` (60), `getEffectiveAllocation` helper
+- `db-utils.ts:resetMonthlyCredits` now honors `isBetaUser` via `getEffectiveAllocation`
+- New helpers: `src/lib/auth-helpers.ts` (`isFounder`, `isFounderEmail`), `src/lib/system-phase.ts` (`getCurrentPhase`)
+- New API routes: `POST/GET /api/admin/beta-invites`, `GET /api/beta-invites/[code]/validate`, `POST/DELETE /api/auth/stash-invite`
+- Modified API routes: `POST /api/auth/signup` accepts `betaCode` with atomic transaction; `lib/auth.ts events.signIn` reads invite cookie for OAuth path
+- New UI: `/auth/beta-link-expired` (placeholder mailto recovery; full form lands in iteration 2), `/dashboard/admin/beta-invites` (founder-only), `/onboarding` (placeholder)
+- Modified UI: `SignupForm` reads `?b=<code>` and shows banner; `Sidebar` conditionally shows admin section; `middleware.ts` gates admin routes (404 for non-founders)
+- New env vars: `FOUNDER_EMAILS=prajeen.builder@gmail.com`, `CURRENT_PHASE=phase_1` (defaults to phase_1 if unset)
+- `scripts/backfill-locations.ts` (one-shot tsx, idempotent, dry-run by default)
+- 23 new unit tests, 5 new integration tests, 5 new E2E specs. Total suite: 604 unit / 11 skipped (integration require localhost DB)
+- All decisions in this iteration are Low ✅ risk; the iteration is independently shippable to staging
 
 **April 22, 2026**
 - Fixed incomplete rebranding: replaced 6 remaining `review-flow-*` URLs with `brandsiq-*` in `playwright.config.ts` and both staging workflows (PR #52)
@@ -1386,4 +1487,4 @@ The ping cost is negligible (one `SELECT 1` per day per environment). The endpoi
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** April 22, 2026 (DB health check strategy + NextAuth trustHost + E2E core-flow test)
+**Last Reviewed:** May 9, 2026 (MVP Phase 1 closed-beta, iteration 1: schema + lib + APIs + UI + tests)

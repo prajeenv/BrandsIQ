@@ -18,37 +18,56 @@ datasource db {
 // ============================================
 
 model User {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  emailVerified       DateTime?
-  name                String?
-  image               String?
-  password            String?   // bcrypt hashed, null if OAuth only
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  password      String? // bcrypt hashed, null if OAuth only
 
   // Subscription & Credits
   // Note: creditsResetDate and sentimentResetDate are set to now()+30days in application code
   // during user creation (auth.ts signIn event, signup route). The @default(now()) is only
   // a fallback for direct database inserts. Anniversary-based billing: 30-day cycles per user.
-  tier                Tier      @default(FREE)
-  credits             Int       @default(15)
-  creditsResetDate    DateTime  @default(now())
-  sentimentCredits    Int       @default(35)
-  sentimentResetDate  DateTime  @default(now())
+  tier               Tier     @default(FREE)
+  credits            Int      @default(15)
+  creditsResetDate   DateTime @default(now())
+  sentimentCredits   Int      @default(35)
+  sentimentResetDate DateTime @default(now())
+
+  // MVP Phase 1: Closed Beta
+  // isBetaUser overrides tier-based credit allocation when true (see lib/constants.ts BETA_PLAN).
+  // Set during signup if the user arrived via a valid BetaInviteLink.
+  isBetaUser Boolean @default(false)
+
+  // Profile registration fields (Section 9 in docs/MVP_Phase-1/MVP.md).
+  // Collected via /onboarding wizard after signup. All nullable so existing users remain valid.
+  organizationName      String?
+  industry              String?
+  country               String?
+  locationCountEstimate Int?
+  primaryPlatform       String?
+  signupIntent          String? // direct (no-invite) signups only: "yes" | "just_trying" | "unsure"
+  signupChallengeText   String? @db.Text // direct signups only: free-text challenge description
 
   // Timestamps
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  reviews             Review[]
-  brandVoice          BrandVoice?
-  creditUsage         CreditUsage[]
-  sentimentUsage      SentimentUsage[]
-  sessions            Session[]
-  accounts            Account[]
+  reviews          Review[]
+  brandVoice       BrandVoice?
+  creditUsage      CreditUsage[]
+  sentimentUsage   SentimentUsage[]
+  sessions         Session[]
+  accounts         Account[]
+  locations        Location[]
+  betaInvitesUsed  BetaInviteLink[] @relation("BetaInviteUsedBy")
+  founderInquiries FounderInquiry[]
 
   @@index([email])
   @@index([tier])
+  @@index([isBetaUser])
   @@map("users")
 }
 
@@ -61,8 +80,8 @@ enum Tier {
 model Account {
   id                String  @id @default(cuid())
   userId            String
-  type              String  // "oauth" | "email"
-  provider          String  // "google" | "credentials"
+  type              String // "oauth" | "email"
+  provider          String // "google" | "credentials"
   providerAccountId String
   refresh_token     String? @db.Text
   access_token      String? @db.Text
@@ -105,18 +124,18 @@ model VerificationToken {
 // ============================================
 
 model BrandVoice {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tone            String   @default("professional")  // "friendly" | "professional" | "casual" | "formal"
-  formality       Int      @default(3)               // 1-5 scale
+  tone            String   @default("professional") // "friendly" | "professional" | "casual" | "formal"
+  formality       Int      @default(3) // 1-5 scale
   keyPhrases      String[] @default([])
   styleNotes      String?  @db.Text
   sampleResponses String[] @default([])
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@map("brand_voices")
@@ -127,56 +146,62 @@ model BrandVoice {
 // ============================================
 
 model Review {
-  id              String    @id @default(cuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  platform        String                    // "google" | "amazon" | "shopify" | "trustpilot" | "other"
-  reviewText      String    @db.Text        // 1-2000 chars
-  rating          Int?                      // 1-5 stars, nullable
-  reviewerName    String?
-  reviewDate      DateTime?
+  // MVP Phase 1: Location is nullable in iteration 1 (existing rows backfilled by
+  // scripts/backfill-locations.ts). A follow-up migration in iteration 3 makes it non-null.
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
-  detectedLanguage String   @default("English")
-  sentiment       String?                   // "positive" | "neutral" | "negative" | null
+  platform     String // "google" | "amazon" | "shopify" | "trustpilot" | "other"
+  reviewText   String    @db.Text // 1-2000 chars
+  rating       Int? // 1-5 stars, nullable
+  reviewerName String?
+  reviewDate   DateTime?
 
-  externalId      String?
-  externalUrl     String?
+  detectedLanguage String  @default("English")
+  sentiment        String? // "positive" | "neutral" | "negative" | null
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  externalId  String?
+  externalUrl String?
 
-  response        ReviewResponse?
-  creditUsage     CreditUsage[]
-  sentimentUsage  SentimentUsage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  response       ReviewResponse?
+  creditUsage    CreditUsage[]
+  sentimentUsage SentimentUsage[]
 
   @@index([userId, createdAt])
   @@index([platform])
   @@index([sentiment])
+  @@index([locationId])
   @@map("reviews")
 }
 
 model ReviewResponse {
-  id              String   @id @default(cuid())
-  reviewId        String   @unique
-  review          Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  reviewId String @unique
+  review   Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
-  responseText    String   @db.Text        // Max 500 chars
-  isEdited        Boolean  @default(false)
-  editedAt        DateTime?
+  responseText String    @db.Text // Max 500 chars
+  isEdited     Boolean   @default(false)
+  editedAt     DateTime?
 
-  creditsUsed     Int      @default(1)
-  toneUsed        String   @default("default")
-  generationModel String   @default("claude-sonnet-4-20250514")
+  creditsUsed     Int    @default(1)
+  toneUsed        String @default("default")
+  generationModel String @default("claude-sonnet-4-20250514")
 
-  isPublished     Boolean  @default(false)
-  publishedAt     DateTime?
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  versions        ResponseVersion[]
-  creditUsage     CreditUsage[]
+  versions    ResponseVersion[]
+  creditUsage CreditUsage[]
 
   @@index([reviewId])
   @@index([isPublished])
@@ -184,17 +209,17 @@ model ReviewResponse {
 }
 
 model ResponseVersion {
-  id                String   @id @default(cuid())
-  reviewResponseId  String
-  reviewResponse    ReviewResponse @relation(fields: [reviewResponseId], references: [id], onDelete: Cascade)
+  id               String         @id @default(cuid())
+  reviewResponseId String
+  reviewResponse   ReviewResponse @relation(fields: [reviewResponseId], references: [id], onDelete: Cascade)
 
-  responseText      String   @db.Text
-  toneUsed          String
-  creditsUsed       Int      @default(1)
-  isEdited          Boolean  @default(false)  // true if this version was manually edited
+  responseText String  @db.Text
+  toneUsed     String
+  creditsUsed  Int     @default(1)
+  isEdited     Boolean @default(false) // true if this version was manually edited
 
-  originalCreatedAt DateTime?             // When the response was originally generated (null for legacy records)
-  createdAt         DateTime @default(now())  // When this version record was created (moved to history)
+  originalCreatedAt DateTime? // When the response was originally generated (null for legacy records)
+  createdAt         DateTime  @default(now()) // When this version record was created (moved to history)
 
   @@index([reviewResponseId, createdAt])
   @@map("response_versions")
@@ -205,24 +230,24 @@ model ResponseVersion {
 // ============================================
 
 model CreditUsage {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  reviewId          String?
-  review            Review?          @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+  reviewId String?
+  review   Review? @relation(fields: [reviewId], references: [id], onDelete: SetNull)
 
-  reviewResponseId  String?
-  reviewResponse    ReviewResponse?  @relation(fields: [reviewResponseId], references: [id], onDelete: SetNull)
+  reviewResponseId String?
+  reviewResponse   ReviewResponse? @relation(fields: [reviewResponseId], references: [id], onDelete: SetNull)
 
-  creditsUsed Int      @default(1)          // Negative for refunds
-  action      String                        // "GENERATE_RESPONSE" | "REGENERATE" | "REFUND"
+  creditsUsed Int    @default(1) // Negative for refunds
+  action      String // "GENERATE_RESPONSE" | "REGENERATE" | "REFUND"
 
   // Audit trail survives deletion (SET NULL relationships)
   // Anonymized on GDPR deletion (PII redacted, structure preserved)
-  details     String?  @db.Text             // JSON: { reviewSnapshot, responseSnapshot, metadata, anonymized? }
+  details String? @db.Text // JSON: { reviewSnapshot, responseSnapshot, metadata, anonymized? }
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([action])
@@ -230,21 +255,96 @@ model CreditUsage {
 }
 
 model SentimentUsage {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  reviewId  String?
-  review    Review?  @relation(fields: [reviewId], references: [id], onDelete: SetNull)
+  reviewId String?
+  review   Review? @relation(fields: [reviewId], references: [id], onDelete: SetNull)
 
-  sentiment String   // "positive" | "neutral" | "negative"
+  sentiment String // "positive" | "neutral" | "negative"
 
   // Audit trail survives deletion, anonymized on GDPR deletion
-  details   String?  @db.Text  // JSON: { platform, rating, preview (100 chars), analyzedAt, anonymized? }
+  details String? @db.Text // JSON: { platform, rating, preview (100 chars), analyzedAt, anonymized? }
 
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([sentiment])
   @@map("sentiment_usage")
+}
+
+// ============================================
+// MVP PHASE 1 — CLOSED BETA
+// See docs/MVP_Phase-1/MVP.md Sections 7, 8, 13.1, 13.4
+// ============================================
+
+// Locations belong to a user (User-as-account in MVP — see MVP.md Section 8 amendment).
+// MVP enforces 1 location per account at the application layer; the schema supports many.
+model Location {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reviews Review[]
+
+  @@index([userId])
+  @@map("locations")
+}
+
+// Beta invite links: single-use, 60-day expiry. Generated by founder via /dashboard/admin/beta-invites.
+// Once `usedAt` is set, the link cannot be reused. Records persist after the user is deleted
+// (usedByUserId becomes null via SetNull) so the audit trail survives.
+model BetaInviteLink {
+  id    String  @id @default(cuid())
+  code  String  @unique
+  notes String? @db.Text // founder notes about who this link was sent to
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  usedAt       DateTime?
+  usedByUserId String?
+  usedBy       User?     @relation("BetaInviteUsedBy", fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([usedByUserId])
+  @@map("beta_invite_links")
+}
+
+// Founder inquiries: unified table backing the founder-inquiry form (MVP.md Section 13.4).
+// Used in 4 places: expired-link recovery, "request beta access" CTAs (Free user, pricing page),
+// "request more credits" CTA (beta user at zero balance), onboarding-intent (non-beta user).
+model FounderInquiry {
+  id String @id @default(cuid())
+
+  // Nullable because the expired-link-recovery flow happens before signup (no user yet).
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // type: "beta_request" | "more_credits" | "general" | "expired_link_recovery"
+  type   String
+  // source: where the inquiry was submitted from. Useful for PostHog event correlation.
+  // "expired_link" | "pricing" | "zero_balance" | "onboarding_intent" | "other"
+  source String?
+
+  // Submitter contact info captured by the form (especially important when userId is null).
+  submitterName  String?
+  submitterEmail String?
+  businessName   String?
+
+  message String @db.Text
+
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+  founderNotes String?   @db.Text
+
+  @@index([type, resolvedAt])
+  @@index([userId])
+  @@map("founder_inquiries")
 }

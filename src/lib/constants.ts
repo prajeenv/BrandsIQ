@@ -116,6 +116,32 @@ export const TIER_LIMITS: Record<
   },
 };
 
+// MVP Phase 1: Beta plan allocation (overrides tier limits when User.isBetaUser is true).
+// See docs/MVP_Phase-1/MVP.md Section 12.3.
+export const BETA_PLAN = {
+  credits: 150,
+  sentimentQuota: 750,
+  name: "Beta",
+} as const;
+
+// MVP Phase 1: Beta invite link expiry (60 days from creation).
+// See docs/MVP_Phase-1/MVP.md Section 13.1.
+export const BETA_INVITE_EXPIRY_DAYS = 60;
+
+// Returns the effective monthly allocation for a user.
+// Beta users get the BETA_PLAN allocation regardless of tier; others get their tier's limits.
+// Used by db-utils.ts:resetMonthlyCredits and new-user initialization in auth.ts/signup route.
+export function getEffectiveAllocation(user: { tier: SubscriptionTier; isBetaUser: boolean }): {
+  credits: number;
+  sentimentQuota: number;
+} {
+  if (user.isBetaUser) {
+    return { credits: BETA_PLAN.credits, sentimentQuota: BETA_PLAN.sentimentQuota };
+  }
+  const limits = TIER_LIMITS[user.tier];
+  return { credits: limits.credits, sentimentQuota: limits.sentimentQuota };
+}
+
 // Credit costs
 export const CREDIT_COSTS = {
   GENERATE_RESPONSE: 1.0,

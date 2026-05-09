@@ -21,11 +21,14 @@ Reviews added → AI generates response in same language → User edits (optiona
 
 ## Pricing Tiers
 
-| Tier    | Price     | Credits   | Sentiment Quota |
-| ------- | --------- | --------- | --------------- |
-| FREE    | $0        | 15/month  | 35/month        |
-| STARTER | $29/month | 30/month  | 150/month       |
-| GROWTH  | $79/month | 100/month | 500/month       |
+| Tier    | Price     | Credits   | Sentiment Quota | Notes |
+| ------- | --------- | --------- | --------------- | ----- |
+| FREE    | $0        | 15/month  | 35/month        | Default for direct signups |
+| STARTER | $29/month | 30/month  | 150/month       | Active in MVP Phase 2 (Stripe) |
+| GROWTH  | $79/month | 100/month | 500/month       | Active in MVP Phase 2 (Stripe) |
+| BETA*   | $0        | 150/month | 750/month       | MVP Phase 1 only — `User.isBetaUser=true` via invite link. Not a Tier enum value; overrides tier-based allocation. |
+
+*Beta is a flag, not a tier. See `docs/MVP_Phase-1/MVP.md` Section 12.3 and `src/lib/constants.ts:BETA_PLAN`. Allocation resolved by `getEffectiveAllocation(user)`.
 
 **Credit Costs:**
 - Response generation: 1.0 credits
@@ -278,6 +281,26 @@ model SentimentUsage {
 }
 ```
 
+### MVP Phase 1: Closed Beta — additional models and User columns
+
+Source: `prisma/schema.prisma`. Added in iteration 1 of `docs/MVP_Phase-1/MVP.md`.
+
+**`User` additions:**
+- `isBetaUser Boolean @default(false)` — overrides tier-based credit allocation
+- Profile fields (all nullable): `organizationName`, `industry`, `country`, `locationCountEstimate Int?`, `primaryPlatform`, `signupIntent`, `signupChallengeText`
+
+**`Review` addition:**
+- `locationId String?` — nullable in iteration 1 (backfilled by `scripts/backfill-locations.ts`); becomes non-null in iteration 3 contract migration
+
+**New models:**
+- `Location` (`id`, `userId` FK Cascade, `name`) — MVP enforces 1 per user at the application layer; schema supports many for forward compatibility
+- `BetaInviteLink` (`id`, `code` @unique, `notes`, `createdAt`, `expiresAt`, `usedAt`, `usedByUserId` FK SetNull) — single-use, 60-day expiry
+- `FounderInquiry` (`id`, `userId` FK SetNull nullable, `type`, `source`, `submitterName/Email/businessName`, `message`, `createdAt`, `resolvedAt`, `founderNotes`) — `type` values: `beta_request | more_credits | general | expired_link_recovery`
+
+**GDPR `onDelete` audit semantics:**
+- `BetaInviteLink.usedByUserId` and `FounderInquiry.userId` use `SetNull` so audit records survive user deletion
+- `CreditUsage` and `SentimentUsage` already use this pattern via existing `details` JSON snapshots
+
 ---
 
 ## API Endpoints
@@ -505,6 +528,12 @@ const TIER_LIMITS = {
   STARTER: { credits: 30, sentiment: 150 },
   GROWTH: { credits: 100, sentiment: 500 }
 };
+
+// MVP Phase 1: Beta plan (overrides tier limits when User.isBetaUser is true)
+const BETA_PLAN = { credits: 150, sentimentQuota: 750 };
+const BETA_INVITE_EXPIRY_DAYS = 60;
+// Use getEffectiveAllocation(user) from src/lib/constants.ts to resolve
+// the correct allocation for any user (beta or tier-based).
 
 // Credit costs
 const CREDIT_COSTS = {

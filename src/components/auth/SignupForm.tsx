@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { Loader2, Mail, Lock, User, Eye, EyeOff, Check, X } from "lucide-react";
+import { Loader2, Mail, Lock, User, Eye, EyeOff, Check, X, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,12 @@ import { signUpSchema, type SignUpInput } from "@/lib/validations";
 interface SignupFormProps {
   callbackUrl?: string;
 }
+
+type InviteState =
+  | { status: "none" }
+  | { status: "checking"; code: string }
+  | { status: "valid"; code: string }
+  | { status: "invalid"; code: string };
 
 function PasswordStrengthIndicator({ password }: { password: string }) {
   const checks = {
@@ -88,11 +94,48 @@ function PasswordStrengthIndicator({ password }: { password: string }) {
 
 export function SignupForm({ callbackUrl = "/dashboard" }: SignupFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Invite-code handling: read ?b=<code>, validate via the public endpoint,
+  // and route to /auth/beta-link-expired if the code is invalid.
+  const inviteCode = searchParams.get("b");
+  const [invite, setInvite] = useState<InviteState>(
+    inviteCode ? { status: "checking", code: inviteCode } : { status: "none" }
+  );
+
+  useEffect(() => {
+    if (!inviteCode) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/beta-invites/${encodeURIComponent(inviteCode)}/validate`
+        );
+        const json = await res.json();
+        if (cancelled) return;
+        if (json?.data?.valid) {
+          setInvite({ status: "valid", code: inviteCode });
+        } else {
+          // Send the user to the recovery page rather than letting them submit
+          // a doomed signup. Defensive — the signup route also re-validates.
+          router.replace(`/auth/beta-link-expired?code=${encodeURIComponent(inviteCode)}`);
+        }
+      } catch {
+        if (cancelled) return;
+        setInvite({ status: "invalid", code: inviteCode });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteCode, router]);
 
   const {
     register,
@@ -110,15 +153,27 @@ export function SignupForm({ callbackUrl = "/dashboard" }: SignupFormProps) {
     setError(null);
 
     try {
+      const body =
+        invite.status === "valid"
+          ? { ...data, betaCode: invite.code }
+          : data;
+
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
+        // If the server now reports the invite as invalid (e.g. used by a
+        // concurrent signup between our pre-check and submit), bounce to
+        // recovery instead of showing a generic error.
+        if (result?.error?.code === "INVALID_BETA_CODE" && invite.status === "valid") {
+          router.replace(`/auth/beta-link-expired?code=${encodeURIComponent(invite.code)}`);
+          return;
+        }
         setError(result.error?.message || "Failed to create account");
         return;
       }
@@ -136,6 +191,22 @@ export function SignupForm({ callbackUrl = "/dashboard" }: SignupFormProps) {
     setError(null);
 
     try {
+      // If we have a validated invite, stash it server-side as an HttpOnly
+      // cookie so NextAuth events.signIn can pick it up after the OAuth
+      // round-trip (URL params don't survive the redirect to Google).
+      if (invite.status === "valid") {
+        try {
+          await fetch("/api/auth/stash-invite", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: invite.code }),
+          });
+        } catch {
+          // Non-fatal — user can still complete OAuth, they'll just land
+          // as a Free user instead of a beta user. Surfaced via PostHog
+          // metrics rather than blocking signup.
+        }
+      }
       await signIn("google", { callbackUrl });
     } catch {
       setError("Failed to sign in with Google. Please try again.");
@@ -163,6 +234,35 @@ export function SignupForm({ callbackUrl = "/dashboard" }: SignupFormProps) {
 
   return (
     <div className="space-y-6">
+      {invite.status === "valid" && (
+        <div
+          role="status"
+          className="p-4 text-sm bg-primary/5 border border-primary/20 rounded-md flex gap-3"
+          data-testid="beta-invite-banner"
+        >
+          <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold text-foreground">
+              You&apos;ve been invited to BrandsIQ closed beta
+            </p>
+            <p className="text-muted-foreground">
+              Complete signup below to claim your beta plan: 150 response
+              credits and 750 sentiment analyses per month.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {invite.status === "checking" && (
+        <div
+          role="status"
+          className="p-3 text-sm text-muted-foreground bg-muted/30 border rounded-md flex items-center gap-2"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking your invite...
+        </div>
+      )}
+
       {error && (
         <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
           {error}
