@@ -6,7 +6,7 @@
 import { prisma } from "./prisma";
 import type { Tier, Prisma } from "@prisma/client";
 import { CreditActionValues } from "@/types/database";
-import { TIER_LIMITS } from "@/lib/constants";
+import { getEffectiveAllocation } from "@/lib/constants";
 import type { SubscriptionTier } from "@/lib/constants";
 
 // ============================================
@@ -353,13 +353,6 @@ export async function deductSentimentCredits(
 // ============================================
 
 /**
- * Helper to get tier limits from the single source of truth (constants.ts)
- */
-function getTierLimits(tier: Tier): { credits: number; sentimentQuota: number } {
-  return TIER_LIMITS[tier as SubscriptionTier];
-}
-
-/**
  * Calculate next reset date (30 days from a given date)
  * Uses anniversary-based billing - each user's cycle is 30 days from their signup/last reset
  */
@@ -371,26 +364,30 @@ function getNextResetDate(fromDate: Date = new Date()): Date {
 }
 
 /**
- * Reset credits for a user based on tier (anniversary-based: 30 days from current reset date)
+ * Reset credits for a user based on tier or beta plan (anniversary-based: 30 days from current reset date).
+ * Beta users (isBetaUser=true) get BETA_PLAN allocation regardless of tier.
  */
 export async function resetUserCredits(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { tier: true, creditsResetDate: true },
+    select: { tier: true, isBetaUser: true, creditsResetDate: true },
   });
 
   if (!user) return null;
 
-  const limits = getTierLimits(user.tier);
+  const allocation = getEffectiveAllocation({
+    tier: user.tier as SubscriptionTier,
+    isBetaUser: user.isBetaUser,
+  });
   // Calculate next reset as 30 days from the user's current reset date (anniversary-based)
   const nextResetDate = getNextResetDate(user.creditsResetDate);
 
   return prisma.user.update({
     where: { id: userId },
     data: {
-      credits: limits.credits,
+      credits: allocation.credits,
       creditsResetDate: nextResetDate,
-      sentimentCredits: limits.sentimentQuota,
+      sentimentCredits: allocation.sentimentQuota,
       sentimentResetDate: nextResetDate,
     },
   });
@@ -432,6 +429,7 @@ export async function resetMonthlyCredits(): Promise<{
         id: true,
         email: true,
         tier: true,
+        isBetaUser: true,
         credits: true,
         sentimentCredits: true,
         creditsResetDate: true,
@@ -450,7 +448,11 @@ export async function resetMonthlyCredits(): Promise<{
     // Process each user in a transaction
     for (const user of usersToReset) {
       try {
-        const limits = getTierLimits(user.tier);
+        // Beta users get BETA_PLAN allocation; others get tier limits.
+        const allocation = getEffectiveAllocation({
+          tier: user.tier as SubscriptionTier,
+          isBetaUser: user.isBetaUser,
+        });
         // Anniversary-based: 30 days from the user's current reset date
         const nextResetDate = getNextResetDate(user.creditsResetDate);
 
@@ -459,9 +461,9 @@ export async function resetMonthlyCredits(): Promise<{
           await tx.user.update({
             where: { id: user.id },
             data: {
-              credits: limits.credits,
+              credits: allocation.credits,
               creditsResetDate: nextResetDate,
-              sentimentCredits: limits.sentimentQuota,
+              sentimentCredits: allocation.sentimentQuota,
               sentimentResetDate: nextResetDate,
             },
           });
@@ -471,14 +473,15 @@ export async function resetMonthlyCredits(): Promise<{
           await tx.creditUsage.create({
             data: {
               userId: user.id,
-              creditsUsed: -(limits.credits - user.credits), // Negative = credits added
+              creditsUsed: -(allocation.credits - user.credits), // Negative = credits added
               action: "MONTHLY_RESET",
               details: JSON.stringify({
                 previousCredits: user.credits,
-                newCredits: limits.credits,
+                newCredits: allocation.credits,
                 previousSentimentCredits: user.sentimentCredits,
-                newSentimentCredits: limits.sentimentQuota,
+                newSentimentCredits: allocation.sentimentQuota,
                 tier: user.tier,
+                isBetaUser: user.isBetaUser,
                 resetDate: now.toISOString(),
                 nextResetDate: nextResetDate.toISOString(),
               }),
@@ -489,8 +492,8 @@ export async function resetMonthlyCredits(): Promise<{
         details.push({
           userId: user.id,
           tier: user.tier,
-          creditsReset: limits.credits,
-          sentimentReset: limits.sentimentQuota,
+          creditsReset: allocation.credits,
+          sentimentReset: allocation.sentimentQuota,
         });
       } catch (userError) {
         const errorMessage = userError instanceof Error ? userError.message : "Unknown error";
