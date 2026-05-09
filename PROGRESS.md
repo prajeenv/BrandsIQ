@@ -3,7 +3,11 @@
 **Project:** BrandsIQ - AI-Powered Review Response Management Platform  
 **Started:** January 7, 2026  
 **Developer:** Prajeen  
-**Current Phase:** Phase 1 - Core MVP
+**Current Phase:** MVP Phase 1 (Closed Beta) — see `docs/MVP_Phase-1/MVP.md`
+
+> **Note on "Phase 1":** This document uses the phrase "Phase 1" in two senses.
+> - **"Phase 1: Core MVP"** below refers to the original 10-prompt Core MVP build (Jan–Mar 2026, completed). It produced the FREE/STARTER/GROWTH tier app.
+> - **"MVP Phase 1 (Closed Beta)"** later in the document refers to the closed-beta layer added on top, per `docs/MVP_Phase-1/MVP.md` (May 2026, in progress). Its companion is "MVP Phase 2 (Commercial Launch)" — Stripe and payment flows.
 
 ---
 
@@ -12,11 +16,13 @@
 | Phase | Status | Start Date | End Date | Duration |
 |-------|--------|------------|----------|----------|
 | Phase 0: Documentation | ✅ Complete | Jan 1, 2026 | Jan 6, 2026 | 6 days |
-| Phase 1: Core MVP | 🚧 In Progress | Jan 7, 2026 | - | - |
+| Phase 1: Core MVP | ✅ Complete | Jan 7, 2026 | Mar 27, 2026 | ~12 weeks |
+| MVP Phase 1 (Closed Beta) | 🚧 In Progress (iter. 1 done) | May 9, 2026 | - | - |
+| MVP Phase 2 (Commercial Launch) | ⏳ Not Started | - | - | - |
 | Phase 2: CSV Import | ⏳ Not Started | - | - | - |
 | Phase 3: Integrations | ⏳ Not Started | - | - | - |
 
-**Overall Progress:** 10/10 prompts complete (100%)
+**Overall Progress:** Original Core MVP complete; closed-beta layer iteration 1 of 3 done.
 
 ---
 
@@ -959,3 +965,71 @@ npx prisma studio
 
 **Last Updated:** March 27, 2026
 **Status:** Prompt 10 complete (Testing) - 474 tests (447 unit + 11 integration + 16 E2E), CI/CD fully integrated
+
+---
+
+## MVP Phase 1 (Closed Beta)
+
+**Source of truth:** `docs/MVP_Phase-1/MVP.md`
+**Started:** May 9, 2026
+**Branch:** `feat/mvp-phase-1-iteration-1`
+
+The closed-beta layer added on top of the original Core MVP. Validates product-market fit through invite-gated signups before MVP Phase 2 (Stripe + commercial launch) is built. Implementation broken into 3 iterations.
+
+### Iteration plan
+
+| Iter. | Scope | Status |
+|------|-------|--------|
+| 1 | Schema + lib helpers + invite-code APIs + admin UI + signup integration + tests | ✅ Done |
+| 2 | `/onboarding` wizard + `FounderInquiryForm` + phase-aware dialogs + closed-beta pricing banner | ⏳ Not started |
+| 3 | PostHog event taxonomy + Sentry coverage + `Review.locationId` non-null contract migration + final doc pass | ⏳ Not started |
+
+### ✅ Iteration 1 — Schema, Beta Plan, Invite-Code Signup, Admin Page
+
+**Branch:** `feat/mvp-phase-1-iteration-1` (5 commits)
+
+**What shipped:**
+- **Schema** — `Location`, `BetaInviteLink`, `FounderInquiry` models; `User.isBetaUser` + 7 nullable profile fields; `Review.locationId` (nullable in this iteration)
+- **Constants & helpers** — `BETA_PLAN` (150/750), `BETA_INVITE_EXPIRY_DAYS` (60), `getEffectiveAllocation`, `isFounder`/`isFounderEmail`, `getCurrentPhase`
+- **db-utils** — `resetMonthlyCredits` and `resetUserCredits` now honor `isBetaUser`; audit log records the flag
+- **APIs** — `POST/GET /api/admin/beta-invites` (founder-only), `GET /api/beta-invites/[code]/validate` (public), `POST/DELETE /api/auth/stash-invite` (HttpOnly cookie for OAuth round-trip), `POST /api/auth/signup` accepts `betaCode` with atomic transaction
+- **NextAuth** — `events.signIn` reads invite cookie when `isNewUser` and applies beta plan in a transaction; phase flag short-circuits in `phase_2`
+- **UI** — `SignupForm` shows beta-invite banner when `?b=<valid-code>`; `/auth/beta-link-expired` (placeholder mailto recovery); `/onboarding` (placeholder); `/dashboard/admin/beta-invites` (table + generate button); `Sidebar` conditionally shows admin section for founder
+- **Middleware** — gates `/dashboard/admin/*` and `/api/admin/*`; non-founders get 404 (no route disclosure)
+- **Tests** — 23 new unit tests, 5 new integration tests, 5 new E2E specs. Total: **604 unit / 11 skipped (integration), 0 failures**
+- **One-shot script** — `scripts/backfill-locations.ts` (idempotent, dry-run by default; creates "Default Location" per user and links existing reviews)
+- **Docs** — `docs/MVP_Phase-1/MVP.md` tracked in git with 4 implementation amendments; new sections in `DECISIONS.md` (8 decisions logged) and this PROGRESS.md section
+
+**New env vars:**
+- `FOUNDER_EMAILS=prajeen.builder@gmail.com` — comma-separated list gating admin UI/APIs
+- `CURRENT_PHASE=phase_1` — defaults to `phase_1` if unset; flip to `phase_2` at commercial launch
+
+**Verification before merge (per plan):**
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` (604 passed, 11 skipped, 0 failed)
+- ⏳ Integration tests require `DATABASE_URL` with `localhost` — to be verified by CI's PostgreSQL container
+- ⏳ Manual smoke test on staging (7-step checklist in `C:\Users\amith\.claude\plans\please-have-a-look-generic-wozniak.md`)
+
+**Decisions** (cross-reference DECISIONS.md "MVP Phase 1: Pre-Launch Beta" section):
+- User-as-account (skip standalone Account model)
+- `CURRENT_PHASE` env var, not DB row
+- OAuth invite-code via short-lived HttpOnly cookie
+- No auto-confirmation email to inquirers
+- `FOUNDER_EMAILS` env-var admin gate
+- `Review.locationId` two-phase migration (nullable → non-null in iteration 3)
+- Manual one-shot backfill via tsx
+- Beta plan is `isBetaUser` flag, not Tier enum value
+
+### ⏳ Iteration 2 — Onboarding wizard + Founder-inquiry form + Phase-aware dialogs
+
+Will replace the iteration-1 placeholders. Scope per plan file.
+
+### ⏳ Iteration 3 — Observability + cleanup + final doc pass
+
+PostHog event taxonomy, Sentry coverage, `Review.locationId` non-null migration, final reconciliation pass on all docs.
+
+---
+
+**Last Updated:** May 9, 2026
+**Status:** MVP Phase 1 (Closed Beta) iteration 1 complete on `feat/mvp-phase-1-iteration-1`. Awaiting PR review and staging verification before iteration 2 begins.

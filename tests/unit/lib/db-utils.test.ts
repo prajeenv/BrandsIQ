@@ -482,6 +482,72 @@ describe('resetMonthlyCredits', () => {
       })
     );
   });
+
+  it('resets beta users to BETA_PLAN allocation (150/750), not tier limits', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([
+      {
+        id: 'beta-user',
+        email: 'beta@test.com',
+        tier: 'FREE' as const, // beta users still have a tier; isBetaUser overrides
+        isBetaUser: true,
+        credits: 0,
+        sentimentCredits: 100,
+        creditsResetDate: new Date('2026-01-01'),
+      },
+    ]);
+    mockPrisma.user.update.mockResolvedValue({});
+    mockPrisma.creditUsage.create.mockResolvedValue({});
+
+    const result = await resetMonthlyCredits();
+    expect(result.success).toBe(true);
+    expect(result.usersReset).toBe(1);
+    expect(result.details[0]).toEqual(
+      expect.objectContaining({
+        userId: 'beta-user',
+        creditsReset: 150,
+        sentimentReset: 750,
+      })
+    );
+
+    // The User update must apply 150/750
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'beta-user' },
+        data: expect.objectContaining({
+          credits: 150,
+          sentimentCredits: 750,
+        }),
+      })
+    );
+
+    // Audit log must record isBetaUser for post-mortem analysis
+    const auditCall = mockPrisma.creditUsage.create.mock.calls[0][0];
+    const details = JSON.parse(auditCall.data.details);
+    expect(details.isBetaUser).toBe(true);
+    expect(details.newCredits).toBe(150);
+    expect(details.newSentimentCredits).toBe(750);
+  });
+
+  it('non-beta FREE users still reset to tier limits when isBetaUser is false', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([
+      {
+        id: 'free-user',
+        email: 'free@test.com',
+        tier: 'FREE' as const,
+        isBetaUser: false,
+        credits: 0,
+        sentimentCredits: 0,
+        creditsResetDate: new Date('2026-01-01'),
+      },
+    ]);
+    mockPrisma.user.update.mockResolvedValue({});
+    mockPrisma.creditUsage.create.mockResolvedValue({});
+
+    const result = await resetMonthlyCredits();
+    expect(result.details[0]).toEqual(
+      expect.objectContaining({ creditsReset: 15, sentimentReset: 35 }),
+    );
+  });
 });
 
 describe('shouldResetCredits', () => {

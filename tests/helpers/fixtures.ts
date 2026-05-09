@@ -14,6 +14,7 @@ export const TEST_USER = {
   creditsResetDate: new Date('2026-03-27T00:00:00Z'),
   sentimentCredits: 35,
   sentimentResetDate: new Date('2026-03-27T00:00:00Z'),
+  isBetaUser: false,
   createdAt: new Date('2026-03-01T00:00:00Z'),
   updatedAt: new Date('2026-03-01T00:00:00Z'),
 };
@@ -31,6 +32,15 @@ export const TEST_USER_STARTER = {
   tier: 'STARTER' as const,
   credits: 30,
   sentimentCredits: 150,
+};
+
+export const TEST_USER_BETA = {
+  ...TEST_USER,
+  id: 'clu_beta_1234567890',
+  email: 'beta@example.com',
+  isBetaUser: true,
+  credits: 150,
+  sentimentCredits: 750,
 };
 
 export const TEST_REVIEW = {

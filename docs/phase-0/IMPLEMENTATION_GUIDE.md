@@ -3,6 +3,58 @@
 
 ---
 
+## MVP Phase 1: Closed Beta — operational notes
+
+Source of truth: `docs/MVP_Phase-1/MVP.md`.
+
+### New environment variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `FOUNDER_EMAILS` | Comma-separated allowlist for `/dashboard/admin/*` and `/api/admin/*`. Read by `src/lib/auth-helpers.ts:isFounder()`. | `prajeen.builder@gmail.com` |
+| `CURRENT_PHASE` | `phase_1` (closed beta) or `phase_2` (commercial launch). Read by `src/lib/system-phase.ts:getCurrentPhase()`. | `phase_1` |
+
+Set both in Vercel env vars for staging and prod. `FOUNDER_EMAILS` is harmless to leak; `CURRENT_PHASE` is harmless to leak.
+
+### One-shot data migration: backfill locations
+
+After the iteration-1 Prisma migration adds `Location` and `Review.locationId`, every existing user needs a "Default Location" and every existing review needs `locationId` populated.
+
+```bash
+# Dry run first (default)
+npx tsx scripts/backfill-locations.ts
+
+# Apply changes after verification
+npx tsx scripts/backfill-locations.ts --apply
+```
+
+The script is idempotent — safe to re-run on partial failures. Run on staging-clone first, verify counts, then run on prod.
+
+### Beta invite link lifecycle
+
+1. **Generate** — Founder visits `/dashboard/admin/beta-invites`, clicks "Generate invite", optionally adds notes. Backend creates a `BetaInviteLink` row (16-char URL-safe code, 60-day expiry).
+2. **Distribute** — Copy the URL (`https://brandsiq.app/auth/signup?b=<code>`) and send via DM/email per `BETA_ENGAGEMENT_PLAYBOOK.md`.
+3. **Claim** — User visits the URL, sees the "You've been invited" banner, completes signup (credentials or Google OAuth). The user is created with `isBetaUser=true` and 150/750 credits in the same transaction that marks the link `usedAt`.
+4. **Audit** — Used invites stay in the table indefinitely. If the user is later deleted, `usedByUserId` becomes null but `usedAt` survives.
+
+### Phase flag transition (post-MVP-Phase-1)
+
+Flipping `CURRENT_PHASE` from `phase_1` to `phase_2` requires a Vercel redeploy. Effects:
+
+- Signup route ignores `betaCode` (existing links are also defensively re-validated; defense against stale-link reuse)
+- NextAuth `events.signIn` ignores the invite cookie
+- Pricing page swaps from closed-beta banner to live tier selection (iteration 4)
+
+### Test commands
+
+```bash
+npm run test:unit                                 # 604 tests, all mocked
+npm run test:integration                          # requires DATABASE_URL with localhost
+npm run test:e2e                                  # Playwright against staging
+```
+
+---
+
 ## User Flows (Simplified)
 
 ### Complete New User Journey

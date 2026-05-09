@@ -218,6 +218,40 @@ export const config = {
 
 ---
 
+## MVP Phase 1: Founder-only admin gate
+
+`/dashboard/admin/*` and `/api/admin/*` are gated by the `FOUNDER_EMAILS` env var (comma-separated). Implementation:
+
+- **Helper:** `src/lib/auth-helpers.ts` exports `isFounder(session)` and `isFounderEmail(email)`. Both compare against `process.env.FOUNDER_EMAILS` (lowercased + trimmed).
+- **Middleware:** `src/middleware.ts` checks `isFounderEmail(token.email)` for any path starting with `/dashboard/admin` or `/api/admin`. Non-founders receive a literal 404 (we do not disclose route existence).
+- **Defense-in-depth:** Each `/api/admin/*` route handler also calls `isFounder(session)` server-side and returns 404 on mismatch — middleware alone is insufficient because middleware can be bypassed in test/preview contexts.
+- **Why env var, not `User.isAdmin`:** Lo-fi MVP gate. One founder running a closed beta. Adding a DB column would require admin-management UI + audit trail. Proper RBAC is post-MVP (Scale-tier work).
+
+Adding a new admin requires editing the `FOUNDER_EMAILS` Vercel env var and redeploying.
+
+---
+
+## MVP Phase 1: OAuth invite-code propagation via short-lived cookie
+
+OAuth sign-ups can carry a beta invite code through the Google round-trip via an HttpOnly cookie. URL params don't survive the redirect to Google, so the code must be stashed server-side before initiating OAuth.
+
+**Flow:**
+
+1. User lands on `/auth/signup?b=<code>`. The `SignupForm` validates the code via `GET /api/beta-invites/[code]/validate`.
+2. If valid and the user clicks "Sign up with Google", the form calls `POST /api/auth/stash-invite` with the code. The endpoint sets cookie `bx_invite_code` (HttpOnly, SameSite=Lax, Secure in prod, Max-Age=600s).
+3. NextAuth initiates the Google OAuth flow.
+4. After Google returns, NextAuth's `events.signIn` fires with `isNewUser: true`. The handler reads the `bx_invite_code` cookie, re-validates the code against the DB (in case it expired or was used between stash and signIn), and applies the beta plan + marks the link used in a single transaction.
+5. The cookie is best-effort cleared after.
+
+**Failure modes:**
+
+- Cookie missing / invalid code by signIn time → user is created as Free. Surfaced via PostHog metrics rather than blocking signup.
+- Concurrent signups racing for the same code → first transaction wins via `BetaInviteLink.usedAt` constraint; second user falls back to Free.
+
+**Why cookie, not NextAuth `state`:** Smaller surface area. The invite code is non-sensitive (it's already in the URL the user clicked). The HttpOnly attribute prevents JS-side reads, preventing third-party scripts from stealing codes.
+
+---
+
 ## Email Verification
 
 **File:** `lib/email.ts`

@@ -96,15 +96,28 @@ if (!result.success) {
 | NextAuth middleware | Use `auth()` function, not deprecated `withAuth` |
 | Credit race conditions | Always use `prisma.$transaction` for credits |
 | useSearchParams | Wrap pages in Suspense boundaries |
+| Beta-plan allocation | Use `getEffectiveAllocation(user)` from `lib/constants.ts` (returns `BETA_PLAN` if `isBetaUser`, else tier limits). Never hardcode 15/35 or 150/750 directly. |
+| Admin gating | `isFounder(session)` from `lib/auth-helpers.ts`. Routes also middleware-gated to `/dashboard/admin/*` and `/api/admin/*`. Non-founders get 404. |
+| Phase flag | Read via `getCurrentPhase()` from `lib/system-phase.ts`. Backed by `CURRENT_PHASE` env var (defaults to `phase_1`). Never read `process.env.CURRENT_PHASE` directly. |
+
+## Environment Variables
+
+In addition to the standard NextAuth/Supabase/Anthropic vars, MVP Phase 1 (closed beta) requires:
+
+- `FOUNDER_EMAILS` — comma-separated list of emails that can access `/dashboard/admin/*` and `/api/admin/*`. Current: `prajeen.builder@gmail.com`.
+- `CURRENT_PHASE` — `phase_1` (closed beta, default if unset) or `phase_2` (commercial launch). Flipping to `phase_2` short-circuits invite-code handling in signup and changes pricing-page UI.
+
+See `.env.example` for the canonical list.
 
 ## Documentation References
 
-### Canonical Specs (Phase 0)
+### Canonical Specs (Phase 0 + MVP Phase 1)
 Reference these before making changes to related areas:
 
 @docs/phase-0/CORE_SPECS.md
 @docs/phase-0/SECURITY_AUTH.md
 @docs/phase-0/IMPLEMENTATION_GUIDE.md
+@docs/MVP_Phase-1/MVP.md
 
 ### Tracking Files
 

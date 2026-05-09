@@ -289,4 +289,141 @@ describe('POST /api/auth/signup', () => {
     expect(json.success).toBe(false);
     expect(json.error.code).toBe('VALIDATION_ERROR');
   });
+
+  // ============================================
+  // MVP Phase 1: signup with beta invite code
+  // ============================================
+
+  describe('with betaCode', () => {
+    beforeEach(() => {
+      // Default to phase_1 so the beta path is active
+      process.env.CURRENT_PHASE = 'phase_1';
+    });
+
+    it('creates a beta user when the code is valid', async () => {
+      mockPrisma.betaInviteLink.findUnique.mockResolvedValue({
+        id: 'inv-1',
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        usedAt: null,
+      });
+      mockPrisma.betaInviteLink.update.mockResolvedValue({});
+      mockPrisma.user.create.mockResolvedValue({
+        ...mockCreatedUser,
+        isBetaUser: true,
+        credits: 150,
+        sentimentCredits: 750,
+      });
+
+      const req = createRequest('/api/auth/signup', {
+        method: 'POST',
+        body: { ...validSignupBody, betaCode: 'GOOD-CODE' },
+      });
+      const response = await POST(req);
+
+      expect(response.status).toBe(201);
+      const json = await response.json();
+      expect(json.success).toBe(true);
+      expect(json.data.user.isBetaUser).toBe(true);
+
+      // user.create called with beta allocation
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isBetaUser: true,
+            credits: 150,
+            sentimentCredits: 750,
+          }),
+        }),
+      );
+
+      // betaInviteLink.update marks usedAt + usedByUserId
+      expect(mockPrisma.betaInviteLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { code: 'GOOD-CODE' },
+          data: expect.objectContaining({
+            usedByUserId: 'user-123',
+            usedAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('rejects an expired code with INVALID_BETA_CODE', async () => {
+      mockPrisma.betaInviteLink.findUnique.mockResolvedValue({
+        id: 'inv-2',
+        expiresAt: new Date(Date.now() - 1000),
+        usedAt: null,
+      });
+
+      const req = createRequest('/api/auth/signup', {
+        method: 'POST',
+        body: { ...validSignupBody, betaCode: 'OLD-CODE' },
+      });
+      const response = await POST(req);
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error.code).toBe('INVALID_BETA_CODE');
+      expect(json.error.details.expired).toBe(true);
+      // No user created when the code is rejected
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an already-used code with INVALID_BETA_CODE', async () => {
+      mockPrisma.betaInviteLink.findUnique.mockResolvedValue({
+        id: 'inv-3',
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        usedAt: new Date(),
+      });
+
+      const req = createRequest('/api/auth/signup', {
+        method: 'POST',
+        body: { ...validSignupBody, betaCode: 'USED-CODE' },
+      });
+      const response = await POST(req);
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error.code).toBe('INVALID_BETA_CODE');
+      expect(json.error.details.used).toBe(true);
+    });
+
+    it('rejects an unknown code with INVALID_BETA_CODE (no PII leak)', async () => {
+      mockPrisma.betaInviteLink.findUnique.mockResolvedValue(null);
+
+      const req = createRequest('/api/auth/signup', {
+        method: 'POST',
+        body: { ...validSignupBody, betaCode: 'NOT-REAL' },
+      });
+      const response = await POST(req);
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error.code).toBe('INVALID_BETA_CODE');
+      expect(json.error.details.exists).toBe(false);
+    });
+
+    it('ignores the beta code in phase_2 (commercial launch)', async () => {
+      process.env.CURRENT_PHASE = 'phase_2';
+
+      const req = createRequest('/api/auth/signup', {
+        method: 'POST',
+        body: { ...validSignupBody, betaCode: 'GOOD-CODE' },
+      });
+      const response = await POST(req);
+
+      expect(response.status).toBe(201);
+      // betaInviteLink lookup is skipped entirely
+      expect(mockPrisma.betaInviteLink.findUnique).not.toHaveBeenCalled();
+      // User created as Free, not beta
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isBetaUser: false,
+            credits: 15,
+          }),
+        }),
+      );
+    });
+  });
 });
