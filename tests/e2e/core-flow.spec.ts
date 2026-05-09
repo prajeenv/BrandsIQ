@@ -26,9 +26,7 @@ test.describe("Core User Flow", () => {
   // Skip if no test password configured (prevents failures in environments without setup)
   test.skip(!TEST_PASSWORD, "E2E_TEST_PASSWORD not set — skipping core flow tests");
 
-  let createdReviewUrl: string | null = null;
-
-  test("login → add review → generate response → edit → approve", async ({
+  test("login → add review → generate response → edit → approve → delete", async ({
     page,
   }) => {
     // Step 1: Login
@@ -54,11 +52,13 @@ test.describe("Core User Flow", () => {
     // Submit the form
     await page.locator('button[type="submit"]').click();
 
-    // Wait for redirect to review detail page
-    await page.waitForURL(/\/dashboard\/reviews\/[a-z0-9]+/, {
+    // Wait for redirect to the *detail* page. The previous regex
+    // /\/dashboard\/reviews\/[a-z0-9]+/ also matched /dashboard/reviews/new
+    // (the form's own URL), so it could resolve before the API redirect
+    // landed. CUIDs are 25 chars starting with 'c'.
+    await page.waitForURL(/\/dashboard\/reviews\/c[a-z0-9]{20,}$/, {
       timeout: 15000,
     });
-    createdReviewUrl = page.url();
 
     // Step 4: Generate AI Response
     const generateButton = page
@@ -100,25 +100,22 @@ test.describe("Core User Flow", () => {
     await expect(page.getByText("Approved", { exact: true }).first()).toBeVisible({
       timeout: 10000,
     });
-  });
 
-  // Cleanup: delete the test review to avoid accumulating test data
-  test("cleanup: delete test review", async ({ page }) => {
-    test.skip(!createdReviewUrl, "No review was created to clean up");
-
-    await login(page);
-    await page.goto(createdReviewUrl!);
-
-    // Click the delete button (trash icon in the header area)
-    const deleteButton = page.getByRole("button", { name: /delete/i }).first();
-    await expect(deleteButton).toBeVisible({ timeout: 10000 });
+    // Step 7: Delete the review (cleanup, in-flow). Bundling cleanup into the
+    // main test eliminates the need to share state between tests and keeps the
+    // browser session warm — a separate cleanup test was prone to retry-skip
+    // when worker state was reset between attempts.
+    const deleteButton = page.getByRole("button", { name: /^delete$/i }).first();
+    await expect(deleteButton).toBeVisible({ timeout: 5000 });
     await deleteButton.click();
 
-    // Confirm deletion in the dialog — the last Delete button is the dialog confirm
+    // Confirm deletion in the dialog. With the dialog open there are two
+    // buttons matching /^delete$/i — the page-level one and the dialog
+    // confirm — so .last() targets the confirm.
     const confirmButton = page.getByRole("button", { name: /^delete$/i }).last();
     await confirmButton.click();
 
-    // Should redirect to reviews list
-    await page.waitForURL(/\/dashboard\/reviews/, { timeout: 10000 });
+    // Verify we landed on the reviews list (signals successful deletion)
+    await page.waitForURL(/\/dashboard\/reviews$/, { timeout: 10000 });
   });
 });
