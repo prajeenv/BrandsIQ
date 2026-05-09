@@ -5,6 +5,8 @@ import { signUpSchema } from "@/lib/validations";
 import { sendVerificationEmail } from "@/lib/email";
 import { createVerificationToken } from "@/lib/tokens";
 import { loginRateLimit, getClientIP, checkRateLimit } from "@/lib/rate-limit";
+import { BETA_PLAN, TIER_LIMITS } from "@/lib/constants";
+import { getCurrentPhase } from "@/lib/system-phase";
 
 export async function POST(request: Request) {
   try {
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, password, name } = validation.data;
+    const { email, password, name, betaCode } = validation.data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -75,29 +77,89 @@ export async function POST(request: Request) {
     resetDate.setUTCDate(resetDate.getUTCDate() + 30);
     resetDate.setUTCHours(0, 0, 0, 0);
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        name,
-        password: hashedPassword,
-        credits: 15,
-        tier: "FREE",
-        sentimentCredits: 35,
-        creditsResetDate: resetDate,
-        sentimentResetDate: resetDate,
-      },
-    });
+    // Resolve allocation: beta-invite path vs Free path.
+    // Phase flag short-circuits the beta path: in phase_2, invite codes are
+    // ignored (links are no longer issued, but defensively reject existing ones).
+    const phase = getCurrentPhase();
+    let appliedBetaCode: string | null = null;
+    let isBetaUser = false;
 
-    // Create default brand voice
-    await prisma.brandVoice.create({
-      data: {
-        userId: user.id,
-        tone: "professional",
-        formality: 3,
-        keyPhrases: ["Thank you", "We appreciate your feedback"],
-        styleNotes: "Be genuine and empathetic",
-      },
+    if (betaCode && phase === "phase_1") {
+      const invite = await prisma.betaInviteLink.findUnique({
+        where: { code: betaCode },
+        select: { id: true, expiresAt: true, usedAt: true },
+      });
+
+      const now = new Date();
+      const valid = invite && !invite.usedAt && invite.expiresAt >= now;
+
+      if (!valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "INVALID_BETA_CODE",
+              message: "This beta invite link has expired or has already been used.",
+              details: {
+                expired: invite ? invite.expiresAt < now : false,
+                used: invite ? invite.usedAt !== null : false,
+                exists: !!invite,
+              },
+            },
+          },
+          { status: 400, headers: rateLimitResult.headers }
+        );
+      }
+
+      appliedBetaCode = betaCode;
+      isBetaUser = true;
+    }
+
+    const allocation = isBetaUser
+      ? { credits: BETA_PLAN.credits, sentimentQuota: BETA_PLAN.sentimentQuota }
+      : { credits: TIER_LIMITS.FREE.credits, sentimentQuota: TIER_LIMITS.FREE.sentimentQuota };
+
+    // Create user (and mark invite used) atomically. If anything fails after
+    // the user row is written, the whole transaction rolls back — preventing
+    // a "code marked used but user doesn't exist" mismatch.
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: email.toLowerCase(),
+          name,
+          password: hashedPassword,
+          credits: allocation.credits,
+          tier: "FREE",
+          isBetaUser,
+          sentimentCredits: allocation.sentimentQuota,
+          creditsResetDate: resetDate,
+          sentimentResetDate: resetDate,
+        },
+      });
+
+      // Default brand voice
+      await tx.brandVoice.create({
+        data: {
+          userId: created.id,
+          tone: "professional",
+          formality: 3,
+          keyPhrases: ["Thank you", "We appreciate your feedback"],
+          styleNotes: "Be genuine and empathetic",
+        },
+      });
+
+      // Mark the invite as used (atomic with user creation)
+      if (appliedBetaCode) {
+        await tx.betaInviteLink.update({
+          where: { code: appliedBetaCode },
+          data: {
+            usedAt: new Date(),
+            usedByUserId: created.id,
+          },
+        });
+      }
+
+      return created;
     });
 
     // Create verification token
@@ -124,6 +186,7 @@ export async function POST(request: Request) {
             id: user.id,
             email: user.email,
             name: user.name,
+            isBetaUser: user.isBetaUser,
           },
         },
       },

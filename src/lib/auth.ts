@@ -3,8 +3,12 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 import { prisma } from "./prisma";
-import { SESSION_CONFIG } from "./constants";
+import { SESSION_CONFIG, BETA_PLAN, TIER_LIMITS } from "./constants";
+import { getCurrentPhase } from "./system-phase";
+
+const INVITE_COOKIE_NAME = "bx_invite_code";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -176,34 +180,94 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   events: {
     async signIn({ user, isNewUser }) {
-      if (isNewUser && user.id) {
-        // Calculate reset date as 30 days from now (anniversary-based billing)
-        const resetDate = new Date();
-        resetDate.setUTCDate(resetDate.getUTCDate() + 30);
-        resetDate.setUTCHours(0, 0, 0, 0);
+      if (!isNewUser || !user.id) return;
 
-        // Initialize new user with default values
-        await prisma.user.update({
-          where: { id: user.id },
+      // Calculate reset date as 30 days from now (anniversary-based billing)
+      const resetDate = new Date();
+      resetDate.setUTCDate(resetDate.getUTCDate() + 30);
+      resetDate.setUTCHours(0, 0, 0, 0);
+
+      // OAuth signups can carry a beta invite code through a short-lived
+      // HttpOnly cookie set by /api/auth/stash-invite before the OAuth
+      // redirect. See MVP.md Section 13.2.
+      //
+      // The phase flag short-circuits this in phase_2: invite codes are
+      // ignored at commercial launch (existing links are still defensively
+      // rejected via the validity check below).
+      let isBetaUser = false;
+      let appliedCode: string | null = null;
+
+      if (getCurrentPhase() === "phase_1") {
+        try {
+          const cookieStore = await cookies();
+          const inviteCookie = cookieStore.get(INVITE_COOKIE_NAME);
+
+          if (inviteCookie?.value) {
+            const invite = await prisma.betaInviteLink.findUnique({
+              where: { code: inviteCookie.value },
+              select: { code: true, expiresAt: true, usedAt: true },
+            });
+
+            const now = new Date();
+            if (invite && !invite.usedAt && invite.expiresAt >= now) {
+              isBetaUser = true;
+              appliedCode = invite.code;
+            }
+          }
+        } catch (error) {
+          // Reading cookies can fail in some edge runtime contexts; treat as
+          // no-cookie. The user will be created as Free — visible failure
+          // mode rather than a silent crash.
+          console.error("[auth.events.signIn] failed to read invite cookie:", error);
+        }
+      }
+
+      const allocation = isBetaUser
+        ? { credits: BETA_PLAN.credits, sentimentQuota: BETA_PLAN.sentimentQuota }
+        : { credits: TIER_LIMITS.FREE.credits, sentimentQuota: TIER_LIMITS.FREE.sentimentQuota };
+
+      // Apply allocation, mark invite used (if any), create default brand
+      // voice — all atomically so the user can't end up half-initialized.
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id! },
           data: {
-            credits: 15,
+            credits: allocation.credits,
             tier: "FREE",
-            sentimentCredits: 35,
+            isBetaUser,
+            sentimentCredits: allocation.sentimentQuota,
             creditsResetDate: resetDate,
             sentimentResetDate: resetDate,
           },
         });
 
-        // Create default brand voice
-        await prisma.brandVoice.create({
+        await tx.brandVoice.create({
           data: {
-            userId: user.id,
+            userId: user.id!,
             tone: "professional",
             formality: 3,
             keyPhrases: ["Thank you", "We appreciate your feedback"],
             styleNotes: "Be genuine and empathetic",
           },
         });
+
+        if (appliedCode) {
+          await tx.betaInviteLink.update({
+            where: { code: appliedCode },
+            data: {
+              usedAt: new Date(),
+              usedByUserId: user.id!,
+            },
+          });
+        }
+      });
+
+      // Best-effort cookie cleanup (don't crash signup if it fails)
+      try {
+        const cookieStore = await cookies();
+        cookieStore.delete(INVITE_COOKIE_NAME);
+      } catch {
+        // ignore
       }
     },
   },

@@ -19,6 +19,7 @@ const mockPrisma = vi.hoisted(() => {
     user: m(),
     verificationToken: m(),
     brandVoice: m(),
+    betaInviteLink: m(),
     $transaction: vi.fn(),
   };
 });
@@ -114,6 +115,12 @@ describe('POST /api/auth/signup', () => {
     mockBcrypt.default.hash.mockResolvedValue('$2a$12$hashed');
     mockTokens.createVerificationToken.mockResolvedValue('test-token-123');
     mockEmail.sendVerificationEmail.mockResolvedValue({ success: true });
+    // The signup route now wraps user creation + brand voice + (optional)
+    // beta invite update in a transaction. Mock $transaction to invoke its
+    // callback with the same mockPrisma so the asserted .create calls run.
+    mockPrisma.$transaction.mockImplementation(
+      async (cb: (tx: typeof mockPrisma) => Promise<unknown>) => cb(mockPrisma)
+    );
   });
 
   it('returns 429 when rate limited', async () => {
