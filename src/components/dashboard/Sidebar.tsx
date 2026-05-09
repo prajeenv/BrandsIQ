@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,8 +11,10 @@ import {
   MessageSquare,
   Settings,
   Sparkles,
+  Ticket,
   X,
 } from "lucide-react";
+import { isFounder } from "@/lib/auth-helpers";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -37,8 +40,20 @@ const navigation = [
   },
 ];
 
+// Founder-only admin links. Visibility gated by isFounder(session); the actual
+// route is also gated by middleware + per-route checks. See MVP.md Section 13.
+const adminNavigation = [
+  {
+    name: "Beta invites",
+    href: "/dashboard/admin/beta-invites",
+    icon: Ticket,
+  },
+];
+
 export function Sidebar({ isOpen = true, onClose, isMobile = false }: SidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const showAdmin = isFounder(session);
 
   const sidebarContent = (
     <>
@@ -82,6 +97,33 @@ export function Sidebar({ isOpen = true, onClose, isMobile = false }: SidebarPro
               </Link>
             );
           })}
+
+          {showAdmin && (
+            <div className="pt-4 mt-4 border-t border-border">
+              <p className="px-3 pb-2 text-xs font-semibold uppercase text-muted-foreground tracking-wider">
+                Admin
+              </p>
+              {adminNavigation.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={isMobile ? onClose : undefined}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </nav>
       </ScrollArea>
 

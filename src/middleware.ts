@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isFounderEmail } from "@/lib/auth-helpers";
 
 // Routes that require authentication
 const protectedRoutes = [
@@ -19,6 +20,10 @@ const protectedApiRoutes = [
   "/api/dashboard",
 ];
 
+// Founder-only admin routes (UI + API). Non-founders get a 404 — we don't
+// disclose that the route exists. See docs/MVP_Phase-1/MVP.md Section 13.1.
+const adminRoutes = ["/dashboard/admin", "/api/admin"];
+
 // Routes that are only for unauthenticated users
 const authRoutes = [
   "/auth/signin",
@@ -26,6 +31,10 @@ const authRoutes = [
   "/auth/forgot-password",
   "/auth/reset-password",
 ];
+
+function notFoundResponse(): NextResponse {
+  return new NextResponse(null, { status: 404 });
+}
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -40,6 +49,8 @@ export default async function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
+  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));
+
   // Check if the request is for an auth route (signin, signup, etc.)
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
@@ -53,6 +64,15 @@ export default async function middleware(request: NextRequest) {
       ? "__Secure-authjs.session-token"
       : "authjs.session-token",
   });
+
+  // Admin routes: 404 for non-founders (whether authenticated or not).
+  // Defense-in-depth — each route handler also calls isFounder(session).
+  if (isAdminRoute) {
+    const email = typeof token?.email === "string" ? token.email : null;
+    if (!isFounderEmail(email)) {
+      return notFoundResponse();
+    }
+  }
 
   // Redirect unauthenticated users from protected routes to signin
   if ((isProtectedRoute || isProtectedApiRoute) && !token) {
