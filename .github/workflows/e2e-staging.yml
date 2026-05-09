@@ -71,6 +71,19 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+          if-no-files-found: ignore
+
+      # test-results/ contains screenshots, trace.zip, and error-context.md
+      # for any failed test — needed for post-mortem since `reporter: github`
+      # alone only writes annotations, not files.
+      - name: Upload Playwright traces and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Create GitHub Issue on failure
         if: failure()
