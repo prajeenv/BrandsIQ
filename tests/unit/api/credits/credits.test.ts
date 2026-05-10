@@ -87,6 +87,7 @@ describe('GET /api/credits', () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: mockSession.user.id,
       tier: 'FREE',
+      isBetaUser: false,
       credits: 12,
       creditsResetDate: resetDate,
       sentimentCredits: 30,
@@ -107,6 +108,7 @@ describe('GET /api/credits', () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: mockSession.user.id,
       tier: 'FREE',
+      isBetaUser: false,
       credits: 12,
       creditsResetDate: new Date(),
       sentimentCredits: 30,
@@ -125,6 +127,7 @@ describe('GET /api/credits', () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: mockSession.user.id,
       tier: 'FREE',
+      isBetaUser: false,
       credits: 12,
       creditsResetDate: new Date(),
       sentimentCredits: 30,
@@ -139,5 +142,29 @@ describe('GET /api/credits', () => {
     expect(json.data.sentiment.remaining).toBe(30);
     expect(json.data.sentiment.total).toBe(35);
     expect(json.data.sentiment.used).toBe(5);
+  });
+
+  it('returns BETA_PLAN totals (150/750) for beta users, regardless of tier', async () => {
+    // Locks in MVP Phase 1 contract: isBetaUser=true overrides tier-based
+    // allocation (see MVP.md Section 12.3 + getEffectiveAllocation helper).
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: mockSession.user.id,
+      tier: 'FREE',
+      isBetaUser: true,
+      credits: 150,
+      creditsResetDate: new Date('2026-06-09T00:00:00Z'),
+      sentimentCredits: 750,
+      sentimentResetDate: new Date('2026-06-09T00:00:00Z'),
+    });
+
+    const res = await GET();
+    const json = await res.json();
+
+    expect(json.data.credits.remaining).toBe(150);
+    expect(json.data.credits.total).toBe(150);
+    expect(json.data.credits.used).toBe(0);
+    expect(json.data.sentiment.remaining).toBe(750);
+    expect(json.data.sentiment.total).toBe(750);
+    expect(json.data.sentiment.used).toBe(0);
   });
 });

@@ -87,6 +87,7 @@ describe('GET /api/dashboard/stats', () => {
       id: mockSession.user.id,
       name: 'Test User',
       tier: 'FREE',
+      isBetaUser: false,
       credits: 12,
       creditsResetDate: resetDate,
       sentimentCredits: 30,
@@ -108,11 +109,64 @@ describe('GET /api/dashboard/stats', () => {
     expect(json.data.tier).toBe('FREE');
   });
 
+  it('returns BETA_PLAN totals (150/750) for beta users, regardless of tier', async () => {
+    // Beta users are on the BETA_PLAN allocation regardless of tier (their
+    // tier stays "FREE" but isBetaUser=true overrides — see MVP.md Section 12.3).
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: mockSession.user.id,
+      name: 'Beta User',
+      tier: 'FREE',
+      isBetaUser: true,
+      credits: 150,
+      creditsResetDate: new Date('2026-06-09T00:00:00Z'),
+      sentimentCredits: 750,
+      sentimentResetDate: new Date('2026-06-09T00:00:00Z'),
+      reviews: [],
+      _count: { reviews: 0 },
+    });
+    mockPrisma.reviewResponse.count.mockResolvedValue(0);
+    mockPrisma.review.groupBy.mockResolvedValue([]);
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.credits.remaining).toBe(150);
+    expect(json.data.credits.total).toBe(150);    // BETA_PLAN, not TIER_LIMITS.FREE
+    expect(json.data.credits.used).toBe(0);
+    expect(json.data.sentiment.remaining).toBe(750);
+    expect(json.data.sentiment.total).toBe(750);  // BETA_PLAN, not TIER_LIMITS.FREE
+    expect(json.data.sentiment.used).toBe(0);
+  });
+
+  it('clamps credits.used and sentiment.used to 0 (never negative for beta users with full allocation)', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: mockSession.user.id,
+      name: 'Fresh Beta User',
+      tier: 'FREE',
+      isBetaUser: true,
+      credits: 150,
+      creditsResetDate: new Date(),
+      sentimentCredits: 750,
+      sentimentResetDate: new Date(),
+      reviews: [],
+      _count: { reviews: 0 },
+    });
+    mockPrisma.reviewResponse.count.mockResolvedValue(0);
+    mockPrisma.review.groupBy.mockResolvedValue([]);
+
+    const res = await GET();
+    const json = await res.json();
+    expect(json.data.credits.used).toBeGreaterThanOrEqual(0);
+    expect(json.data.sentiment.used).toBeGreaterThanOrEqual(0);
+  });
+
   it('returns sentiment distribution percentages', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: mockSession.user.id,
       name: 'Test User',
       tier: 'FREE',
+      isBetaUser: false,
       credits: 15,
       creditsResetDate: new Date(),
       sentimentCredits: 35,
@@ -166,6 +220,7 @@ describe('GET /api/dashboard/stats', () => {
       id: mockSession.user.id,
       name: 'Test User',
       tier: 'FREE',
+      isBetaUser: false,
       credits: 15,
       creditsResetDate: new Date(),
       sentimentCredits: 35,

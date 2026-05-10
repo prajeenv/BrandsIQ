@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TIER_LIMITS } from "@/lib/constants";
+import { getEffectiveAllocation } from "@/lib/constants";
 import type { SubscriptionTier } from "@/lib/constants";
 
 /**
@@ -127,6 +127,7 @@ export async function GET(request: NextRequest) {
       where: { id: session.user.id },
       select: {
         tier: true,
+        isBetaUser: true,
         sentimentCredits: true,
         sentimentResetDate: true,
       },
@@ -194,10 +195,14 @@ export async function GET(request: NextRequest) {
         },
         quota: user
           ? (() => {
-              const tierLimits = TIER_LIMITS[user.tier as SubscriptionTier] || TIER_LIMITS.FREE;
+              // Honors isBetaUser (beta plan is 750 sentiment regardless of tier).
+              const allocation = getEffectiveAllocation({
+                tier: user.tier as SubscriptionTier,
+                isBetaUser: user.isBetaUser,
+              });
               return {
-                used: tierLimits.sentimentQuota - user.sentimentCredits,
-                total: tierLimits.sentimentQuota,
+                used: Math.max(0, allocation.sentimentQuota - user.sentimentCredits),
+                total: allocation.sentimentQuota,
                 remaining: user.sentimentCredits,
                 resetDate: user.sentimentResetDate.toISOString(),
               };
