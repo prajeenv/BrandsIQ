@@ -92,6 +92,7 @@ describe("GET /api/sentiment/usage", () => {
     ]);
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
+      isBetaUser: false,
       sentimentCredits: 30,
       sentimentResetDate: new Date("2026-03-01"),
     });
@@ -119,6 +120,7 @@ describe("GET /api/sentiment/usage", () => {
     ]);
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
+      isBetaUser: false,
       sentimentCredits: 25,
       sentimentResetDate: new Date("2026-03-01"),
     });
@@ -139,6 +141,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.review.groupBy.mockResolvedValue([]);
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
+      isBetaUser: false,
       sentimentCredits: 35,
       sentimentResetDate: new Date("2026-03-01"),
     });
@@ -164,6 +167,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.review.groupBy.mockResolvedValue([]);
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
+      isBetaUser: false,
       sentimentCredits: 35,
       sentimentResetDate: new Date("2026-03-01"),
     });
@@ -194,6 +198,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.review.groupBy.mockResolvedValue([]);
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
+      isBetaUser: false,
       sentimentCredits: 30,
       sentimentResetDate: new Date("2026-03-01"),
     });
@@ -229,6 +234,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.review.groupBy.mockResolvedValue([]);
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
+      isBetaUser: false,
       sentimentCredits: 35,
       sentimentResetDate: new Date("2026-03-01"),
     });
@@ -250,6 +256,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.review.groupBy.mockResolvedValue([]);
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
+      isBetaUser: false,
       sentimentCredits: 35,
       sentimentResetDate: new Date("2026-03-01"),
     });
