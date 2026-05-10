@@ -14,7 +14,6 @@ import {
   Ticket,
   X,
 } from "lucide-react";
-import { isFounder } from "@/lib/auth-helpers";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -53,7 +52,10 @@ const adminNavigation = [
 export function Sidebar({ isOpen = true, onClose, isMobile = false }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const showAdmin = isFounder(session);
+  // isFounder is computed server-side in the JWT callback (see src/lib/auth.ts)
+  // and exposed on the session, because FOUNDER_EMAILS is a server-only env
+  // var that wouldn't resolve in the browser bundle.
+  const showAdmin = session?.user?.isFounder === true;
 
   const sidebarContent = (
     <>
