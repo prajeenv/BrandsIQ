@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import { SESSION_CONFIG, BETA_PLAN, TIER_LIMITS } from "./constants";
 import { getCurrentPhase } from "./system-phase";
+import { isFounderEmail } from "./auth-helpers";
 
 const INVITE_COOKIE_NAME = "bx_invite_code";
 
@@ -165,6 +166,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
       }
 
+      // Compute isFounder server-side from FOUNDER_EMAILS so client components
+      // (Sidebar etc.) don't need to read the env var. Recomputed on every JWT
+      // pass — cheap (in-memory string compare); picks up env-var changes after
+      // the user signs out/in (acceptable for a one-founder MVP).
+      token.isFounder = isFounderEmail(token.email);
+
       return token;
     },
 
@@ -173,6 +180,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.tier = (token.tier as string) || "FREE";
+        session.user.isFounder = token.isFounder ?? false;
       }
       return session;
     },
