@@ -4,8 +4,16 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FounderInquiryForm } from "@/components/shared/FounderInquiryForm";
 import { useState } from "react";
 import { getNextResetDate } from "@/lib/utils";
+import type { SystemPhase } from "@/lib/system-phase";
 
 interface LowCreditWarningProps {
   creditsRemaining: number;
@@ -16,6 +24,10 @@ interface LowCreditWarningProps {
   sentimentRemaining?: number;
   sentimentTotal?: number;
   sentimentResetDate?: string;
+  // MVP Phase 1: phase-aware CTAs per MVP.md Section 12.4.
+  // Optional with sensible defaults so existing call sites stay compatible.
+  currentPhase?: SystemPhase;
+  isBetaUser?: boolean;
 }
 
 type WarningType =
@@ -98,8 +110,11 @@ export function LowCreditWarning({
   sentimentRemaining,
   sentimentTotal,
   sentimentResetDate,
+  currentPhase = "phase_2",
+  isBetaUser = false,
 }: LowCreditWarningProps) {
   const [isDismissed, setIsDismissed] = useState(false);
+  const [inquiryOpen, setInquiryOpen] = useState(false);
 
   const { type: warningType, isRed } = getWarningState(
     creditsRemaining,
@@ -225,28 +240,47 @@ export function LowCreditWarning({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             {renderMessage()}
-            {tier === "FREE" && (
+            {tier === "FREE" && currentPhase === "phase_2" && (
               <p className="mt-1 text-sm">
                 Upgrade to get more credits and unlock additional features.
               </p>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={isRed ? "default" : "outline"}
-              asChild
-              className={
-                isRed
-                  ? ""
-                  : "border-yellow-600 text-yellow-800 hover:bg-yellow-100 dark:border-yellow-400 dark:text-yellow-200 dark:hover:bg-yellow-950"
-              }
-            >
-              <Link href="/pricing">
-                Upgrade Plan
+            {currentPhase === "phase_1" ? (
+              // Phase 1: replace the upgrade CTA with the founder-inquiry
+              // form. Beta users → "Request more credits", non-beta → "Request
+              // beta access". See MVP.md Section 12.4.
+              <Button
+                size="sm"
+                variant={isRed ? "default" : "outline"}
+                onClick={() => setInquiryOpen(true)}
+                className={
+                  isRed
+                    ? ""
+                    : "border-yellow-600 text-yellow-800 hover:bg-yellow-100 dark:border-yellow-400 dark:text-yellow-200 dark:hover:bg-yellow-950"
+                }
+              >
+                {isBetaUser ? "Request more credits" : "Request beta access"}
                 <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant={isRed ? "default" : "outline"}
+                asChild
+                className={
+                  isRed
+                    ? ""
+                    : "border-yellow-600 text-yellow-800 hover:bg-yellow-100 dark:border-yellow-400 dark:text-yellow-200 dark:hover:bg-yellow-950"
+                }
+              >
+                <Link href="/pricing">
+                  Upgrade Plan
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </AlertDescription>
@@ -259,6 +293,27 @@ export function LowCreditWarning({
         <X className="h-4 w-4" />
         <span className="sr-only">Dismiss</span>
       </Button>
+
+      {/* Phase-1 inquiry dialog. Mounted alongside the alert so it shares the
+          alert's state (isBetaUser determines the inquiry type). */}
+      {currentPhase === "phase_1" && (
+        <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader className="sr-only">
+              <DialogTitle>
+                {isBetaUser ? "Request more credits" : "Request beta access"}
+              </DialogTitle>
+            </DialogHeader>
+            <FounderInquiryForm
+              type={isBetaUser ? "more_credits" : "beta_request"}
+              source="zero_balance"
+              onSuccess={() => {
+                setTimeout(() => setInquiryOpen(false), 1800);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Alert>
   );
 }

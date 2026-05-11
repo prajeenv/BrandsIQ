@@ -1,5 +1,7 @@
 import { Resend } from "resend";
-import { EMAIL_CONFIG, BETA_PLAN, TIER_LIMITS } from "./constants";
+import { EMAIL_CONFIG, BETA_PLAN, TIER_LIMITS, FOUNDER_PUBLIC_EMAIL } from "./constants";
+
+import type { FounderInquiryType, FounderInquirySource } from "./constants";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -201,4 +203,110 @@ export async function sendWelcomeEmail(email: string, name?: string, isBetaUser:
     console.error("Error sending welcome email:", error);
     return { success: false, error };
   }
+}
+
+/**
+ * MVP Phase 1 — founder-inquiry notification email.
+ *
+ * Sent to FOUNDER_PUBLIC_EMAIL (prajeen@brandsiq.app) whenever a user submits
+ * the unified founder-inquiry form. The founder responds personally via the
+ * channel that fits the context (reply-to email, WhatsApp). No auto-confirmation
+ * email is sent back to the submitter — see MVP.md Section 13.4 amendment.
+ *
+ * See docs/MVP_Phase-1/MVP.md Section 13.4.
+ */
+export async function sendFounderInquiryNotification(params: {
+  type: FounderInquiryType;
+  source?: FounderInquirySource | null;
+  submitterName?: string | null;
+  submitterEmail?: string | null;
+  businessName?: string | null;
+  message: string;
+  inquiryId: string;
+}) {
+  const {
+    type,
+    source,
+    submitterName,
+    submitterEmail,
+    businessName,
+    message,
+    inquiryId,
+  } = params;
+
+  // Short human-readable label for the inquiry type, used in the subject line.
+  const typeLabel: Record<FounderInquiryType, string> = {
+    beta_request: "Beta access request",
+    more_credits: "More-credits request",
+    general: "General inquiry",
+    expired_link_recovery: "Expired-link recovery",
+  };
+
+  // Reply-To = submitter's email when known, so the founder can hit Reply
+  // and the message goes to them, not to themselves at FOUNDER_PUBLIC_EMAIL.
+  const replyTo = submitterEmail || undefined;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: FOUNDER_PUBLIC_EMAIL,
+      replyTo,
+      subject: `[BrandsIQ] ${typeLabel[type]}${businessName ? ` — ${businessName}` : ""}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Founder inquiry</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 640px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #4f46e5; margin: 0 0 12px 0;">${typeLabel[type]}</h2>
+            <p style="color: #666; font-size: 14px; margin: 0 0 24px 0;">
+              <strong>Source:</strong> ${source ?? "(not specified)"}<br>
+              <strong>Inquiry ID:</strong> <code>${inquiryId}</code>
+            </p>
+
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+              ${submitterName ? `<tr><td style="padding: 6px 0; color: #666; width: 140px;">Name</td><td style="padding: 6px 0;">${escapeHtml(submitterName)}</td></tr>` : ""}
+              ${submitterEmail ? `<tr><td style="padding: 6px 0; color: #666;">Email</td><td style="padding: 6px 0;"><a href="mailto:${submitterEmail}" style="color: #4f46e5;">${escapeHtml(submitterEmail)}</a></td></tr>` : ""}
+              ${businessName ? `<tr><td style="padding: 6px 0; color: #666;">Business</td><td style="padding: 6px 0;">${escapeHtml(businessName)}</td></tr>` : ""}
+            </table>
+
+            <div style="background: #f9fafb; border-left: 4px solid #4f46e5; padding: 16px; margin-bottom: 24px; white-space: pre-wrap; word-wrap: break-word;">
+${escapeHtml(message)}
+            </div>
+
+            <p style="color: #999; font-size: 12px; margin-bottom: 0;">
+              Reply to this email to respond — your reply will go directly to ${submitterEmail ? `<a href="mailto:${submitterEmail}" style="color: #4f46e5;">${escapeHtml(submitterEmail)}</a>` : "the submitter"}.
+              ${submitterEmail ? "" : "<br>(No submitter email captured — check the inquiry ID in the admin dashboard for any user context.)"}
+            </p>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error("Failed to send founder inquiry notification:", error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error sending founder inquiry notification:", error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * Minimal HTML escape for user-submitted text injected into the inquiry email
+ * body. Prevents the founder's inbox from rendering malicious markup if a
+ * submitter pastes anything HTML-looking into the message field.
+ */
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

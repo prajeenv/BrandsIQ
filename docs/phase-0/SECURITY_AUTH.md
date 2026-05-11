@@ -252,6 +252,35 @@ OAuth sign-ups can carry a beta invite code through the Google round-trip via an
 
 ---
 
+## MVP Phase 1: Public founder-inquiry form
+
+The `FounderInquiryForm` (used on `/auth/beta-link-expired`, `/pricing` banner, the zero-balance dialog) submits to `POST /api/founder-inquiries`. This is one of the few **public** (unauthenticated-allowed) POST endpoints in the app — the expired-link recovery flow happens before signup.
+
+**Protections:**
+
+- **Rate limit:** per-IP via the existing `apiRateLimit` (60 req/min). Same limiter used across other public-ish surfaces.
+- **Submitter email required:** the route returns 400 if neither the form body nor the session provides an email — an inquiry with no reachable contact is unactionable.
+- **HTML escape in the founder notification:** `src/lib/email.ts:sendFounderInquiryNotification` HTML-escapes the user-supplied `message` field before embedding it in the founder's notification email. Prevents a hostile submitter from rendering markup in the founder's inbox.
+- **Always 201 on success / 400 on validation failure.** Status codes match standard REST shapes — the route does not try to obscure whether a submission was accepted.
+
+For the admin-side flow:
+
+- `GET /api/admin/founder-inquiries` and `PATCH /api/admin/founder-inquiries/[id]` use the same founder-only gate as `/api/admin/beta-invites` — middleware + per-route `isFounder(session)` check + 404 for non-founders.
+- The admin page at `/dashboard/admin/founder-inquiries` is also middleware-gated. Navigation visibility (Sidebar) is conditional via `isFounder(session)` in `useSession()`.
+
+---
+
+## MVP Phase 1: `currentPhase` flag flow (server → client)
+
+The `CURRENT_PHASE` env var (`phase_1` | `phase_2`) is server-only — `process.env.CURRENT_PHASE` is undefined in the browser bundle. Iteration 2 wires it through to client components via server-component wrappers:
+
+- `(dashboard)/layout.tsx` is a server component that calls `getCurrentPhase()` from `src/lib/system-phase.ts` and forwards the value to `(dashboard)/layout-client.tsx`. The client wrapper passes `initialCurrentPhase` to `CreditsProvider`. All client components inside the dashboard tree read it via `useCredits()`.
+- `/pricing/page.tsx` follows the same pattern — server entry forwards to `pricing-client.tsx`.
+
+**Why not `NEXT_PUBLIC_CURRENT_PHASE`:** That would bake the value into the build bundle at build time. Flipping the env var on Vercel would still require a redeploy. Same cost as the existing pattern, with less obvious data flow.
+
+---
+
 ## Email Verification
 
 **File:** `lib/email.ts`

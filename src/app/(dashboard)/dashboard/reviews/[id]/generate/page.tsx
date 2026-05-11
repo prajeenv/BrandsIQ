@@ -84,7 +84,7 @@ export default function GenerateResponsePage() {
   const [generatedResponse, setGeneratedResponse] = useState<GeneratedResponse | null>(null);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
   const [showOutOfCreditsDialog, setShowOutOfCreditsDialog] = useState(false);
-  const { credits, creditsTotal, creditsResetDate, refreshCredits } = useCredits();
+  const { credits, creditsTotal, creditsResetDate, refreshCredits, currentPhase, isBetaUser } = useCredits();
   const [error, setError] = useState<string | null>(null);
 
   // Fetch review
@@ -382,6 +382,8 @@ export default function GenerateResponsePage() {
         creditsTotal={creditsTotal}
         resetDate={creditsResetDate ?? undefined}
         actionType="generate"
+        currentPhase={currentPhase}
+        isBetaUser={isBetaUser}
       />
     </div>
   );

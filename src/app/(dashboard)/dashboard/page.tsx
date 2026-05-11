@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatsCard, QuotaCard, SentimentDistributionCard, EmptyReviews, LowCreditWarning } from "@/components/dashboard";
+import { useCredits } from "@/components/providers/CreditsProvider";
 
 interface DashboardStats {
   credits: {
@@ -34,6 +35,7 @@ interface DashboardStats {
     resetDate: string;
   };
   tier: string;
+  isBetaUser: boolean;
   stats: {
     totalReviews: number;
     totalResponses: number;
@@ -91,6 +93,7 @@ function formatTimeAgo(dateString: string) {
 
 export default function DashboardPage() {
   const { data: session } = useSession();
+  const { currentPhase } = useCredits();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +153,8 @@ export default function DashboardPage() {
           sentimentRemaining={stats.sentiment.remaining}
           sentimentTotal={stats.sentiment.total}
           sentimentResetDate={stats.sentiment.resetDate}
+          currentPhase={currentPhase}
+          isBetaUser={stats.isBetaUser}
         />
       )}
 

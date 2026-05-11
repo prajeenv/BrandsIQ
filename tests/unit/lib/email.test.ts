@@ -15,6 +15,7 @@ import {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
+  sendFounderInquiryNotification,
 } from '@/lib/email';
 
 describe('email.ts', () => {
@@ -177,6 +178,94 @@ describe('email.ts', () => {
       const callArgs = mockSend.mock.calls[0][0];
       expect(callArgs.html).toContain('Free Plan');
       expect(callArgs.html).not.toContain('closed beta');
+    });
+  });
+
+  // MVP Phase 1 iteration 2: founder-inquiry notification email
+  // See src/lib/email.ts and MVP.md Section 13.4.
+  describe('sendFounderInquiryNotification', () => {
+    const baseInquiry = {
+      type: 'beta_request' as const,
+      source: 'pricing' as const,
+      submitterName: 'Anita',
+      submitterEmail: 'anita@example.com',
+      businessName: 'Cafe Arabica',
+      message: 'I run a small cafe and want to try BrandsIQ.',
+      inquiryId: 'inq-abc',
+    };
+
+    it('sends to the founder public email and uses a labelled subject', async () => {
+      await sendFounderInquiryNotification(baseInquiry);
+
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const callArgs = mockSend.mock.calls[0][0];
+      // The founder public email is the destination
+      expect(callArgs.to).toBe('prajeen@brandsiq.app');
+      // Subject includes a human label for the inquiry type
+      expect(callArgs.subject).toContain('Beta access request');
+    });
+
+    it('sets replyTo to the submitter email so reply-button works', async () => {
+      await sendFounderInquiryNotification(baseInquiry);
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.replyTo).toBe('anita@example.com');
+    });
+
+    it('omits replyTo when the submitter email is missing', async () => {
+      await sendFounderInquiryNotification({
+        ...baseInquiry,
+        submitterEmail: null,
+      });
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.replyTo).toBeUndefined();
+      // And the closing note flags that there's no submitter email
+      expect(callArgs.html).toContain('No submitter email captured');
+    });
+
+    it('includes inquiryId, business name, and message in the body', async () => {
+      await sendFounderInquiryNotification(baseInquiry);
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.html).toContain('inq-abc');
+      expect(callArgs.html).toContain('Cafe Arabica');
+      expect(callArgs.html).toContain('I run a small cafe and want to try BrandsIQ.');
+    });
+
+    it('HTML-escapes user-supplied message content', async () => {
+      await sendFounderInquiryNotification({
+        ...baseInquiry,
+        message: 'Hi <script>alert("xss")</script> I want access!',
+      });
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.html).not.toContain('<script>alert');
+      expect(callArgs.html).toContain('&lt;script&gt;');
+      // Tag close-bracket also escaped
+      expect(callArgs.html).toContain('&lt;/script&gt;');
+    });
+
+    it('returns success result on Resend success', async () => {
+      const result = await sendFounderInquiryNotification(baseInquiry);
+      expect(result).toEqual(expect.objectContaining({ success: true }));
+    });
+
+    it('returns error when Resend reports an error', async () => {
+      mockSend.mockResolvedValueOnce({ data: null, error: { message: 'Rate limited' } });
+      const result = await sendFounderInquiryNotification(baseInquiry);
+      expect(result).toEqual(expect.objectContaining({ success: false }));
+    });
+
+    it('uses the right subject label for each inquiry type', async () => {
+      await sendFounderInquiryNotification({ ...baseInquiry, type: 'more_credits' });
+      expect(mockSend.mock.calls[0][0].subject).toContain('More-credits request');
+
+      vi.clearAllMocks();
+      mockSend.mockResolvedValue({ data: { id: 'x' }, error: null });
+      await sendFounderInquiryNotification({ ...baseInquiry, type: 'expired_link_recovery' });
+      expect(mockSend.mock.calls[0][0].subject).toContain('Expired-link recovery');
+
+      vi.clearAllMocks();
+      mockSend.mockResolvedValue({ data: { id: 'x' }, error: null });
+      await sendFounderInquiryNotification({ ...baseInquiry, type: 'general' });
+      expect(mockSend.mock.calls[0][0].subject).toContain('General inquiry');
     });
   });
 });

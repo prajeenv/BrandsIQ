@@ -371,6 +371,30 @@ GET    /sentiment/usage       → Get sentiment quota usage
 GET    /cron/reset-credits    → Reset credits for users (secured with CRON_SECRET)
 ```
 
+### MVP Phase 1: Closed Beta routes
+
+Added in iterations 1 and 2 per `docs/MVP_Phase-1/MVP.md`.
+
+```
+# Beta invite links (iteration 1)
+POST   /admin/beta-invites              → Founder-only; generate invite (404 for non-founders)
+GET    /admin/beta-invites              → Founder-only; list with status
+GET    /beta-invites/:code/validate     → Public; { valid, expired, used, exists }
+POST   /auth/stash-invite               → Public; stash OAuth invite code in HttpOnly cookie
+
+# Founder-inquiry form backend (iteration 2)
+POST   /founder-inquiries               → Public, rate-limited; submit inquiry
+GET    /admin/founder-inquiries         → Founder-only; paginated list, filters: type, resolved
+PATCH  /admin/founder-inquiries/:id     → Founder-only; toggle resolved, set founderNotes
+
+# Onboarding (iteration 2)
+PATCH  /user/profile                    → Auth; transactional onboarding submission
+```
+
+The signup route (`POST /auth/signup`) and NextAuth's `events.signIn` were modified in iteration 1 to accept beta invite codes — see DECISIONS.md.
+
+`GET /api/dashboard/stats` and `GET /api/credits` were extended in iteration 2 to emit `isBetaUser` so client phase-aware components can branch without re-fetching.
+
 ---
 
 ## API Request/Response Formats

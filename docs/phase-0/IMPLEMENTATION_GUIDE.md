@@ -43,12 +43,31 @@ Flipping `CURRENT_PHASE` from `phase_1` to `phase_2` requires a Vercel redeploy.
 
 - Signup route ignores `betaCode` (existing links are also defensively re-validated; defense against stale-link reuse)
 - NextAuth `events.signIn` ignores the invite cookie
-- Pricing page swaps from closed-beta banner to live tier selection (iteration 4)
+- Pricing page swaps closed-beta banner for live tier selection (when Phase 2 lands)
+- `OutOfCreditsDialog` / `LowCreditWarning` swap "Request beta access" / "Request more credits" CTAs for the existing "Upgrade Plan → /pricing" path
+
+### Onboarding flow (iteration 2)
+
+Per MVP.md Section 9. After email verification, users land at `/onboarding`. The wizard is a single page with three visual sections (About your business / Your first location / Tell us more). Submission flow:
+
+1. Form validates client-side via Zod (`onboardingSubmitSchema` in `src/lib/validations.ts`). Required: organisation name, industry (dropdown of `INDUSTRIES`), country (dropdown of `COUNTRIES`), location name.
+2. `PATCH /api/user/profile` runs the transaction: user-row update + Location upsert ("Default Location" backfilled by iteration 1's script gets renamed, or a fresh row is created) + optional `FounderInquiry` creation (only for non-beta users who signal intent).
+3. Notification email to `FOUNDER_PUBLIC_EMAIL` fires via `waitUntil` so the Lambda survives long enough for Resend's fetch() to complete.
+4. Session is refreshed via `useSession().update()` so downstream UI sees the new organisation name immediately.
+5. User is redirected to `/dashboard`.
+
+### Founder-inquiry lifecycle (iteration 2)
+
+Used in four places — expired-link recovery, pricing-page CTA, OutOfCreditsDialog (zero balance), LowCreditWarning (low balance). All call sites use the shared `FounderInquiryForm` component parameterised by `type` and `source`.
+
+1. **Submit** — `POST /api/founder-inquiries` accepts both authenticated and unauthenticated submissions. Rate-limited per-IP at 60 req/min via `apiRateLimit`. Refuses with 400 if neither the form nor the session provides a `submitterEmail`.
+2. **Notify** — `sendFounderInquiryNotification` emails the founder at `FOUNDER_PUBLIC_EMAIL`. `replyTo` is set to the submitter's email so the founder can hit Reply and respond directly. The HTML body escapes the user-supplied message to prevent markup injection.
+3. **Resolve** — Founder visits `/dashboard/admin/founder-inquiries`, clicks into the inquiry, adds notes, marks resolved. Re-open is also supported. Filtering by type + resolved status (default view: open only).
 
 ### Test commands
 
 ```bash
-npm run test:unit                                 # 604 tests, all mocked
+npm run test:unit                                 # 652 tests, all mocked (iter. 1+2)
 npm run test:integration                          # requires DATABASE_URL with localhost
 npm run test:e2e                                  # Playwright against staging
 ```

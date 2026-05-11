@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { PLATFORMS, SENTIMENTS, RESPONSE_TONES, VALIDATION_LIMITS } from "./constants";
+import {
+  PLATFORMS,
+  SENTIMENTS,
+  RESPONSE_TONES,
+  VALIDATION_LIMITS,
+  INDUSTRIES,
+  COUNTRIES,
+  SIGNUP_INTENTS,
+  FOUNDER_INQUIRY_TYPES,
+  FOUNDER_INQUIRY_SOURCES,
+} from "./constants";
 
 /**
  * Zod validation schemas for BrandsIQ
@@ -122,9 +132,88 @@ export const testBrandVoiceSchema = z.object({
 });
 
 // User profile schemas
+// MVP Phase 1 onboarding wizard: collects org/industry/country/location info
+// per MVP.md Section 9. All mandatory fields are required at the route layer
+// for the onboarding submission (this schema describes the *shape* of a PATCH
+// — caller decides which subset is required for which flow).
 export const updateProfileSchema = z.object({
+  // Existing field (kept for backward compat with any caller that just wants
+  // to update display name).
   name: z.string().min(1).max(VALIDATION_LIMITS.NAME_MAX).optional(),
-  businessName: z.string().max(200).optional().nullable(),
+
+  // Onboarding-mandatory fields. The route enforces presence; the schema
+  // allows partial updates so a future "edit profile" flow can update one
+  // field at a time without re-submitting everything.
+  organizationName: z.string().min(1).max(VALIDATION_LIMITS.ORGANIZATION_NAME_MAX).optional(),
+  industry: z.enum(INDUSTRIES).optional(),
+  country: z.enum(COUNTRIES).optional(),
+  locationName: z.string().min(1).max(VALIDATION_LIMITS.LOCATION_NAME_MAX).optional(),
+
+  // Onboarding-optional fields.
+  locationCountEstimate: z
+    .number()
+    .int()
+    .min(1)
+    .max(VALIDATION_LIMITS.LOCATION_COUNT_MAX)
+    .optional()
+    .nullable(),
+  primaryPlatform: z.enum(PLATFORMS).optional().nullable(),
+
+  // Direct (no-beta-invite) signups only. If signupIntent is set and the
+  // user is not on the beta plan, the route creates a FounderInquiry of
+  // type beta_request with source=onboarding_intent.
+  signupIntent: z.enum(SIGNUP_INTENTS).optional().nullable(),
+  signupChallengeText: z
+    .string()
+    .max(VALIDATION_LIMITS.SIGNUP_CHALLENGE_TEXT_MAX)
+    .optional()
+    .nullable(),
+});
+
+// Onboarding-specific schema with the mandatory fields actually required.
+// Used by the /onboarding form submit; the broader updateProfileSchema is
+// what a future "edit profile" surface would use.
+export const onboardingSubmitSchema = z.object({
+  organizationName: z.string().min(1, "Organization name is required").max(VALIDATION_LIMITS.ORGANIZATION_NAME_MAX),
+  industry: z.enum(INDUSTRIES, { message: "Please select an industry" }),
+  country: z.enum(COUNTRIES, { message: "Please select a country" }),
+  locationName: z.string().min(1, "Location name is required").max(VALIDATION_LIMITS.LOCATION_NAME_MAX),
+  locationCountEstimate: z
+    .number()
+    .int()
+    .min(1)
+    .max(VALIDATION_LIMITS.LOCATION_COUNT_MAX)
+    .optional()
+    .nullable(),
+  primaryPlatform: z.enum(PLATFORMS).optional().nullable(),
+  signupIntent: z.enum(SIGNUP_INTENTS).optional().nullable(),
+  signupChallengeText: z
+    .string()
+    .max(VALIDATION_LIMITS.SIGNUP_CHALLENGE_TEXT_MAX)
+    .optional()
+    .nullable(),
+});
+
+// MVP Phase 1 founder-inquiry schemas. See MVP.md Section 13.4.
+// The form is used in four places (expired-link recovery, pricing-page CTA,
+// zero-balance dialog for Free + Beta users, onboarding-intent). The submission
+// is the same shape regardless of source; type + source are how we tell them
+// apart server-side.
+export const createFounderInquirySchema = z.object({
+  type: z.enum(FOUNDER_INQUIRY_TYPES),
+  source: z.enum(FOUNDER_INQUIRY_SOURCES).optional(),
+  // Submitter contact — required when the form is submitted from a pre-signup
+  // surface (expired-link page), optional when submitted by a signed-in user
+  // (we'll fall back to session info). Schema allows both; route enforces.
+  submitterName: z.string().max(VALIDATION_LIMITS.NAME_MAX).optional().nullable(),
+  submitterEmail: z.string().email().max(VALIDATION_LIMITS.EMAIL_MAX).optional().nullable(),
+  businessName: z.string().max(VALIDATION_LIMITS.INQUIRY_BUSINESS_NAME_MAX).optional().nullable(),
+  message: z.string().min(1, "Please tell us a bit about your request").max(VALIDATION_LIMITS.INQUIRY_MESSAGE_MAX),
+});
+
+// Founder marking an inquiry as resolved with notes.
+export const resolveFounderInquirySchema = z.object({
+  founderNotes: z.string().max(VALIDATION_LIMITS.FOUNDER_NOTES_MAX).optional().nullable(),
 });
 
 // Pagination schema
@@ -156,5 +245,8 @@ export type UpdateResponseInput = z.infer<typeof updateResponseSchema>;
 export type BrandVoiceInput = z.infer<typeof brandVoiceSchema>;
 export type TestBrandVoiceInput = z.infer<typeof testBrandVoiceSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type OnboardingSubmitInput = z.infer<typeof onboardingSubmitSchema>;
+export type CreateFounderInquiryInput = z.infer<typeof createFounderInquirySchema>;
+export type ResolveFounderInquiryInput = z.infer<typeof resolveFounderInquirySchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
 export type ReviewFiltersInput = z.infer<typeof reviewFiltersSchema>;

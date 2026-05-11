@@ -128,6 +128,66 @@ export const BETA_PLAN = {
 // See docs/MVP_Phase-1/MVP.md Section 13.1.
 export const BETA_INVITE_EXPIRY_DAYS = 60;
 
+// MVP Phase 1: Profile registration choices (see MVP.md Section 9).
+// Kept small and self-explanatory — "Other" exists as a soft escape hatch for
+// industries we don't yet recognise. Tracking these as a closed set lets us
+// segment beta users without free-text noise.
+export const INDUSTRIES = [
+  "Restaurant",
+  "Cafe",
+  "Hotel",
+  "Retail",
+  "E-commerce",
+  "Services",
+  "Other",
+] as const;
+export type Industry = (typeof INDUSTRIES)[number];
+
+// Subset of countries — beta will start in a few markets, full list isn't worth
+// the validation overhead until we have real demand from elsewhere. Add as
+// needed; the `Other` option captures everything else for now.
+export const COUNTRIES = [
+  "United Kingdom",
+  "Ireland",
+  "United States",
+  "Canada",
+  "Germany",
+  "France",
+  "Spain",
+  "Netherlands",
+  "Belgium",
+  "Other",
+] as const;
+export type Country = (typeof COUNTRIES)[number];
+
+// Signup-intent question (asked only of users who arrived WITHOUT a beta
+// invite link). See MVP.md Section 9. "yes" + non-empty challenge text triggers
+// a FounderInquiry of type beta_request so the founder is notified.
+export const SIGNUP_INTENTS = ["yes", "just_trying", "unsure"] as const;
+export type SignupIntent = (typeof SIGNUP_INTENTS)[number];
+
+// MVP Phase 1: FounderInquiry classification. See MVP.md Section 13.4.
+// Stored as strings on FounderInquiry.type. The enum-as-string pattern matches
+// how we handle Tier vs. SubscriptionTier elsewhere.
+export const FOUNDER_INQUIRY_TYPES = [
+  "beta_request",
+  "more_credits",
+  "general",
+  "expired_link_recovery",
+] as const;
+export type FounderInquiryType = (typeof FOUNDER_INQUIRY_TYPES)[number];
+
+// Where the inquiry was submitted from. Used for PostHog event correlation in
+// iteration 3 ("which surface drives the most inquiries?").
+export const FOUNDER_INQUIRY_SOURCES = [
+  "expired_link",
+  "pricing",
+  "zero_balance",
+  "onboarding_intent",
+  "other",
+] as const;
+export type FounderInquirySource = (typeof FOUNDER_INQUIRY_SOURCES)[number];
+
 // Returns the effective monthly allocation for a user.
 // Beta users get the BETA_PLAN allocation regardless of tier; others get their tier's limits.
 // Used by db-utils.ts:resetMonthlyCredits and new-user initialization in auth.ts/signup route.
@@ -157,6 +217,14 @@ export const VALIDATION_LIMITS = {
   PASSWORD_MAX: 100,
   NAME_MAX: 100,
   EMAIL_MAX: 255,
+  // MVP Phase 1 onboarding + founder-inquiry fields
+  ORGANIZATION_NAME_MAX: 200,
+  LOCATION_NAME_MAX: 100,
+  SIGNUP_CHALLENGE_TEXT_MAX: 1000,
+  INQUIRY_MESSAGE_MAX: 2000,
+  INQUIRY_BUSINESS_NAME_MAX: 200,
+  FOUNDER_NOTES_MAX: 2000,
+  LOCATION_COUNT_MAX: 1000,
 } as const;
 
 // RTL languages
