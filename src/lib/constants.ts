@@ -241,3 +241,16 @@ export const EMAIL_CONFIG = {
 // Support contact
 export const SUPPORT_EMAIL = "support@brandsiq.app";
 export const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`;
+
+// MVP Phase 1: Founder's public-facing email address.
+//
+// This is the address SHOWN to beta prospects (e.g. on the expired-invite-link
+// recovery page) and used as the destination for founder-inquiry notifications
+// in iteration 2.
+//
+// Distinct from FOUNDER_EMAILS (env var): that is the founder's *identity* —
+// the email they log in with to access /dashboard/admin/*. FOUNDER_PUBLIC_EMAIL
+// is the address other people write TO when they want to reach the founder.
+// In practice these can be different addresses (e.g. login via Gmail, public
+// inbox on the brandsiq.app domain).
+export const FOUNDER_PUBLIC_EMAIL = "prajeen@brandsiq.app";
