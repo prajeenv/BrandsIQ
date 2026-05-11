@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { EMAIL_CONFIG } from "./constants";
+import { EMAIL_CONFIG, BETA_PLAN, TIER_LIMITS } from "./constants";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -107,14 +107,54 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   }
 }
 
-export async function sendWelcomeEmail(email: string, name?: string) {
+/**
+ * Plan-specific copy block rendered inside the welcome email.
+ * Numbers and framing come from BETA_PLAN / TIER_LIMITS.FREE so a future
+ * change to the allocation propagates here automatically.
+ */
+function buildWelcomePlanSection(isBetaUser: boolean): { headerLine: string; planTitle: string; planItems: string[]; closing: string } {
+  if (isBetaUser) {
+    return {
+      headerLine: "You're on the BrandsIQ closed beta — your account is verified and ready.",
+      planTitle: "Your beta plan includes:",
+      planItems: [
+        `${BETA_PLAN.credits} AI-generated responses per month`,
+        `${BETA_PLAN.sentimentQuota} sentiment analyses per month`,
+        "Support for 40+ languages",
+        "Brand voice customization",
+      ],
+      closing:
+        "As a beta user, your feedback shapes the product. We may reach out personally to hear how it's going.",
+    };
+  }
+  return {
+    headerLine: "Your account has been verified and you're all set to start managing your review responses with AI.",
+    planTitle: "Your Free Plan includes:",
+    planItems: [
+      `${TIER_LIMITS.FREE.credits} AI-generated responses per month`,
+      `${TIER_LIMITS.FREE.sentimentQuota} sentiment analyses per month`,
+      "Support for 40+ languages",
+      "Brand voice customization",
+    ],
+    closing: "Need help? Reply to this email or visit our documentation.",
+  };
+}
+
+export async function sendWelcomeEmail(email: string, name?: string, isBetaUser: boolean = false) {
   const dashboardUrl = `${process.env.NEXTAUTH_URL}/dashboard`;
+  const section = buildWelcomePlanSection(isBetaUser);
+  const subject = isBetaUser
+    ? "Welcome to the BrandsIQ closed beta!"
+    : "Welcome to BrandsIQ! Let's get started";
+  const heading = isBetaUser
+    ? `Welcome to the BrandsIQ closed beta${name ? `, ${name}` : ""}!`
+    : `Welcome to BrandsIQ${name ? `, ${name}` : ""}!`;
 
   try {
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
-      subject: "Welcome to BrandsIQ! Let's get started",
+      subject,
       html: `
         <!DOCTYPE html>
         <html>
@@ -125,17 +165,14 @@ export async function sendWelcomeEmail(email: string, name?: string) {
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to BrandsIQ${name ? `, ${name}` : ""}!</h1>
+              <h1 style="color: white; margin: 0; font-size: 24px;">${heading}</h1>
             </div>
             <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="margin-top: 0;">Your account has been verified and you're all set to start managing your review responses with AI.</p>
+              <p style="margin-top: 0;">${section.headerLine}</p>
 
-              <h3 style="color: #4f46e5; margin-top: 25px;">Your Free Plan includes:</h3>
+              <h3 style="color: #4f46e5; margin-top: 25px;">${section.planTitle}</h3>
               <ul style="padding-left: 20px;">
-                <li>15 AI-generated responses per month</li>
-                <li>35 sentiment analyses per month</li>
-                <li>Support for 40+ languages</li>
-                <li>Brand voice customization</li>
+                ${section.planItems.map((item) => `<li>${item}</li>`).join("\n                ")}
               </ul>
 
               <div style="text-align: center; margin: 30px 0;">
@@ -146,7 +183,7 @@ export async function sendWelcomeEmail(email: string, name?: string) {
 
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
               <p style="color: #999; font-size: 12px; margin-bottom: 0;">
-                Need help? Reply to this email or visit our documentation.
+                ${section.closing}
               </p>
             </div>
           </body>

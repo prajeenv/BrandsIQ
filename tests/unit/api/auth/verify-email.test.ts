@@ -90,9 +90,18 @@ const mockUser = {
   emailVerified: null,
   name: 'Test User',
   tier: 'FREE',
+  isBetaUser: false,
   credits: 15,
   createdAt: new Date(),
   updatedAt: new Date(),
+};
+
+const mockBetaUser = {
+  ...mockUser,
+  id: 'user-beta-456',
+  email: 'beta@example.com',
+  isBetaUser: true,
+  credits: 150,
 };
 
 describe('GET /api/auth/verify-email', () => {
@@ -184,7 +193,7 @@ describe('GET /api/auth/verify-email', () => {
     );
   });
 
-  it('sends welcome email (non-blocking)', async () => {
+  it('sends welcome email (non-blocking) with isBetaUser flag for Free users', async () => {
     const req = createRequest('/api/auth/verify-email', {
       searchParams: { token: 'valid-token' },
     });
@@ -192,7 +201,30 @@ describe('GET /api/auth/verify-email', () => {
 
     expect(mockEmail.sendWelcomeEmail).toHaveBeenCalledWith(
       'test@example.com',
-      'Test User'
+      'Test User',
+      false
+    );
+  });
+
+  it('sends welcome email with isBetaUser=true for beta users', async () => {
+    // Verify-email looks up the user by the token's email and uses that
+    // record's isBetaUser. Mock the token's verified email + user fetch
+    // to a beta account.
+    mockTokens.verifyEmailToken.mockResolvedValue({
+      success: true,
+      email: 'beta@example.com',
+    });
+    mockPrisma.user.findUnique.mockResolvedValue(mockBetaUser);
+
+    const req = createRequest('/api/auth/verify-email', {
+      searchParams: { token: 'valid-token' },
+    });
+    await GET(req);
+
+    expect(mockEmail.sendWelcomeEmail).toHaveBeenCalledWith(
+      'beta@example.com',
+      'Test User',
+      true
     );
   });
 

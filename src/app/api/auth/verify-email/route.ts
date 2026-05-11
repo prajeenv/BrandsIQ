@@ -74,8 +74,9 @@ export async function GET(request: Request) {
       data: { emailVerified: new Date() },
     });
 
-    // Send welcome email (non-blocking)
-    sendWelcomeEmail(result.email, user.name || undefined).catch((err) => {
+    // Send welcome email (non-blocking). Pass isBetaUser so the template
+    // renders beta-plan content (150/750) instead of Free-plan (15/35).
+    sendWelcomeEmail(result.email, user.name || undefined, user.isBetaUser).catch((err) => {
       console.error("Failed to send welcome email:", err);
     });
 
