@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { prisma } from "@/lib/prisma";
 import { verifyEmailToken } from "@/lib/tokens";
 import { sendWelcomeEmail } from "@/lib/email";
@@ -74,11 +75,23 @@ export async function GET(request: Request) {
       data: { emailVerified: new Date() },
     });
 
-    // Send welcome email (non-blocking). Pass isBetaUser so the template
-    // renders beta-plan content (150/750) instead of Free-plan (15/35).
-    sendWelcomeEmail(result.email, user.name || undefined, user.isBetaUser).catch((err) => {
-      console.error("Failed to send welcome email:", err);
-    });
+    // Send welcome email (non-blocking from the user's perspective).
+    //
+    // waitUntil tells Vercel to keep the serverless function alive until the
+    // returned promise settles, even after we've sent the HTTP response back
+    // to the client. Without this, Vercel can freeze the Lambda the moment
+    // NextResponse is returned, aborting the Resend SDK's in-flight fetch()
+    // mid-request — which manifests as `application_error / statusCode: null
+    // / "Unable to fetch data"` and no Resend dashboard log row, because
+    // the request died at the socket layer before reaching Resend's server.
+    //
+    // Pass isBetaUser so the template renders beta-plan content (150/750)
+    // instead of Free-plan (15/35).
+    waitUntil(
+      sendWelcomeEmail(result.email, user.name || undefined, user.isBetaUser).catch((err) => {
+        console.error("Failed to send welcome email:", err);
+      }),
+    );
 
     return NextResponse.json(
       {
