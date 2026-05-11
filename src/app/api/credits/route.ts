@@ -72,6 +72,7 @@ export async function GET() {
           resetDate: user.sentimentResetDate.toISOString(),
         },
         tier: user.tier,
+        isBetaUser: user.isBetaUser,
       },
     });
   } catch (error) {

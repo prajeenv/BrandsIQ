@@ -161,6 +161,10 @@ export async function GET() {
           resetDate: user.sentimentResetDate.toISOString(),
         },
         tier: user.tier,
+        // isBetaUser is surfaced so client components (LowCreditWarning,
+        // OutOfCreditsDialog, etc.) can render phase-aware CTAs without an
+        // extra round-trip. See MVP.md Section 12.4.
+        isBetaUser: user.isBetaUser,
         stats: {
           totalReviews: user._count.reviews,
           totalResponses,

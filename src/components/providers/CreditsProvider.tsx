@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import type { SystemPhase } from "@/lib/system-phase";
 
 interface CreditsContextType {
   credits: number;
@@ -10,6 +11,13 @@ interface CreditsContextType {
   sentimentTotal: number;
   sentimentResetDate: string | null;
   tier: string;
+  // MVP Phase 1: surfaced so phase-aware UI components (OutOfCreditsDialog,
+  // LowCreditWarning) can pick the right CTA without re-fetching per render.
+  // isBetaUser comes from /api/dashboard/stats; currentPhase is set once at
+  // provider mount from the build-time env var (server component reads
+  // CURRENT_PHASE and passes it down via initialCurrentPhase).
+  isBetaUser: boolean;
+  currentPhase: SystemPhase;
   setCredits: (_credits: number) => void;
   refreshCredits: () => Promise<void>;
 }
@@ -25,6 +33,10 @@ interface CreditsProviderProps {
   initialSentimentTotal?: number;
   initialSentimentResetDate?: string | null;
   initialTier?: string;
+  initialIsBetaUser?: boolean;
+  // Defaults to "phase_1" — overridden by the dashboard layout (server
+  // component) which reads CURRENT_PHASE on the server and passes it in.
+  initialCurrentPhase?: SystemPhase;
 }
 
 export function CreditsProvider({
@@ -36,6 +48,8 @@ export function CreditsProvider({
   initialSentimentTotal = 35,
   initialSentimentResetDate = null,
   initialTier = "FREE",
+  initialIsBetaUser = false,
+  initialCurrentPhase = "phase_1",
 }: CreditsProviderProps) {
   const [credits, setCreditsState] = useState(initialCredits);
   const [creditsTotal, setCreditsTotal] = useState(initialCreditsTotal);
@@ -44,6 +58,10 @@ export function CreditsProvider({
   const [sentimentTotal, setSentimentTotal] = useState(initialSentimentTotal);
   const [sentimentResetDate, setSentimentResetDate] = useState<string | null>(initialSentimentResetDate);
   const [tier, setTier] = useState(initialTier);
+  const [isBetaUser, setIsBetaUser] = useState(initialIsBetaUser);
+  // currentPhase is intentionally not mutable from inside the provider — it's
+  // fixed at mount from the server's CURRENT_PHASE env var.
+  const [currentPhase] = useState<SystemPhase>(initialCurrentPhase);
 
   const setCredits = useCallback((newCredits: number) => {
     setCreditsState(newCredits);
@@ -61,6 +79,7 @@ export function CreditsProvider({
         setSentimentTotal(data.data.sentiment.total);
         setSentimentResetDate(data.data.sentiment.resetDate);
         setTier(data.data.tier);
+        setIsBetaUser(data.data.isBetaUser ?? false);
       }
     } catch (error) {
       console.error("Failed to refresh credits:", error);
@@ -68,7 +87,21 @@ export function CreditsProvider({
   }, []);
 
   return (
-    <CreditsContext.Provider value={{ credits, creditsTotal, creditsResetDate, sentimentCredits, sentimentTotal, sentimentResetDate, tier, setCredits, refreshCredits }}>
+    <CreditsContext.Provider
+      value={{
+        credits,
+        creditsTotal,
+        creditsResetDate,
+        sentimentCredits,
+        sentimentTotal,
+        sentimentResetDate,
+        tier,
+        isBetaUser,
+        currentPhase,
+        setCredits,
+        refreshCredits,
+      }}
+    >
       {children}
     </CreditsContext.Provider>
   );
