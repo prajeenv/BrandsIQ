@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FOUNDER_PUBLIC_EMAIL } from "@/lib/constants";
+import { FounderInquiryForm } from "@/components/shared";
 
 export const metadata: Metadata = {
   title: "Beta invite expired - BrandsIQ",
@@ -24,9 +24,9 @@ export const metadata: Metadata = {
  * Shown when a user clicks an expired or already-used invite link, or when
  * the signup route rejects an invite mid-submission. See MVP.md Section 13.3.
  *
- * Iteration 1: shows the page copy + "Continue with regular signup" link.
- * The embedded recovery form (FounderInquiryForm) lands in iteration 2 —
- * for now, the founder is reachable via the support email link.
+ * Iteration 2: replaces the iteration-1 mailto fallback with the embedded
+ * FounderInquiryForm. The form posts to POST /api/founder-inquiries which
+ * stores the inquiry and emails the founder.
  */
 export default function BetaLinkExpiredPage() {
   return (
@@ -45,22 +45,15 @@ export default function BetaLinkExpiredPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="rounded-md bg-muted/30 p-4 text-sm text-muted-foreground">
-          If you received this link recently and expected beta access, email{" "}
-          <a
-            href={`mailto:${FOUNDER_PUBLIC_EMAIL}?subject=BrandsIQ%20beta%20invite%20-%20expired%20link`}
-            className="text-primary underline hover:no-underline"
-          >
-            {FOUNDER_PUBLIC_EMAIL}
-          </a>{" "}
-          and we&apos;ll send a fresh invite within 24 hours.
-          <p className="mt-3 text-xs">
-            (A built-in recovery form is coming soon — for now the email above
-            is the fastest path.)
-          </p>
-        </div>
+        <FounderInquiryForm
+          type="expired_link_recovery"
+          source="expired_link"
+        />
 
-        <div className="flex flex-col gap-2">
+        <div className="border-t pt-4 space-y-2">
+          <p className="text-center text-sm text-muted-foreground">
+            Or, if you&apos;d like to try BrandsIQ on the free tier:
+          </p>
           <Button asChild variant="outline" className="w-full">
             <Link href="/auth/signup">Continue with regular signup &rarr;</Link>
           </Button>

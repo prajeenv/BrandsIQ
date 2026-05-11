@@ -149,7 +149,7 @@ export default function ReviewDetailPage() {
   const [showSentimentAlert, setShowSentimentAlert] = useState(
     searchParams.get("sentimentSkipped") === "true"
   );
-  const { credits, creditsTotal, creditsResetDate, sentimentResetDate, refreshCredits } = useCredits();
+  const { credits, creditsTotal, creditsResetDate, sentimentResetDate, refreshCredits, currentPhase, isBetaUser } = useCredits();
 
   useEffect(() => {
     async function fetchReview() {
@@ -535,6 +535,8 @@ export default function ReviewDetailPage() {
         creditsTotal={creditsTotal}
         resetDate={creditsResetDate ?? undefined}
         actionType="generate"
+        currentPhase={currentPhase}
+        isBetaUser={isBetaUser}
       />
     </div>
   );

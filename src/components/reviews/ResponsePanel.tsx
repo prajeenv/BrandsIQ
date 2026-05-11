@@ -99,7 +99,7 @@ export function ResponsePanel({
   textDirection = "ltr",
   onResponseUpdate,
 }: ResponsePanelProps) {
-  const { credits, creditsTotal, creditsResetDate, refreshCredits } = useCredits();
+  const { credits, creditsTotal, creditsResetDate, refreshCredits, currentPhase, isBetaUser } = useCredits();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [localResponse, setLocalResponse] = useState<Response | null>(response);
@@ -325,6 +325,8 @@ export function ResponsePanel({
           creditsTotal={creditsTotal}
           resetDate={creditsResetDate ?? undefined}
           actionType={outOfCreditsActionType}
+          currentPhase={currentPhase}
+          isBetaUser={isBetaUser}
         />
       </>
     );
@@ -481,6 +483,8 @@ export function ResponsePanel({
         creditsTotal={creditsTotal}
         resetDate={creditsResetDate ?? undefined}
         actionType={outOfCreditsActionType}
+        currentPhase={currentPhase}
+        isBetaUser={isBetaUser}
       />
     </Card>
   );

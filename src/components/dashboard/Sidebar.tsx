@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   Ticket,
+  Inbox,
   X,
 } from "lucide-react";
 
@@ -46,6 +47,11 @@ const adminNavigation = [
     name: "Beta invites",
     href: "/dashboard/admin/beta-invites",
     icon: Ticket,
+  },
+  {
+    name: "Founder inquiries",
+    href: "/dashboard/admin/founder-inquiries",
+    icon: Inbox,
   },
 ];
 
