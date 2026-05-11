@@ -23,14 +23,16 @@ test.describe('Beta invite signup surfaces', () => {
     await expect(page.locator('text=This beta invite link has expired')).toBeVisible();
   });
 
-  test('beta-link-expired page renders the recovery copy and a regular-signup link', async ({ page }) => {
+  test('beta-link-expired page renders the embedded inquiry form and a regular-signup link', async ({ page }) => {
     await page.goto('/auth/beta-link-expired');
 
     await expect(page.locator('text=This beta invite link has expired')).toBeVisible();
     // Continue link points back to signup
     await expect(page.locator('a[href="/auth/signup"]')).toBeVisible();
-    // Mailto recovery for iteration 1 (replaced by FounderInquiryForm in iteration 2)
-    await expect(page.locator('a[href^="mailto:"]')).toBeVisible();
+    // Iteration 2: the FounderInquiryForm is now embedded. Confirm the form
+    // fields are present rather than asserting a mailto link.
+    await expect(page.locator('#founder-inquiry-email')).toBeVisible();
+    await expect(page.locator('#founder-inquiry-message')).toBeVisible();
   });
 
   test('admin beta-invites page is not reachable for unauthenticated users (404)', async ({ page }) => {

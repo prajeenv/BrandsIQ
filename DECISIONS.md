@@ -1304,6 +1304,85 @@ Branch: `feat/mvp-phase-1-iteration-1`. Five commits: docs amendments, schema, l
 - E2E spec covering 5 public surfaces: signup with no code, signup with unknown code (redirect), beta-link-expired page render, admin route 404 for unauthenticated users, admin API 404
 - Total: **604 unit tests passing** (up from 581) + **5 new integration tests** + **5 new E2E tests**
 
+### Iteration 2 — Onboarding Wizard, Founder-Inquiry Form, Phase-Aware Dialogs, Closed-Beta Banner
+
+Branch: `feat/mvp-phase-1-iteration-2`. Four commits: API layer, shared UI, pages, tests + docs. No schema changes — `Location`, `BetaInviteLink`, `FounderInquiry` already shipped in iteration 1.
+
+#### Decision 9: Single-page onboarding form, not multi-step wizard
+
+- **Decision:** `/onboarding` is a single page with three visual sections (About your business / Your first location / Tell us more). Multi-step wizard rejected.
+- **Why:** The required-field count is small (4 mandatory + 3 optional + 2 conditional for non-beta users). Wizards add friction (back/next navigation, partial-state management, "can I abandon and resume?") and the existing codebase has no multi-step form pattern to extend. A single page with visually grouped sections gives the "structured intake" feel without the navigation overhead.
+- **Risk:** Low ✅. If we add many more profile fields post-MVP, we can split into steps then.
+
+#### Decision 10: Industries and countries are closed enum-as-string sets with "Other" escape hatch
+
+- **Decision:** `INDUSTRIES` and `COUNTRIES` constants in `src/lib/constants.ts`. Industries: 6 specific + Other. Countries: 9 specific + Other.
+- **Why:** Beta will start in a few markets (UK, Ireland, US primarily). Closed-set validation keeps the data clean for segmentation analysis. Free-text "industry" leads to "Cafe", "cafe", "coffee shop", "café" all being different values. "Other" acts as a soft escape hatch so users with industries we don't yet recognise can still sign up; their inquiries will be visible in the admin view if they ask.
+- **Trade-off:** Future expansion requires constant + (optional) Zod schema update. Acceptable — it's a 5-line change.
+- **Risk:** Low ✅.
+
+#### Decision 11: Location name is a label, not a postal address
+
+- **Decision:** `Location.name` is a short human-recognizable label. Placeholder text reads `e.g. "The Bear Bakery — Shoreditch"`. Helper text explicitly says "Not a postal address."
+- **Why:** No mapping, geocoding, or postal logic is integrated. The label's only purpose is to help users identify a location in their dashboard. When multi-location ships post-MVP, we'd likely add a separate `address` field for real addresses — `name` stays a label, no migration of existing data needed.
+- **Risk:** Low ✅.
+
+#### Decision 12: `currentPhase` flows through CreditsProvider; `process.env.CURRENT_PHASE` never reaches the client bundle
+
+- **Decision:** Server components (`(dashboard)/layout.tsx`, `pricing/page.tsx`) call `getCurrentPhase()` and pass the result as a prop to client wrappers. Client wrappers pass it to `CreditsProvider` via `initialCurrentPhase`. Phase-aware client components (`OutOfCreditsDialog`, `LowCreditWarning`, `PricingClient`) read it via `useCredits()`.
+- **Why:** `CURRENT_PHASE` is a server-only env var. Reading `process.env.CURRENT_PHASE` in a client component returns `undefined` in the browser bundle (same gotcha that bit us with `FOUNDER_EMAILS` → PR #72 Sidebar fix). The server-component wrapper pattern keeps the env-var read on the server and threads the value through React props.
+- **Alternative considered:** Add a `NEXT_PUBLIC_CURRENT_PHASE` env var so the client can read it directly. Rejected — `NEXT_PUBLIC_*` bakes the value into the build bundle at build time, so flipping the env var on Vercel would require a redeploy for the client to pick up the change. Same redeploy cost as the existing pattern, but with less obvious data flow.
+- **Risk:** Low ✅.
+
+#### Decision 13: `OutOfCreditsDialog` swaps content in-place instead of opening a nested dialog
+
+- **Decision:** When `phase_1` and the user clicks "Request more credits" / "Request beta access" in `OutOfCreditsDialog`, the dialog's content swaps from the "out of credits" summary to the `FounderInquiryForm` via internal `view` state. A "← Back" button returns to the summary.
+- **Why:** Stacking two dialogs on mobile is awkward and easy to dismiss accidentally. Swapping content keeps a single dismissible surface and avoids z-index management.
+- **Alternative:** Open a separate dialog from the same trigger. Rejected per above. (Note: `LowCreditWarning` *does* open a nested dialog because the alert itself isn't a dialog — there's no swap-content option.)
+- **Risk:** Low ✅.
+
+#### Decision 14: `FounderInquiryForm` is one shared component used in four places, parameterised by `type` + `source`
+
+- **Decision:** Single component at `src/components/shared/FounderInquiryForm.tsx`. Caller passes `type` (one of `beta_request | more_credits | general | expired_link_recovery`) and `source` (one of `expired_link | pricing | zero_balance | onboarding_intent | other`). The form's copy adapts by type (heading, description, message placeholder, submit button label) with sane defaults baked in, overridable per callsite.
+- **Why:** MVP.md Section 13.4 explicitly calls for unification. Four variants of the same form would be 4× the maintenance with no benefit. The `type` and `source` enums let the founder filter inquiries by origin in the admin view and correlate with PostHog events (iteration 3).
+- **Risk:** Low ✅.
+
+#### Decision 15: No auto-confirmation email back to inquirers; `replyTo` set so founder can hit Reply
+
+- **Decision:** Confirmed iteration 1 amendment in MVP.md Section 13.4. The founder-inquiry notification email goes to the founder only (`FOUNDER_PUBLIC_EMAIL`). The submitter receives no auto-confirmation. `replyTo` is set to the submitter's email so the founder's reply lands directly in the submitter's inbox without manual address copy-paste.
+- **Why:** The expired-link page already states the contract ("we'll send a fresh invite within 24 hours"). Confirmation emails add dev work for zero validation signal. The founder responds personally per the engagement playbook.
+- **Risk:** Low ✅.
+
+#### Decision 16: `POST /api/founder-inquiries` is public + rate-limited; refuses inquiries with no reachable email
+
+- **Decision:** The route accepts both authenticated and unauthenticated submissions. Rate-limited per-IP via the existing `apiRateLimit` (60 req/min). Returns 400 if neither the form nor the session provides a `submitterEmail` — an inquiry with no email is unactionable.
+- **Why:** The expired-link recovery flow happens before signup (no session). Other call sites have a session and can backfill from `session.user`. The form code follows this contract: it shows submitter fields when there's no pre-fill, hides them when fully pre-filled (signed-in CTAs).
+- **Trade-off:** A 400 leaks "this is the submission endpoint" to spam crawlers. Acceptable for MVP — the form is on public pages anyway. If spam becomes an issue we'd add CAPTCHA, not change the validation logic.
+- **Risk:** Low ✅.
+
+#### Decision 17: Onboarding submission is transactional; FounderInquiry rolls back with the user update
+
+- **Decision:** `PATCH /api/user/profile` wraps user-row update + Location upsert + (optional) FounderInquiry create in a single Prisma `$transaction`. Notification email fires after the response via `waitUntil`.
+- **Why:** Same pattern as iteration 1's signup-with-betaCode flow. A partial write would leave the user in a "I filled the form but my dashboard doesn't show my profile" half-state. Better to fail loudly and let them retry than have weird leftover state.
+- **Risk:** Low ✅.
+
+#### Decision 18: Admin route shape stays consistent — 404 for non-founders, no route disclosure
+
+- **Decision:** `/api/admin/founder-inquiries` and `/dashboard/admin/founder-inquiries` use the same lo-fi gate as iteration 1's beta-invites admin: middleware checks `isFounderEmail(token.email)`, route handler also calls `isFounder(session)` server-side as defense-in-depth, response is 404 (not 403) for non-founders.
+- **Why:** Consistency. Same pattern as `/api/admin/beta-invites`. Proper RBAC is still post-MVP work.
+- **Risk:** Low ✅.
+
+#### Test coverage added in iteration 2
+
+- 41 new unit tests across 4 files:
+  - `tests/unit/api/founder-inquiries/founder-inquiries.test.ts` — 8 cases (POST: unauthenticated + auth-backfilled submissions, rejection of no-email submissions, malformed JSON, schema validation, rate-limit, fire-and-forget email failure)
+  - `tests/unit/api/admin/founder-inquiries.test.ts` — 14 cases (GET: 404 gating, paginated list, type filter, resolved-true filter, resolved-false filter, invalid pagination 400, unknown-type silently ignored; PATCH: 404 for non-founder, 404 for missing inquiry, mark resolved with notes, re-open, notes-only update, clear notes with null)
+  - `tests/unit/api/user/profile.test.ts` — 11 cases (PATCH: 401 unauthenticated, 400 missing required field, 400 invalid industry, 404 user gone, location-create vs. location-rename, beta_request inquiry for non-beta + intent=yes, inquiry for non-empty challenge text, no inquiry for beta users, no inquiry for intent=just_trying without text, malformed JSON 400)
+  - `tests/unit/lib/email.test.ts` — 8 new cases for `sendFounderInquiryNotification` (founder public email destination, subject labelling per type, replyTo wiring, replyTo omission when submitter email missing, body content (inquiryId, business, message), HTML escape of user-supplied text, Resend success/error result shapes)
+- New integration test file `tests/integration/onboarding-flow.test.ts` — 5 scenarios: atomic transaction with intent=yes fires inquiry, beta user doesn't fire redundant inquiry, existing Default Location renamed not duplicated, full rollback on transaction failure, GDPR `SetNull` on user deletion preserves inquiry audit
+- New E2E spec `tests/e2e/iteration-2-surfaces.spec.ts` — 7 cases: pricing banner under phase_1, tier cards swap CTAs, banner CTA opens dialog, admin page 404 for unauth, admin API 404 for unauth, public POST accepts valid submission, public POST rejects no-email submission. Updated existing `beta-link-expired` E2E to assert embedded form fields instead of mailto link.
+- Total: **652 unit tests passing** (up from 611) + **5 new integration scenarios** (10 total with iteration 1's) + **7 new E2E tests** (covered alongside the existing E2E suite)
+
 ---
 
 ## Decision Log
@@ -1337,12 +1416,37 @@ Branch: `feat/mvp-phase-1-iteration-1`. Five commits: docs amendments, schema, l
 | 23 | `Review.locationId` two-phase migration (nullable → backfill → non-null) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Iter. 1 done; iter. 3 pending |
 | 24 | Manual one-shot backfill via tsx (not Vercel hook) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
 | 25 | Beta plan is `isBetaUser` flag, not a Tier enum value | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
+| 26 | Single-page onboarding form (visually grouped sections), not multi-step wizard | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 27 | Industries and countries are closed enum-as-string sets with "Other" escape hatch | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 28 | `Location.name` is a human-readable label, not a postal address | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 29 | `currentPhase` threads via server-component wrapper → CreditsProvider (never reaches client bundle as env var) | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 30 | `OutOfCreditsDialog` swaps content in-place rather than nesting another dialog | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 31 | `FounderInquiryForm` is one shared component, parameterised by `type` + `source` | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 32 | No auto-confirmation email to inquirer; founder notification uses `replyTo` | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 33 | `POST /api/founder-inquiries` is public + rate-limited; refuses no-email submissions | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 34 | Onboarding submission transactional; notification email via `waitUntil` | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**May 11, 2026** — MVP Phase 1 (Closed Beta), Iteration 2
+- New constants in `src/lib/constants.ts`: `INDUSTRIES` (6 + Other), `COUNTRIES` (9 + Other), `SIGNUP_INTENTS`, `FOUNDER_INQUIRY_TYPES`, `FOUNDER_INQUIRY_SOURCES`. Extended `VALIDATION_LIMITS` with organisation/location/message/notes bounds.
+- New Zod schemas in `src/lib/validations.ts`: `onboardingSubmitSchema` (required: org name, industry, country, location name), `createFounderInquirySchema`, `resolveFounderInquirySchema`. Extended `updateProfileSchema` with the new iteration-2 fields (all optional for partial updates).
+- New email helper `sendFounderInquiryNotification` in `src/lib/email.ts` — Resend send to `FOUNDER_PUBLIC_EMAIL` with `replyTo` = submitter email and HTML-escaped message body.
+- New API routes: `POST /api/founder-inquiries` (public, rate-limited), `GET /api/admin/founder-inquiries` (founder-only, paginated, filterable by type/resolved), `PATCH /api/admin/founder-inquiries/[id]` (founder-only, toggle resolved + notes), `PATCH /api/user/profile` (auth, transactional onboarding submission).
+- Modified existing routes: `GET /api/dashboard/stats` and `GET /api/credits` now return `isBetaUser` in the response (the field was already selected from Prisma — just not emitted).
+- New shared component `src/components/shared/FounderInquiryForm.tsx` — used in 4 places (expired-link page, pricing banner CTA, OutOfCreditsDialog, LowCreditWarning), parameterised by type + source, copy adapts per type.
+- Phase-aware updates to `OutOfCreditsDialog` (in-place content swap to inquiry form under phase_1) and `LowCreditWarning` (nested dialog with inquiry form under phase_1). Both backward-compatible: new props default to phase_2 behavior.
+- `CreditsProvider` tracks `isBetaUser` (mutable, refreshed from API) and `currentPhase` (fixed at mount from `initialCurrentPhase` prop, sourced from the `CURRENT_PHASE` env var via the server-component wrapper).
+- New UI pages: `/dashboard/admin/founder-inquiries` (founder-only admin table with type/status filters + mark-resolved dialog); real `/onboarding` wizard replacing iteration 1's placeholder; real `FounderInquiryForm` embedded in `/auth/beta-link-expired` replacing the mailto fallback.
+- `/pricing` refactored into server entry + client component to allow reading `CURRENT_PHASE` at the server. Phase_1 renders the closed-beta banner ("BrandsIQ is currently in closed beta — Request beta access →") and swaps per-tier "Coming Soon" buttons for "Request beta access" buttons. Phase_2 keeps existing behaviour.
+- `(dashboard)/layout.tsx` split into server entry + `layout-client.tsx` to thread `currentPhase` through `CreditsProvider`. All existing pages that consume `OutOfCreditsDialog` (review detail, review generate, ResponsePanel) and `LowCreditWarning` (dashboard) now pass `currentPhase` + `isBetaUser` props.
+- `Sidebar` adds "Founder inquiries" admin nav item (Inbox icon) alongside the existing "Beta invites".
+- 41 new unit tests, 5 new integration scenarios, 7 new E2E specs. Total suite: 652 unit tests passing (up from 611).
+- All decisions in this iteration are Low ✅ risk; no schema changes; iteration is independently shippable to staging.
 
 **May 9, 2026** — MVP Phase 1 (Closed Beta), Iteration 1
 - Added `docs/MVP_Phase-1/MVP.md` to git with 4 implementation amendments (Sections 2, 8, 13.2, 13.4)

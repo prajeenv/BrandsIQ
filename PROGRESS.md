@@ -17,7 +17,7 @@
 |-------|--------|------------|----------|----------|
 | Phase 0: Documentation | ✅ Complete | Jan 1, 2026 | Jan 6, 2026 | 6 days |
 | Phase 1: Core MVP | ✅ Complete | Jan 7, 2026 | Mar 27, 2026 | ~12 weeks |
-| MVP Phase 1 (Closed Beta) | 🚧 In Progress (iter. 1 done) | May 9, 2026 | - | - |
+| MVP Phase 1 (Closed Beta) | 🚧 In Progress (iter. 1 & 2 done) | May 9, 2026 | - | - |
 | MVP Phase 2 (Commercial Launch) | ⏳ Not Started | - | - | - |
 | Phase 2: CSV Import | ⏳ Not Started | - | - | - |
 | Phase 3: Integrations | ⏳ Not Started | - | - | - |
@@ -1021,9 +1021,49 @@ The closed-beta layer added on top of the original Core MVP. Validates product-m
 - Manual one-shot backfill via tsx
 - Beta plan is `isBetaUser` flag, not Tier enum value
 
-### ⏳ Iteration 2 — Onboarding wizard + Founder-inquiry form + Phase-aware dialogs
+### ✅ Iteration 2 — Onboarding wizard + Founder-inquiry form + Phase-aware dialogs + Closed-beta pricing banner
 
-Will replace the iteration-1 placeholders. Scope per plan file.
+**Branch:** `feat/mvp-phase-1-iteration-2` (4 commits)
+**Status:** Locally verified (lint/type-check/652 unit tests passing). PR pending.
+
+**What shipped:**
+
+- **Real `/onboarding` wizard** — single-page form (organisation name, industry, country, location name + optional location count + primary platform + conditional intent question for non-beta users). Submits to `PATCH /api/user/profile` which transactionally updates the user, upserts the "Default Location" (rename if it exists from iteration 1's backfill, create if not), and conditionally creates a FounderInquiry of `type=beta_request` with `source=onboarding_intent` for non-beta users who signal intent.
+- **`FounderInquiryForm` shared component** — used in four places (expired-link page, pricing-page banner CTA, OutOfCreditsDialog, LowCreditWarning). Parameterised by `type` (4 variants: beta_request | more_credits | general | expired_link_recovery) and `source` (5 variants for PostHog correlation). Copy auto-adapts per type. Optional pre-fill + hide-submitter-fields mode for signed-in CTAs.
+- **Phase-aware dialogs** — `OutOfCreditsDialog` swaps content in-place between "out of credits" summary and the embedded inquiry form when `currentPhase === phase_1`. `LowCreditWarning` opens a nested dialog with the form. Both backward-compatible; `phase_2` behaviour identical to iteration 1.
+- **Closed-beta banner on `/pricing`** — prominent banner with "Request beta access" CTA opens the form in a dialog. Per-tier "Coming Soon" buttons replaced with "Request beta access" buttons under `phase_1`. Server-component wrapper reads `getCurrentPhase()` so the env var stays out of the client bundle.
+- **Founder-only admin: `/dashboard/admin/founder-inquiries`** — table with type filter (4 values + All) + status filter (Open / Resolved / All; default Open). Click-row opens details dialog with submitter info + message + founder-notes textarea + mark-resolved / re-open actions. Same lo-fi 404-gate as iteration 1's admin pages.
+- **API surface** — 4 new routes (`POST /api/founder-inquiries`, `GET /api/admin/founder-inquiries`, `PATCH /api/admin/founder-inquiries/[id]`, `PATCH /api/user/profile`). Existing `/api/dashboard/stats` and `/api/credits` now emit `isBetaUser` in their responses (was selected but not surfaced).
+- **Sidebar** — "Founder inquiries" admin nav item alongside "Beta invites". Inbox icon.
+- **Layout split** — `(dashboard)/layout.tsx` now a server component reading `getCurrentPhase()` and forwarding to `(dashboard)/layout-client.tsx`. Same pattern at `/pricing/page.tsx` + `/pricing/pricing-client.tsx`. Phase value threaded through `CreditsProvider` → all phase-aware client components read it via `useCredits()`.
+- **No new env vars.** Iteration 1 already shipped `FOUNDER_EMAILS` and `CURRENT_PHASE`.
+
+**Test coverage delta:**
+
+| Type | Before | After | New |
+|---|---|---|---|
+| Unit tests | 611 passing | 652 passing | +41 (across 4 files) |
+| Integration scenarios | 5 (iter. 1) | 10 (iter. 1+2) | +5 (new file `onboarding-flow.test.ts`) |
+| E2E specs | 5 (iter. 1) | 12 (iter. 1+2) | +7 (new file `iteration-2-surfaces.spec.ts`) |
+| Test files | 49 | 53 | +4 |
+
+**Verification status:**
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` 652 passed, 22 skipped (integration require localhost DB), 0 failed
+- ⏳ Integration tests will run in CI's PostgreSQL container
+- ⏳ Staging smoke test pending (similar 7-step manual checklist as iteration 1)
+
+**Decisions** (cross-reference DECISIONS.md "Iteration 2" subsection):
+- Single-page form, not multi-step wizard
+- Closed-set Industries/Countries with "Other" escape hatch
+- Location name is a label, not a postal address
+- Phase flag threads via server-component wrapper, never reaches client bundle
+- OutOfCreditsDialog swaps content in-place (no nested dialogs)
+- One shared FounderInquiryForm parameterised by type + source
+- No auto-confirmation email to inquirer; replyTo set for founder convenience
+- Public POST /api/founder-inquiries rate-limited, refuses no-email submissions
+- Onboarding submission transactional; notification via `waitUntil`
 
 ### ⏳ Iteration 3 — Observability + cleanup + final doc pass
 
@@ -1031,5 +1071,5 @@ PostHog event taxonomy, Sentry coverage, `Review.locationId` non-null migration,
 
 ---
 
-**Last Updated:** May 9, 2026
-**Status:** MVP Phase 1 (Closed Beta) iteration 1 complete on `feat/mvp-phase-1-iteration-1`. Awaiting PR review and staging verification before iteration 2 begins.
+**Last Updated:** May 11, 2026
+**Status:** MVP Phase 1 (Closed Beta) iteration 2 complete on `feat/mvp-phase-1-iteration-2`. Awaiting PR review and staging verification before iteration 3 begins.
