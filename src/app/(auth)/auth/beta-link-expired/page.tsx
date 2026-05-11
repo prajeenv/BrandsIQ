@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { FOUNDER_PUBLIC_EMAIL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "Beta invite expired - BrandsIQ",
@@ -47,10 +48,10 @@ export default function BetaLinkExpiredPage() {
         <div className="rounded-md bg-muted/30 p-4 text-sm text-muted-foreground">
           If you received this link recently and expected beta access, email{" "}
           <a
-            href="mailto:prajeen.builder@gmail.com?subject=BrandsIQ%20beta%20invite%20-%20expired%20link"
+            href={`mailto:${FOUNDER_PUBLIC_EMAIL}?subject=BrandsIQ%20beta%20invite%20-%20expired%20link`}
             className="text-primary underline hover:no-underline"
           >
-            prajeen.builder@gmail.com
+            {FOUNDER_PUBLIC_EMAIL}
           </a>{" "}
           and we&apos;ll send a fresh invite within 24 hours.
           <p className="mt-3 text-xs">
