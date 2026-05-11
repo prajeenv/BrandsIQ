@@ -141,5 +141,42 @@ describe('email.ts', () => {
         expect.objectContaining({ success: false }),
       );
     });
+
+    it('should render Free Plan content by default (isBetaUser omitted)', async () => {
+      await sendWelcomeEmail('user@example.com', 'Alice');
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.html).toContain('Free Plan');
+      expect(callArgs.html).toContain('15 AI-generated responses');
+      expect(callArgs.html).toContain('35 sentiment analyses');
+      // Make sure beta-specific copy is NOT present in the Free email
+      expect(callArgs.html).not.toContain('closed beta');
+      expect(callArgs.html).not.toContain('150 AI-generated');
+    });
+
+    it('should render beta plan content when isBetaUser=true', async () => {
+      // Locks in MVP Phase 1 contract (MVP.md Section 12.3): beta users get
+      // 150/750 framing and copy, not Free-plan 15/35 framing.
+      await sendWelcomeEmail('user@example.com', 'Alice', true);
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.subject).toContain('closed beta');
+      expect(callArgs.html).toContain('closed beta');
+      expect(callArgs.html).toContain('beta plan');
+      expect(callArgs.html).toContain('150 AI-generated responses');
+      expect(callArgs.html).toContain('750 sentiment analyses');
+      // Make sure Free-tier numbers leak through
+      expect(callArgs.html).not.toContain('Free Plan');
+      expect(callArgs.html).not.toContain('15 AI-generated');
+      expect(callArgs.html).not.toContain('35 sentiment');
+    });
+
+    it('isBetaUser=false explicitly should behave the same as default', async () => {
+      await sendWelcomeEmail('user@example.com', 'Alice', false);
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.html).toContain('Free Plan');
+      expect(callArgs.html).not.toContain('closed beta');
+    });
   });
 });
