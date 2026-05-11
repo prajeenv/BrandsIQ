@@ -54,12 +54,6 @@ vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/email', () => mockEmail);
 vi.mock('@/lib/tokens', () => mockTokens);
 vi.mock('@/lib/rate-limit', () => mockRateLimit);
-// waitUntil keeps the Lambda alive in production. For tests we just want the
-// wrapped promise to execute synchronously so existing assertions on
-// sendWelcomeEmail (called with the right args) still hold.
-vi.mock('@vercel/functions', () => ({
-  waitUntil: (promise: Promise<unknown>) => promise,
-}));
 vi.mock('bcryptjs', () => ({
   default: {
     hash: vi.fn().mockResolvedValue('$2a$12$hashed'),
