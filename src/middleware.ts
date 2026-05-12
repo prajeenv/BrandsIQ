@@ -24,13 +24,13 @@ const protectedApiRoutes = [
 // disclose that the route exists. See docs/MVP_Phase-1/MVP.md Section 13.1.
 const adminRoutes = ["/dashboard/admin", "/api/admin"];
 
-// Routes that are only for unauthenticated users
-const authRoutes = [
-  "/auth/signin",
-  "/auth/signup",
-  "/auth/forgot-password",
-  "/auth/reset-password",
-];
+// Routes that are only meaningful for unauthenticated users — authenticated
+// users get bounced to /dashboard. Sign-in and sign-up specifically; we keep
+// /auth/forgot-password and /auth/reset-password reachable for signed-in
+// users so the "Change password" link on /dashboard/settings/profile works.
+// Password-recovery flows operate the same regardless of session state
+// (they end with a click on a token link in the user's inbox).
+const authRoutes = ["/auth/signin", "/auth/signup"];
 
 function notFoundResponse(): NextResponse {
   return new NextResponse(null, { status: 404 });

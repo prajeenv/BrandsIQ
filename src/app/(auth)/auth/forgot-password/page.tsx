@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSession } from "next-auth/react";
 import { Loader2, Mail, ArrowLeft, CheckCircle } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,10 @@ import { Label } from "@/components/ui/label";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/lib/validations";
 
 export default function ForgotPasswordPage() {
+  const { data: session, status: sessionStatus } = useSession();
+  const isSignedIn = sessionStatus === "authenticated";
+  const sessionEmail = session?.user?.email ?? "";
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +28,10 @@ export default function ForgotPasswordPage() {
     formState: { errors },
   } = useForm<ForgotPasswordInput>({
     resolver: zodResolver(forgotPasswordSchema),
+    // Pre-fill the email field for signed-in users who arrived via the
+    // "Change password" link on /dashboard/settings/profile. They shouldn't
+    // have to re-type their own email to reset their password.
+    values: isSignedIn && sessionEmail ? { email: sessionEmail } : undefined,
   });
 
   const onSubmit = async (data: ForgotPasswordInput) => {
@@ -50,6 +59,11 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  // Where to send the user "back" to: dashboard settings for signed-in users
+  // (the surface that brought them here), or the sign-in page otherwise.
+  const backHref = isSignedIn ? "/dashboard/settings/profile" : "/auth/signin";
+  const backLabel = isSignedIn ? "Back to profile settings" : "Back to sign in";
+
   if (isSuccess) {
     return (
       <Card>
@@ -59,18 +73,19 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle className="text-2xl">Check your email</CardTitle>
           <CardDescription>
-            If an account exists with that email address, we&apos;ve sent a
-            password reset link.
+            {isSignedIn
+              ? "We've sent a password reset link to your email."
+              : "If an account exists with that email address, we've sent a password reset link."}
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
           <p className="text-sm text-muted-foreground mb-4">
             The link will expire in 1 hour.
           </p>
-          <Link href="/auth/signin">
+          <Link href={backHref}>
             <Button variant="outline">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to sign in
+              {backLabel}
             </Button>
           </Link>
         </CardContent>
@@ -86,9 +101,13 @@ export default function ForgotPasswordPage() {
             R
           </div>
         </div>
-        <CardTitle className="text-2xl font-bold">Forgot password?</CardTitle>
+        <CardTitle className="text-2xl font-bold">
+          {isSignedIn ? "Reset your password" : "Forgot password?"}
+        </CardTitle>
         <CardDescription>
-          Enter your email and we&apos;ll send you a reset link
+          {isSignedIn
+            ? "We'll send a reset link to your email."
+            : "Enter your email and we'll send you a reset link"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -131,11 +150,11 @@ export default function ForgotPasswordPage() {
 
         <div className="text-center">
           <Link
-            href="/auth/signin"
+            href={backHref}
             className="text-sm text-primary hover:underline inline-flex items-center"
           >
             <ArrowLeft className="mr-1 h-3 w-3" />
-            Back to sign in
+            {backLabel}
           </Link>
         </div>
       </CardContent>
