@@ -35,8 +35,12 @@ test.describe('MVP Phase 1 iteration 2 surfaces', () => {
     // exists on the page — the one inside the banner.
     const ctas = page.getByRole('button', { name: /request beta access/i });
     await expect(ctas).toHaveCount(1);
-    // And no "Coming Soon" buttons leak through.
-    await expect(page.getByRole('button', { name: /coming soon/i })).toHaveCount(0);
+    // And no "Coming Soon" buttons leak through the tier grid. We scope this
+    // assertion to the grid because the page also has an unrelated
+    // "Contact Sales — Coming Soon" disabled button in the footer that is
+    // not part of iteration 2's phase-aware tier rendering.
+    const tierGrid = page.getByTestId('pricing-tier-grid');
+    await expect(tierGrid.getByRole('button', { name: /coming soon/i })).toHaveCount(0);
   });
 
   test('pricing page does not mark Free as "Current Plan" for signed-out visitors', async ({
