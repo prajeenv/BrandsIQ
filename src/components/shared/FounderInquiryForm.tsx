@@ -48,29 +48,45 @@ interface FounderInquiryFormProps {
   onSuccess?: () => void;
 }
 
+// Per-type copy. The `messageLabel` is the bold field label; `messageHint` is
+// the italic sub-label rendered next to it (one line). The hint primes the
+// reader on what we'd like to hear without forcing a survey shape — the
+// placeholder example does the heavier lifting.
 const DEFAULT_COPY: Record<
   FounderInquiryType,
-  { heading: string; description: string; messagePlaceholder: string; submitLabel: string }
+  {
+    heading: string;
+    description: string;
+    messageLabel: string;
+    messageHint?: string;
+    messagePlaceholder: string;
+    submitLabel: string;
+  }
 > = {
   beta_request: {
     heading: "Request beta access",
     description:
       "BrandsIQ is in closed beta. Tell us a little about your business and we'll be in touch within 24 hours.",
+    messageLabel: "Tell us about your business",
+    messageHint: "what you do, what's painful about reviews today",
     messagePlaceholder:
-      "What kind of business do you run? How many reviews are you handling each month?",
+      'e.g. "I run a small bakery in Shoreditch. Responding to Google reviews takes me ~30 min a day and I usually copy-paste the same few replies."',
     submitLabel: "Request beta access",
   },
   more_credits: {
     heading: "Need more credits?",
     description:
       "Let us know what you're working on and we'll top up your beta account so you can keep going.",
+    messageLabel: "Message",
+    messageHint: "what are you working on?",
     messagePlaceholder:
-      "Anything we should know? (E.g. \"I'm running a campaign next week and want to respond to 50 reviews\".)",
+      'e.g. "I\'m running a campaign next week and want to respond to 50 reviews."',
     submitLabel: "Send request",
   },
   general: {
     heading: "Get in touch",
     description: "We'd love to hear from you — leave a note below and we'll reply.",
+    messageLabel: "Message",
     messagePlaceholder: "How can we help?",
     submitLabel: "Send",
   },
@@ -78,8 +94,10 @@ const DEFAULT_COPY: Record<
     heading: "Request a fresh invite",
     description:
       "Your beta invite link has expired or has already been used. Fill in the form below and we'll send a fresh invite within 24 hours.",
+    messageLabel: "Tell us about your business",
+    messageHint: "what you do, what's painful about reviews today",
     messagePlaceholder:
-      "Anything else we should know? (Optional)",
+      'e.g. "I run a small bakery in Shoreditch. Responding to Google reviews takes me ~30 min a day and I usually copy-paste the same few replies."',
     submitLabel: "Request fresh invite",
   },
 };
@@ -240,7 +258,16 @@ export function FounderInquiryForm({
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="founder-inquiry-message">Message *</Label>
+          <Label htmlFor="founder-inquiry-message" className="flex flex-wrap items-baseline gap-x-1.5">
+            <span>
+              {copy.messageLabel} <span className="text-red-600">*</span>
+            </span>
+            {copy.messageHint && (
+              <span className="text-xs italic text-muted-foreground font-normal">
+                ({copy.messageHint})
+              </span>
+            )}
+          </Label>
           <div className="relative">
             <MessageSquare className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Textarea
