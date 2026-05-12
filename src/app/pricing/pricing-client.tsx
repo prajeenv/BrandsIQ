@@ -95,7 +95,9 @@ const plans: Plan[] = [
 
 export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
   const { data: session } = useSession();
-  const userTier = (session?.user as { tier?: string })?.tier || "FREE";
+  // null when signed out — prevents the "Current Plan" badge from defaulting
+  // onto the Free card for anonymous visitors.
+  const userTier = (session?.user as { tier?: string })?.tier ?? null;
   const [betaInquiryOpen, setBetaInquiryOpen] = useState(false);
 
   const isPhase1 = currentPhase === "phase_1";
@@ -150,18 +152,25 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
         {/* Plans grid */}
         <div className="grid gap-6 md:grid-cols-3 mb-12">
           {plans.map((plan) => {
-            const isCurrentPlan = userTier === plan.tier;
+            const isCurrentPlan = !!userTier && userTier === plan.tier;
             const isUpgrade =
-              SUBSCRIPTION_TIERS.indexOf(plan.tier) > SUBSCRIPTION_TIERS.indexOf(userTier as SubscriptionTier);
+              !!userTier &&
+              SUBSCRIPTION_TIERS.indexOf(plan.tier) >
+                SUBSCRIPTION_TIERS.indexOf(userTier as SubscriptionTier);
+            // Under phase_1 we present every tier with equal visual weight —
+            // the closed-beta banner is the sole CTA, and singling out
+            // "Starter" as Most Popular would be misleading when no plan is
+            // actually purchasable.
+            const showPopular = plan.popular && !isPhase1;
 
             return (
               <Card
                 key={plan.tier}
                 className={`relative flex flex-col ${
-                  plan.popular ? "border-primary shadow-lg scale-105" : ""
+                  showPopular ? "border-primary shadow-lg scale-105" : ""
                 }`}
               >
-                {plan.popular && (
+                {showPopular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <Badge className="bg-primary text-primary-foreground">
                       <Sparkles className="mr-1 h-3 w-3" />
@@ -229,33 +238,28 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
                   </div>
                 </CardContent>
 
-                <CardFooter>
-                  {isCurrentPlan ? (
-                    <Button className="w-full" variant="secondary" disabled>
-                      Current Plan
-                    </Button>
-                  ) : isPhase1 ? (
-                    // Phase 1: every non-current tier card invites a beta
-                    // request rather than a "Coming Soon" upgrade button. The
-                    // closed-beta banner above is the canonical CTA; this just
-                    // keeps the cards consistent.
-                    <Button
-                      className="w-full"
-                      variant={plan.popular ? "default" : "outline"}
-                      onClick={() => setBetaInquiryOpen(true)}
-                    >
-                      Request beta access
-                    </Button>
-                  ) : isUpgrade ? (
-                    <Button className="w-full" disabled>
-                      Upgrade - Coming Soon
-                    </Button>
-                  ) : (
-                    <Button className="w-full" variant="outline" disabled>
-                      Downgrade - Coming Soon
-                    </Button>
-                  )}
-                </CardFooter>
+                {/* Phase 1: tier cards are informational only — no per-tier
+                    CTAs. The banner above the grid is the single Request beta
+                    access entry point. The "Current Plan" badge in the header
+                    still flags the signed-in user's current tier. Phase 2 will
+                    restore the upgrade/downgrade buttons. */}
+                {!isPhase1 && (
+                  <CardFooter>
+                    {isCurrentPlan ? (
+                      <Button className="w-full" variant="secondary" disabled>
+                        Current Plan
+                      </Button>
+                    ) : isUpgrade ? (
+                      <Button className="w-full" disabled>
+                        Upgrade - Coming Soon
+                      </Button>
+                    ) : (
+                      <Button className="w-full" variant="outline" disabled>
+                        Downgrade - Coming Soon
+                      </Button>
+                    )}
+                  </CardFooter>
+                )}
               </Card>
             );
           })}

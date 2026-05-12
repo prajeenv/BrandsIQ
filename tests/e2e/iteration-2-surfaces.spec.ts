@@ -24,18 +24,29 @@ test.describe('MVP Phase 1 iteration 2 surfaces', () => {
     ).toBeVisible();
   });
 
-  test('pricing tier cards show "Request beta access" instead of "Coming Soon" buttons', async ({
+  test('pricing tier cards are informational under phase_1 — banner is the sole CTA', async ({
     page,
   }) => {
     await page.goto('/pricing');
-    // Under phase_1, the iteration-1 "Upgrade - Coming Soon" / "Downgrade -
-    // Coming Soon" disabled buttons are replaced with active "Request beta
-    // access" buttons. At least three are visible (one banner + at least two
-    // tier-card variants — Free is current/disabled for unauthed users).
+    // Under phase_1 the per-tier CTAs (both the iteration-1 "Coming Soon"
+    // disabled buttons and the early-iteration-2 per-card "Request beta
+    // access" buttons) are gone. The closed-beta banner above the grid is
+    // the single entry point. So exactly one "Request beta access" button
+    // exists on the page — the one inside the banner.
     const ctas = page.getByRole('button', { name: /request beta access/i });
-    await expect(ctas.first()).toBeVisible();
-    const count = await ctas.count();
-    expect(count).toBeGreaterThanOrEqual(2);
+    await expect(ctas).toHaveCount(1);
+    // And no "Coming Soon" buttons leak through.
+    await expect(page.getByRole('button', { name: /coming soon/i })).toHaveCount(0);
+  });
+
+  test('pricing page does not mark Free as "Current Plan" for signed-out visitors', async ({
+    page,
+  }) => {
+    await page.goto('/pricing');
+    // Bug fix: anonymous visitors used to see the Free card flagged as
+    // "Current Plan" because the userTier defaulted to "FREE". Signed-out
+    // users should see no Current Plan badge anywhere on the page.
+    await expect(page.getByText('Current Plan')).toHaveCount(0);
   });
 
   test('clicking "Request beta access" on /pricing opens the inquiry-form dialog', async ({
