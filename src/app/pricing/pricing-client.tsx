@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Check, ArrowLeft, Sparkles, AlertCircle } from "lucide-react";
@@ -94,13 +94,45 @@ const plans: Plan[] = [
 ];
 
 export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   // null when signed out — prevents the "Current Plan" badge from defaulting
   // onto the Free card for anonymous visitors.
   const userTier = (session?.user as { tier?: string })?.tier ?? null;
   const [betaInquiryOpen, setBetaInquiryOpen] = useState(false);
 
   const isPhase1 = currentPhase === "phase_1";
+
+  // Beta-aware banner state. `/pricing` is reachable when signed out and lives
+  // outside the dashboard layout, so we can't read `isBetaUser` from
+  // CreditsProvider. We fetch it from /api/credits once per signed-in mount —
+  // single round-trip, low-traffic page, naturally up-to-date if the founder
+  // toggles beta access without forcing a session refresh.
+  // Undefined = unknown yet (signed-out, or signed-in but request hasn't
+  // resolved). Falsy banner-swap logic treats unknown the same as non-beta —
+  // we'd rather flash the prospect-facing copy than the beta-thank-you copy
+  // for someone who isn't actually a beta user.
+  const [isBetaUser, setIsBetaUser] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/credits");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) {
+          setIsBetaUser(Boolean(json?.data?.isBetaUser));
+        }
+      } catch {
+        // Silent fail — banner falls back to the prospect-facing copy, which
+        // is harmless for a beta user who'll then realise they're on the
+        // wrong surface anyway.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionStatus]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -120,12 +152,35 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
           </div>
         </div>
 
-        {/* MVP Phase 1: closed-beta banner. Replaces the disabled "Coming Soon"
-            upgrade buttons with a single Request beta access CTA. Per MVP.md
-            Section 12.5. No specific launch date promised — vague-but-honest
-            framing beats committing to a date that may slip. */}
-        {isPhase1 && (
-          <div className="mb-10 rounded-lg border bg-primary/5 border-primary/20 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:justify-between">
+        {/* MVP Phase 1: closed-beta banner. Per MVP.md Section 12.5.
+            Two states:
+            - Beta users: thank-you message, no CTA (they're already in;
+              "request more credits" lives in the dashboard zero-balance flow)
+            - Everyone else: prospect-facing copy with Request beta access CTA
+            No specific launch date is promised — vague-but-honest framing
+            beats committing to a date that may slip. */}
+        {isPhase1 && isBetaUser && (
+          <div
+            data-testid="pricing-banner-beta-user"
+            className="mb-10 rounded-lg border bg-primary/5 border-primary/20 p-5 sm:p-6 flex items-start gap-3"
+          >
+            <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-foreground">
+                You&apos;re in the closed beta — thank you!
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Below is a preview of the commercial plans we&apos;ll launch
+                later — we&apos;ll be in touch before then.
+              </p>
+            </div>
+          </div>
+        )}
+        {isPhase1 && !isBetaUser && (
+          <div
+            data-testid="pricing-banner-prospect"
+            className="mb-10 rounded-lg border bg-primary/5 border-primary/20 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:justify-between"
+          >
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div>
