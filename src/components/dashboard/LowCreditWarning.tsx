@@ -28,6 +28,12 @@ interface LowCreditWarningProps {
   // Optional with sensible defaults so existing call sites stay compatible.
   currentPhase?: SystemPhase;
   isBetaUser?: boolean;
+  // Pre-fill submitter info for the nested FounderInquiryForm. When all
+  // three are provided we hide the submitter fields entirely. Callers in
+  // the dashboard layout typically source these from session + CreditsProvider.
+  submitterName?: string | null;
+  submitterEmail?: string | null;
+  submitterBusinessName?: string | null;
 }
 
 type WarningType =
@@ -112,9 +118,13 @@ export function LowCreditWarning({
   sentimentResetDate,
   currentPhase = "phase_2",
   isBetaUser = false,
+  submitterName,
+  submitterEmail,
+  submitterBusinessName,
 }: LowCreditWarningProps) {
   const [isDismissed, setIsDismissed] = useState(false);
   const [inquiryOpen, setInquiryOpen] = useState(false);
+  const canHideSubmitterFields = Boolean(submitterName && submitterEmail);
 
   const { type: warningType, isRed } = getWarningState(
     creditsRemaining,
@@ -307,6 +317,10 @@ export function LowCreditWarning({
             <FounderInquiryForm
               type={isBetaUser ? "more_credits" : "beta_request"}
               source="zero_balance"
+              defaultName={submitterName ?? null}
+              defaultEmail={submitterEmail ?? null}
+              defaultBusinessName={submitterBusinessName ?? null}
+              hideSubmitterFields={canHideSubmitterFields}
               onSuccess={() => {
                 setTimeout(() => setInquiryOpen(false), 1800);
               }}

@@ -112,6 +112,10 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
   // we'd rather flash the prospect-facing copy than the beta-thank-you copy
   // for someone who isn't actually a beta user.
   const [isBetaUser, setIsBetaUser] = useState<boolean | undefined>(undefined);
+  // organizationName is captured from the same /api/credits fetch and used to
+  // pre-fill FounderInquiryForm.businessName for signed-in users. null when
+  // signed out or before the fetch resolves.
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
     let cancelled = false;
@@ -122,6 +126,7 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
         const json = await res.json();
         if (!cancelled) {
           setIsBetaUser(Boolean(json?.data?.isBetaUser));
+          setOrganizationName(json?.data?.organizationName ?? null);
         }
       } catch {
         // Silent fail — banner falls back to the prospect-facing copy, which
@@ -133,6 +138,15 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
       cancelled = true;
     };
   }, [sessionStatus]);
+
+  // For the /pricing inquiry dialog: pre-fill from session/credits when
+  // signed in. Anonymous visitors keep the manual-entry fields (they have
+  // to give us their email so we can reply).
+  const isSignedIn = sessionStatus === "authenticated";
+  const prefillName = isSignedIn ? session?.user?.name ?? null : null;
+  const prefillEmail = isSignedIn ? session?.user?.email ?? null : null;
+  const prefillBusinessName = isSignedIn ? organizationName : null;
+  const canHideSubmitterFields = Boolean(prefillName && prefillEmail);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
@@ -387,6 +401,10 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
             <FounderInquiryForm
               type="beta_request"
               source="pricing"
+              defaultName={prefillName}
+              defaultEmail={prefillEmail}
+              defaultBusinessName={prefillBusinessName}
+              hideSubmitterFields={canHideSubmitterFields}
               onSuccess={() => {
                 setTimeout(() => setBetaInquiryOpen(false), 1800);
               }}

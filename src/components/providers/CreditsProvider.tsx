@@ -18,6 +18,10 @@ interface CreditsContextType {
   // CURRENT_PHASE and passes it down via initialCurrentPhase).
   isBetaUser: boolean;
   currentPhase: SystemPhase;
+  // Set during /onboarding. Pre-fills FounderInquiryForm.businessName for
+  // signed-in users so they don't re-type information we already have. null
+  // for users who haven't completed onboarding yet.
+  organizationName: string | null;
   setCredits: (_credits: number) => void;
   refreshCredits: () => Promise<void>;
 }
@@ -34,6 +38,7 @@ interface CreditsProviderProps {
   initialSentimentResetDate?: string | null;
   initialTier?: string;
   initialIsBetaUser?: boolean;
+  initialOrganizationName?: string | null;
   // Defaults to "phase_1" — overridden by the dashboard layout (server
   // component) which reads CURRENT_PHASE on the server and passes it in.
   initialCurrentPhase?: SystemPhase;
@@ -49,6 +54,7 @@ export function CreditsProvider({
   initialSentimentResetDate = null,
   initialTier = "FREE",
   initialIsBetaUser = false,
+  initialOrganizationName = null,
   initialCurrentPhase = "phase_1",
 }: CreditsProviderProps) {
   const [credits, setCreditsState] = useState(initialCredits);
@@ -59,6 +65,9 @@ export function CreditsProvider({
   const [sentimentResetDate, setSentimentResetDate] = useState<string | null>(initialSentimentResetDate);
   const [tier, setTier] = useState(initialTier);
   const [isBetaUser, setIsBetaUser] = useState(initialIsBetaUser);
+  const [organizationName, setOrganizationName] = useState<string | null>(
+    initialOrganizationName,
+  );
   // currentPhase is intentionally not mutable from inside the provider — it's
   // fixed at mount from the server's CURRENT_PHASE env var.
   const [currentPhase] = useState<SystemPhase>(initialCurrentPhase);
@@ -80,6 +89,7 @@ export function CreditsProvider({
         setSentimentResetDate(data.data.sentiment.resetDate);
         setTier(data.data.tier);
         setIsBetaUser(data.data.isBetaUser ?? false);
+        setOrganizationName(data.data.organizationName ?? null);
       }
     } catch (error) {
       console.error("Failed to refresh credits:", error);
@@ -98,6 +108,7 @@ export function CreditsProvider({
         tier,
         isBetaUser,
         currentPhase,
+        organizationName,
         setCredits,
         refreshCredits,
       }}

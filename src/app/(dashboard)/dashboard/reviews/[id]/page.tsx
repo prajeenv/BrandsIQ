@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -149,7 +150,17 @@ export default function ReviewDetailPage() {
   const [showSentimentAlert, setShowSentimentAlert] = useState(
     searchParams.get("sentimentSkipped") === "true"
   );
-  const { credits, creditsTotal, creditsResetDate, sentimentResetDate, refreshCredits, currentPhase, isBetaUser } = useCredits();
+  const {
+    credits,
+    creditsTotal,
+    creditsResetDate,
+    sentimentResetDate,
+    refreshCredits,
+    currentPhase,
+    isBetaUser,
+    organizationName,
+  } = useCredits();
+  const { data: session } = useSession();
 
   useEffect(() => {
     async function fetchReview() {
@@ -537,6 +548,9 @@ export default function ReviewDetailPage() {
         actionType="generate"
         currentPhase={currentPhase}
         isBetaUser={isBetaUser}
+        submitterName={session?.user?.name ?? null}
+        submitterEmail={session?.user?.email ?? null}
+        submitterBusinessName={organizationName}
       />
     </div>
   );

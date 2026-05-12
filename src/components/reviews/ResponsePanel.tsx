@@ -17,6 +17,7 @@ import {
   ChevronUp,
   Coins,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { ResponseEditor } from "./ResponseEditor";
 import { ToneModifier } from "./ToneModifier";
 import { ResponseVersionHistory } from "./ResponseVersionHistory";
@@ -99,7 +100,16 @@ export function ResponsePanel({
   textDirection = "ltr",
   onResponseUpdate,
 }: ResponsePanelProps) {
-  const { credits, creditsTotal, creditsResetDate, refreshCredits, currentPhase, isBetaUser } = useCredits();
+  const {
+    credits,
+    creditsTotal,
+    creditsResetDate,
+    refreshCredits,
+    currentPhase,
+    isBetaUser,
+    organizationName,
+  } = useCredits();
+  const { data: session } = useSession();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [localResponse, setLocalResponse] = useState<Response | null>(response);
@@ -327,6 +337,9 @@ export function ResponsePanel({
           actionType={outOfCreditsActionType}
           currentPhase={currentPhase}
           isBetaUser={isBetaUser}
+          submitterName={session?.user?.name ?? null}
+          submitterEmail={session?.user?.email ?? null}
+          submitterBusinessName={organizationName}
         />
       </>
     );
@@ -485,6 +498,9 @@ export function ResponsePanel({
         actionType={outOfCreditsActionType}
         currentPhase={currentPhase}
         isBetaUser={isBetaUser}
+        submitterName={session?.user?.name ?? null}
+        submitterEmail={session?.user?.email ?? null}
+        submitterBusinessName={organizationName}
       />
     </Card>
   );

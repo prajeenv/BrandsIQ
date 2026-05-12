@@ -93,7 +93,7 @@ function formatTimeAgo(dateString: string) {
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const { currentPhase } = useCredits();
+  const { currentPhase, organizationName } = useCredits();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +155,9 @@ export default function DashboardPage() {
           sentimentResetDate={stats.sentiment.resetDate}
           currentPhase={currentPhase}
           isBetaUser={stats.isBetaUser}
+          submitterName={session?.user?.name ?? null}
+          submitterEmail={session?.user?.email ?? null}
+          submitterBusinessName={organizationName}
         />
       )}
 
