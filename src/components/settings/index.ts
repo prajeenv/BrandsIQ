@@ -1,4 +1,5 @@
 export { BrandVoiceForm } from "./BrandVoiceForm";
+export { ProfileForm } from "./ProfileForm";
 export { ToneSelector } from "./ToneSelector";
 export { FormalitySlider } from "./FormalitySlider";
 export { KeyPhrasesInput } from "./KeyPhrasesInput";

@@ -24,8 +24,7 @@ const settingsSections = [
     description: "Manage your personal information and account details.",
     href: "/dashboard/settings/profile",
     icon: User,
-    available: false,
-    comingSoon: true,
+    available: true,
   },
   {
     title: "Billing & Subscription",
