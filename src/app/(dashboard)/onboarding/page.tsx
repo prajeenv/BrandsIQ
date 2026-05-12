@@ -59,7 +59,7 @@ import { useCredits } from "@/components/providers/CreditsProvider";
 export default function OnboardingPage() {
   const router = useRouter();
   const { update: updateSession } = useSession();
-  const { isBetaUser } = useCredits();
+  const { isBetaUser, refreshCredits } = useCredits();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,6 +110,20 @@ export default function OnboardingPage() {
         await updateSession?.();
       } catch {
         // Non-fatal
+      }
+
+      // Refresh CreditsProvider state so the newly-saved organizationName
+      // (and any other onboarding fields it surfaces) is in memory before
+      // the user reaches /dashboard. Without this, the in-memory state
+      // stays at the value baked in when the dashboard layout first
+      // mounted (typically null for a fresh signup), and downstream
+      // surfaces — most notably FounderInquiryForm in the OutOfCreditsDialog
+      // — pre-fill businessName as null until the user signs out and back
+      // in. See iteration 2 follow-up.
+      try {
+        await refreshCredits();
+      } catch {
+        // Non-fatal — value will refresh on next dashboard load anyway.
       }
 
       router.push("/dashboard");
