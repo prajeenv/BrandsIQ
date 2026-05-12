@@ -29,6 +29,9 @@ export async function GET() {
         creditsResetDate: true,
         sentimentCredits: true,
         sentimentResetDate: true,
+        // Surfaced so FounderInquiryForm can pre-fill businessName for
+        // signed-in users — see CreditsProvider + iteration 2 follow-up.
+        organizationName: true,
         reviews: {
           select: {
             id: true,
@@ -165,6 +168,10 @@ export async function GET() {
         // OutOfCreditsDialog, etc.) can render phase-aware CTAs without an
         // extra round-trip. See MVP.md Section 12.4.
         isBetaUser: user.isBetaUser,
+        // organizationName pre-fills FounderInquiryForm.businessName for
+        // signed-in users so they don't re-type info already captured at
+        // /onboarding. null until onboarding is completed.
+        organizationName: user.organizationName,
         stats: {
           totalReviews: user._count.reviews,
           totalResponses,

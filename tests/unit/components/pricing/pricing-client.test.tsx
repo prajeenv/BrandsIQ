@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // next/link stub — passthrough to <a>
@@ -158,5 +158,76 @@ describe("PricingClient — phase_1 banner state", () => {
     expect(
       screen.queryByTestId("pricing-banner-beta-user"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("PricingClient — inquiry form pre-fill", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("hides submitter inputs when a signed-in non-beta user opens the inquiry dialog", async () => {
+    // Free user — they still see the prospect banner so the CTA is present.
+    useSessionMock.mockReturnValue({
+      data: {
+        user: {
+          id: "u-free",
+          email: "free@x.com",
+          name: "Free User",
+          tier: "FREE",
+        },
+      },
+      status: "authenticated",
+    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { isBetaUser: false, organizationName: "Free Co" },
+      }),
+    });
+
+    render(<PricingClient currentPhase="phase_1" />);
+
+    // Wait until the fetch settled (organizationName is now in state)
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/credits");
+    });
+
+    // Banner CTA is the prospect "Request beta access" button
+    const cta = screen.getByRole("button", { name: /request beta access/i });
+    fireEvent.click(cta);
+
+    // Form is now open. Submitter fields are hidden because we have
+    // name+email from the session.
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/^name$/i)).not.toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText(/^email/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/business name/i)).not.toBeInTheDocument();
+    // Message field is still rendered
+    expect(screen.getByLabelText(/tell us about your business/i)).toBeInTheDocument();
+  });
+
+  it("keeps submitter inputs visible for anonymous visitors", () => {
+    useSessionMock.mockReturnValue({ data: null, status: "unauthenticated" });
+
+    render(<PricingClient currentPhase="phase_1" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /request beta access/i }),
+    );
+
+    // Anonymous — submitter fields render so they can give us a way to reply
+    expect(screen.getByLabelText(/^name$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/business name/i)).toBeInTheDocument();
   });
 });

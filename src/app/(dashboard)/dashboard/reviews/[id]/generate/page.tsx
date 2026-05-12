@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -84,7 +85,16 @@ export default function GenerateResponsePage() {
   const [generatedResponse, setGeneratedResponse] = useState<GeneratedResponse | null>(null);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
   const [showOutOfCreditsDialog, setShowOutOfCreditsDialog] = useState(false);
-  const { credits, creditsTotal, creditsResetDate, refreshCredits, currentPhase, isBetaUser } = useCredits();
+  const {
+    credits,
+    creditsTotal,
+    creditsResetDate,
+    refreshCredits,
+    currentPhase,
+    isBetaUser,
+    organizationName,
+  } = useCredits();
+  const { data: session } = useSession();
   const [error, setError] = useState<string | null>(null);
 
   // Fetch review
@@ -384,6 +394,9 @@ export default function GenerateResponsePage() {
         actionType="generate"
         currentPhase={currentPhase}
         isBetaUser={isBetaUser}
+        submitterName={session?.user?.name ?? null}
+        submitterEmail={session?.user?.email ?? null}
+        submitterBusinessName={organizationName}
       />
     </div>
   );

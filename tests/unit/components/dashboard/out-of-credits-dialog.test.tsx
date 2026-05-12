@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: any) => (
@@ -85,5 +85,81 @@ describe("OutOfCreditsDialog", () => {
     expect(
       screen.queryByText(/you're out of response credits/i)
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("OutOfCreditsDialog — phase_1 inquiry-form pre-fill", () => {
+  // Stub fetch — the embedded FounderInquiryForm will POST to it on submit,
+  // but we don't submit in these tests.
+  const originalFetch = global.fetch;
+  beforeEach(() => {
+    global.fetch = vi.fn();
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const baseProps = {
+    open: true,
+    onOpenChange: vi.fn(),
+    creditsRemaining: 0,
+    creditsTotal: 150,
+    resetDate: "2026-06-15T00:00:00Z",
+    actionType: "generate" as const,
+    currentPhase: "phase_1" as const,
+    isBetaUser: true,
+  };
+
+  it("hides submitter inputs in the embedded form when name+email are pre-filled", () => {
+    render(
+      <OutOfCreditsDialog
+        {...baseProps}
+        submitterName="Anita"
+        submitterEmail="anita@example.com"
+        submitterBusinessName="Cafe Arabica"
+      />,
+    );
+
+    // Open the inquiry form by clicking the phase-1 CTA. For beta users
+    // the button reads "Request more credits".
+    fireEvent.click(
+      screen.getByRole("button", { name: /request more credits/i }),
+    );
+
+    // Submitter inputs are gone — we have what we need from session/onboarding
+    expect(screen.queryByLabelText(/^name$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^email/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/business name/i)).not.toBeInTheDocument();
+    // Message field is still there
+    expect(screen.getByLabelText(/^message/i)).toBeInTheDocument();
+  });
+
+  it("still shows submitter inputs (pre-filled) when only some fields are provided", () => {
+    // E.g. user finished onboarding but somehow has no email on session —
+    // we should still let them edit, not silently lose the form fields.
+    render(
+      <OutOfCreditsDialog
+        {...baseProps}
+        submitterName="Anita"
+        submitterEmail={null}
+        submitterBusinessName="Cafe Arabica"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /request more credits/i }),
+    );
+
+    // Submitter inputs are visible because email is missing
+    expect(screen.getByLabelText(/^name$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/business name/i)).toBeInTheDocument();
+    // And the values we did pre-fill are populated
+    expect((screen.getByLabelText(/^name$/i) as HTMLInputElement).value).toBe(
+      "Anita",
+    );
+    expect(
+      (screen.getByLabelText(/business name/i) as HTMLInputElement).value,
+    ).toBe("Cafe Arabica");
   });
 });

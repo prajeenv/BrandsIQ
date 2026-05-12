@@ -18,6 +18,16 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+// MVP Phase 1 iter-2 follow-up: ResponsePanel now reads session for inquiry-
+// form pre-fill. Stub useSession so the standalone render doesn't trip
+// next-auth's "must be wrapped in a SessionProvider" runtime error.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "u-1", email: "test@example.com", name: "Test User" } },
+    status: "authenticated",
+  }),
+}));
+
 const mockRefreshCredits = vi.fn();
 vi.mock("@/components/providers/CreditsProvider", () => ({
   useCredits: () => ({
@@ -25,6 +35,10 @@ vi.mock("@/components/providers/CreditsProvider", () => ({
     creditsTotal: 15,
     creditsResetDate: "2026-02-15T00:00:00Z",
     refreshCredits: mockRefreshCredits,
+    // MVP Phase 1 iter-2: provide the phase-aware fields the dialog reads.
+    currentPhase: "phase_2" as const,
+    isBetaUser: false,
+    organizationName: null,
   }),
 }));
 

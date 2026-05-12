@@ -31,6 +31,13 @@ interface OutOfCreditsDialogProps {
   // tier is reserved for Phase 2 ("Starter / Growth") tier-specific copy.
   // Accepted but ignored under phase_1; renamed _tier to satisfy the linter.
   _tier?: string;
+  // Pre-fill submitter info for FounderInquiryForm. When all three are
+  // provided we hide the submitter fields entirely — the user has already
+  // given us this info at signup/onboarding. Callers in the dashboard
+  // layout typically source these from session + CreditsProvider.
+  submitterName?: string | null;
+  submitterEmail?: string | null;
+  submitterBusinessName?: string | null;
 }
 
 export function OutOfCreditsDialog({
@@ -42,7 +49,15 @@ export function OutOfCreditsDialog({
   actionType = "generate",
   currentPhase = "phase_2",
   isBetaUser = false,
+  submitterName,
+  submitterEmail,
+  submitterBusinessName,
 }: OutOfCreditsDialogProps) {
+  // Hide submitter fields when we have what we need from session/onboarding.
+  // We require name + email at minimum; business name is allowed to be null
+  // (a user who somehow lands here without finishing onboarding still gets
+  // their name+email pre-filled and just types business name themselves).
+  const canHideSubmitterFields = Boolean(submitterName && submitterEmail);
   const nextResetDate = getNextResetDate(resetDate);
   const formattedResetDate = nextResetDate
     ? nextResetDate.toLocaleDateString("en-US", {
@@ -138,7 +153,10 @@ export function OutOfCreditsDialog({
             <FounderInquiryForm
               type={inquiryType}
               source="zero_balance"
-              hideSubmitterFields={false}
+              defaultName={submitterName ?? null}
+              defaultEmail={submitterEmail ?? null}
+              defaultBusinessName={submitterBusinessName ?? null}
+              hideSubmitterFields={canHideSubmitterFields}
               onSuccess={() => {
                 // Auto-close shortly after the success card renders so the
                 // user sees confirmation, not a stuck modal.

@@ -64,3 +64,63 @@ describe("FounderInquiryForm — hybrid label + example placeholder", () => {
     expect(messageField.placeholder).toBe("How can we help?");
   });
 });
+
+describe("FounderInquiryForm — pre-fill + hideSubmitterFields", () => {
+  it("renders submitter inputs by default (anonymous expired-link flow)", () => {
+    render(
+      <FounderInquiryForm type="expired_link_recovery" source="expired_link" />,
+    );
+
+    expect(screen.getByLabelText(/^name$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/business name/i)).toBeInTheDocument();
+  });
+
+  it("hides submitter inputs when hideSubmitterFields=true (signed-in flow)", () => {
+    render(
+      <FounderInquiryForm
+        type="more_credits"
+        source="zero_balance"
+        defaultName="Anita"
+        defaultEmail="anita@example.com"
+        defaultBusinessName="Cafe Arabica"
+        hideSubmitterFields
+      />,
+    );
+
+    // Submitter fields are not in the DOM at all — we don't show them and
+    // then hide via CSS. Less visual noise, smaller form.
+    expect(screen.queryByLabelText(/^name$/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/^email/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/business name/i),
+    ).not.toBeInTheDocument();
+
+    // The message field still renders — that's the point of the form.
+    expect(screen.getByLabelText(/^message/i)).toBeInTheDocument();
+  });
+
+  it("pre-fills submitter inputs when defaultName/Email/BusinessName provided but hideSubmitterFields=false", () => {
+    render(
+      <FounderInquiryForm
+        type="beta_request"
+        source="pricing"
+        defaultName="Anita"
+        defaultEmail="anita@example.com"
+        defaultBusinessName="Cafe Arabica"
+      />,
+    );
+
+    expect(
+      (screen.getByLabelText(/^name$/i) as HTMLInputElement).value,
+    ).toBe("Anita");
+    expect((screen.getByLabelText(/email/i) as HTMLInputElement).value).toBe(
+      "anita@example.com",
+    );
+    expect(
+      (screen.getByLabelText(/business name/i) as HTMLInputElement).value,
+    ).toBe("Cafe Arabica");
+  });
+});

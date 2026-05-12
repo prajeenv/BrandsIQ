@@ -32,6 +32,9 @@ export async function GET() {
         creditsResetDate: true,
         sentimentCredits: true,
         sentimentResetDate: true,
+        // Surfaced so the FounderInquiryForm can pre-fill businessName for
+        // signed-in users (set during /onboarding; null until then).
+        organizationName: true,
       },
     });
 
@@ -73,6 +76,7 @@ export async function GET() {
         },
         tier: user.tier,
         isBetaUser: user.isBetaUser,
+        organizationName: user.organizationName,
       },
     });
   } catch (error) {
