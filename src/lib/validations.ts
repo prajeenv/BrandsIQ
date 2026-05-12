@@ -170,6 +170,46 @@ export const updateProfileSchema = z.object({
     .nullable(),
 });
 
+// /dashboard/settings/profile partial-update schema. Used by the settings
+// page's autosave flow (PATCH /api/user/settings/profile). All fields are
+// optional — the client sends only the changed field. The server enforces
+// non-empty strings via z.string().min(1) for fields that are conceptually
+// required overall (name, organizationName, industry, country, locationName);
+// they just don't all have to arrive in the same request.
+export const settingsProfileUpdateSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, "Display name is required")
+      .max(VALIDATION_LIMITS.NAME_MAX, "Display name is too long")
+      .optional(),
+    organizationName: z
+      .string()
+      .min(1, "Organization name is required")
+      .max(VALIDATION_LIMITS.ORGANIZATION_NAME_MAX, "Organization name is too long")
+      .optional(),
+    industry: z.enum(INDUSTRIES).optional(),
+    country: z.enum(COUNTRIES).optional(),
+    // Edits the user's single Location row's name. Empty string is rejected —
+    // the form should hide the field rather than send a clearing update.
+    locationName: z
+      .string()
+      .min(1, "Location name is required")
+      .max(VALIDATION_LIMITS.LOCATION_NAME_MAX, "Location name is too long")
+      .optional(),
+    locationCountEstimate: z
+      .number()
+      .int()
+      .min(1)
+      .max(VALIDATION_LIMITS.LOCATION_COUNT_MAX)
+      .optional()
+      .nullable(),
+    primaryPlatform: z.enum(PLATFORMS).optional().nullable(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "No fields to update",
+  });
+
 // Onboarding-specific schema with the mandatory fields actually required.
 // Used by the /onboarding form submit; the broader updateProfileSchema is
 // what a future "edit profile" surface would use.
@@ -246,6 +286,7 @@ export type BrandVoiceInput = z.infer<typeof brandVoiceSchema>;
 export type TestBrandVoiceInput = z.infer<typeof testBrandVoiceSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type OnboardingSubmitInput = z.infer<typeof onboardingSubmitSchema>;
+export type SettingsProfileUpdateInput = z.infer<typeof settingsProfileUpdateSchema>;
 export type CreateFounderInquiryInput = z.infer<typeof createFounderInquirySchema>;
 export type ResolveFounderInquiryInput = z.infer<typeof resolveFounderInquirySchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
