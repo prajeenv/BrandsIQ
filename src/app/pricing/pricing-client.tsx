@@ -150,7 +150,7 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
         )}
 
         {/* Plans grid */}
-        <div className="grid gap-6 md:grid-cols-3 mb-12">
+        <div data-testid="pricing-tier-grid" className="grid gap-6 md:grid-cols-3 mb-12">
           {plans.map((plan) => {
             const isCurrentPlan = !!userTier && userTier === plan.tier;
             const isUpgrade =
