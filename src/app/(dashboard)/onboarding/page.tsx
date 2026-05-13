@@ -369,13 +369,25 @@ export default function OnboardingPage() {
                   </RadioGroup>
                 </div>
 
+                {/* Unified with FounderInquiryForm (beta_request) — same label,
+                    hint and example placeholder so the founder reads
+                    consistently-shaped submissions regardless of source. The
+                    dynamic helper line below stays onboarding-specific: it
+                    tells the user that submitting here is equivalent to
+                    requesting beta access. */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="signupChallengeText">
-                    Tell us about your review management challenge
+                  <Label
+                    htmlFor="signupChallengeText"
+                    className="flex flex-wrap items-baseline gap-x-1.5"
+                  >
+                    <span>Tell us about your business</span>
+                    <span className="text-xs italic text-muted-foreground font-normal">
+                      (what you do, what&apos;s painful about reviews today)
+                    </span>
                   </Label>
                   <Textarea
                     id="signupChallengeText"
-                    placeholder="What got you here? (e.g., responding to 50+ reviews/month manually, want consistent voice across locations…)"
+                    placeholder='e.g. "I run a small bakery in Shoreditch. Responding to Google reviews takes me ~30 min a day and I usually copy-paste the same few replies."'
                     rows={3}
                     maxLength={VALIDATION_LIMITS.SIGNUP_CHALLENGE_TEXT_MAX}
                     disabled={isSubmitting}
