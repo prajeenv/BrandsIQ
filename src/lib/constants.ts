@@ -129,19 +129,125 @@ export const BETA_PLAN = {
 export const BETA_INVITE_EXPIRY_DAYS = 60;
 
 // MVP Phase 1: Profile registration choices (see MVP.md Section 9).
-// Kept small and self-explanatory — "Other" exists as a soft escape hatch for
-// industries we don't yet recognise. Tracking these as a closed set lets us
-// segment beta users without free-text noise.
+//
+// Two-level cascade. INDUSTRIES is the top-level category the user picks
+// first; BUSINESS_TYPES_BY_INDUSTRY is the dependent dropdown keyed on the
+// industry. Both lists are closed sets with "Other" as a soft escape hatch.
+//
+// Source: docs/MVP_Phase-1/Business Universe.md. Healthcare is intentionally
+// excluded for the MVP — the prompt engineering for GDPR/HIPAA-safe replies
+// hasn't been validated. We'll add it when there's a clear demand signal.
+//
+// IMPORTANT: when industry is "Other" we don't show the businessType dropdown
+// at all. Server-side validation must therefore allow businessType to be
+// absent in that case.
 export const INDUSTRIES = [
-  "Restaurant",
-  "Cafe",
-  "Hotel",
+  "Food & Beverage",
+  "Hospitality",
   "Retail",
   "E-commerce",
-  "Services",
+  "Health, Wellness & Beauty",
+  "Automotive",
+  "Leisure & Entertainment",
+  "Professional Services",
   "Other",
 ] as const;
 export type Industry = (typeof INDUSTRIES)[number];
+
+// Business types — second-level cascade. Each industry has its own list with
+// "Other" at the end as the escape hatch. "Other" industry has no list (we
+// hide the second dropdown entirely in the UI).
+export const BUSINESS_TYPES_BY_INDUSTRY = {
+  "Food & Beverage": [
+    "Restaurant",
+    "Franchise restaurant",
+    "Cafe / coffee shop",
+    "Fast casual",
+    "Ghost kitchen",
+    "Food delivery brand",
+    "Bakery / dessert",
+    "Other",
+  ],
+  Hospitality: [
+    "Boutique hotel",
+    "Hotel franchise",
+    "Serviced apartment",
+    "Hostel",
+    "Resort",
+    "Vacation rental management",
+    "Other",
+  ],
+  Retail: [
+    "Eyeglasses / optical",
+    "Clothing",
+    "Shoe",
+    "Independent retail (fashion, home, lifestyle)",
+    "Supermarket / grocery",
+    "Pharmacy",
+    "Electronics / tech retail",
+    "Sporting goods",
+    "Pet supply",
+    "Furniture / home decor",
+    "Other",
+  ],
+  "E-commerce": [
+    "Amazon third-party seller",
+    "Shopify store",
+    "WooCommerce / WordPress store",
+    "Etsy seller",
+    "Multi-brand e-commerce",
+    "Other",
+  ],
+  "Health, Wellness & Beauty": [
+    "Spa",
+    "Gym / fitness studio",
+    "Hair salon",
+    "Beauty clinic (aesthetics, laser)",
+    "Yoga / pilates studio",
+    "Other",
+  ],
+  Automotive: [
+    "Car dealership group",
+    "Auto repair",
+    "Car rental (regional)",
+    "Tyre / service centre",
+    "Other",
+  ],
+  "Leisure & Entertainment": [
+    "Cinema (independent/regional)",
+    "Escape room",
+    "Bowling / activity centre",
+    "Golf club / driving range",
+    "Trampoline / indoor activity park",
+    "Other",
+  ],
+  "Professional Services": [
+    "Co-working space",
+    "Accountancy firm",
+    "Real estate / lettings agency",
+    "Cleaning service",
+    "Removal company",
+    "Other",
+  ],
+  // "Other" industry has no business-type cascade — the UI hides the second
+  // dropdown and the schema accepts businessType as null. Empty array kept for
+  // a stable shape: callers can do BUSINESS_TYPES_BY_INDUSTRY[industry] ?? [].
+  Other: [],
+} as const satisfies Record<Industry, readonly string[]>;
+
+// Union type of every business-type string across all industries, plus "Other".
+// Used by the Zod enum + Prisma column to keep things type-safe end-to-end.
+export type BusinessType =
+  (typeof BUSINESS_TYPES_BY_INDUSTRY)[keyof typeof BUSINESS_TYPES_BY_INDUSTRY][number];
+
+// Flat array of every valid business-type string (de-duplicated). Used by
+// Zod to validate the field. "Other" appears in many sub-lists so we
+// deduplicate via Set.
+export const BUSINESS_TYPES = Array.from(
+  new Set(
+    Object.values(BUSINESS_TYPES_BY_INDUSTRY).flat() as readonly string[],
+  ),
+) as readonly BusinessType[];
 
 // Subset of countries — beta will start in a few markets, full list isn't worth
 // the validation overhead until we have real demand from elsewhere. Add as

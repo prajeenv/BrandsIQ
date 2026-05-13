@@ -69,7 +69,8 @@ describe('GET /api/user/settings/profile', () => {
         email: 'a@x.com',
         name: 'Alice',
         organizationName: 'Bear Bakery',
-        industry: 'Cafe',
+        industry: 'Food & Beverage',
+        businessType: 'Cafe / coffee shop',
         country: 'United Kingdom',
         locationCountEstimate: 3,
         primaryPlatform: 'Google',
@@ -159,6 +160,67 @@ describe('PATCH /api/user/settings/profile', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 when businessType does not belong to the chosen industry', async () => {
+    // Cascade superRefine: Pharmacy lives under Retail, not Food & Beverage.
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+
+    const res = await PATCH(
+      makePatch({
+        industry: 'Food & Beverage',
+        businessType: 'Pharmacy',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts industry + matching businessType as a paired update', async () => {
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+    mockPrisma.user.update.mockResolvedValue({
+      id: 'u-1',
+      industry: 'Retail',
+      businessType: 'Pharmacy',
+    });
+
+    const res = await PATCH(
+      makePatch({ industry: 'Retail', businessType: 'Pharmacy' }),
+    );
+    expect(res.status).toBe(200);
+
+    // Both fields land in the user update
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          industry: 'Retail',
+          businessType: 'Pharmacy',
+        }),
+      }),
+    );
+  });
+
+  it('accepts industry="Other" with businessType cleared to null', async () => {
+    // The form sends businessType=null when industry switches to "Other".
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+    mockPrisma.user.update.mockResolvedValue({
+      id: 'u-1',
+      industry: 'Other',
+      businessType: null,
+    });
+
+    const res = await PATCH(
+      makePatch({ industry: 'Other', businessType: null }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects industry="Other" with a non-null businessType', async () => {
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+
+    const res = await PATCH(
+      makePatch({ industry: 'Other', businessType: 'Cafe / coffee shop' }),
+    );
+    expect(res.status).toBe(400);
+  });
+
   it('returns 400 when name is an empty string', async () => {
     mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
 
@@ -173,7 +235,8 @@ describe('PATCH /api/user/settings/profile', () => {
       email: 'a@x.com',
       name: 'Alice Updated',
       organizationName: 'Bear Bakery',
-      industry: 'Cafe',
+      industry: 'Food & Beverage',
+      businessType: 'Cafe / coffee shop',
       country: 'United Kingdom',
       locationCountEstimate: null,
       primaryPlatform: null,

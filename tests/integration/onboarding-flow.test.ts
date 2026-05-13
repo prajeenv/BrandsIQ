@@ -49,7 +49,8 @@ describe.skipIf(!canRunIntegration)('Onboarding Flow (Integration)', () => {
         where: { id: user.id },
         data: {
           organizationName: 'Cafe Test',
-          industry: 'Cafe',
+          industry: 'Food & Beverage',
+          businessType: 'Cafe / coffee shop',
           country: 'United Kingdom',
           signupIntent: 'yes',
           signupChallengeText: '50 reviews/month, want consistent voice.',
@@ -73,7 +74,8 @@ describe.skipIf(!canRunIntegration)('Onboarding Flow (Integration)', () => {
 
     const updated = await db.user.findUnique({ where: { id: user.id } });
     expect(updated?.organizationName).toBe('Cafe Test');
-    expect(updated?.industry).toBe('Cafe');
+    expect(updated?.industry).toBe('Food & Beverage');
+    expect(updated?.businessType).toBe('Cafe / coffee shop');
     expect(updated?.signupIntent).toBe('yes');
 
     const inquiry = await db.founderInquiry.findFirst({ where: { userId: user.id } });
@@ -112,7 +114,8 @@ describe.skipIf(!canRunIntegration)('Onboarding Flow (Integration)', () => {
         where: { id: betaUser.id },
         data: {
           organizationName: 'Beta Org',
-          industry: 'Restaurant',
+          industry: 'Food & Beverage',
+          businessType: 'Restaurant',
           country: 'Ireland',
           signupIntent: 'yes', // The user clicked it, but it doesn't fire an inquiry
         },
@@ -184,7 +187,7 @@ describe.skipIf(!canRunIntegration)('Onboarding Flow (Integration)', () => {
       await db.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: user.id },
-          data: { organizationName: 'Will Be Rolled Back', industry: 'Cafe', country: 'United Kingdom' },
+          data: { organizationName: 'Will Be Rolled Back', industry: 'Food & Beverage', businessType: 'Cafe / coffee shop', country: 'United Kingdom' },
         });
         await tx.location.create({
           data: { userId: user.id, name: 'Will Be Rolled Back Too' },

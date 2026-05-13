@@ -44,6 +44,12 @@ model User {
   // Collected via /onboarding wizard after signup. All nullable so existing users remain valid.
   organizationName      String?
   industry              String?
+  // businessType is the second-level cascade under industry (e.g. industry
+  // "Food & Beverage" → businessType "Restaurant"). Closed-set on the app
+  // layer; see BUSINESS_TYPES_BY_INDUSTRY in src/lib/constants.ts. Nullable
+  // because (a) industry "Other" has no business-type cascade, and (b) users
+  // who signed up before this column existed have no value yet.
+  businessType          String?
   country               String?
   locationCountEstimate Int?
   primaryPlatform       String?

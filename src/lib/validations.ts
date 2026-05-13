@@ -5,11 +5,69 @@ import {
   RESPONSE_TONES,
   VALIDATION_LIMITS,
   INDUSTRIES,
+  BUSINESS_TYPES,
+  BUSINESS_TYPES_BY_INDUSTRY,
   COUNTRIES,
   SIGNUP_INTENTS,
   FOUNDER_INQUIRY_TYPES,
   FOUNDER_INQUIRY_SOURCES,
+  type Industry,
 } from "./constants";
+
+// Cross-field check: businessType must belong to the chosen industry. Used
+// by both the onboarding and settings schemas via superRefine. When industry
+// is "Other" the businessType cascade is hidden in the UI and the value is
+// expected to be null/undefined — we don't enforce a match in that case.
+//
+// Callers pass the partial-update flag because the rules differ:
+//   - onboarding: businessType is REQUIRED when industry is not "Other"
+//   - settings:   businessType is OPTIONAL (partial update), but if both
+//                 industry and businessType are provided they must match
+function refineIndustryBusinessTypePair(
+  data: { industry?: string | null; businessType?: string | null },
+  ctx: z.RefinementCtx,
+  options: { requireBusinessType: boolean },
+): void {
+  const industry = data.industry as Industry | null | undefined;
+  const businessType = data.businessType;
+
+  // Nothing to check if industry isn't provided.
+  if (!industry) return;
+
+  // "Other" industry: no cascade. businessType must be empty.
+  if (industry === "Other") {
+    if (businessType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["businessType"],
+        message: "Business type is not valid when industry is Other",
+      });
+    }
+    return;
+  }
+
+  // Industry has a cascade. businessType (when present) must be in the list.
+  const allowed = BUSINESS_TYPES_BY_INDUSTRY[industry] ?? [];
+  if (businessType) {
+    if (!(allowed as readonly string[]).includes(businessType)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["businessType"],
+        message: "Selected business type is not valid for the chosen industry",
+      });
+    }
+    return;
+  }
+
+  // businessType missing. Only the onboarding schema treats this as an error.
+  if (options.requireBusinessType) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["businessType"],
+      message: "Please select a business type",
+    });
+  }
+}
 
 /**
  * Zod validation schemas for BrandsIQ
@@ -146,6 +204,7 @@ export const updateProfileSchema = z.object({
   // field at a time without re-submitting everything.
   organizationName: z.string().min(1).max(VALIDATION_LIMITS.ORGANIZATION_NAME_MAX).optional(),
   industry: z.enum(INDUSTRIES).optional(),
+  businessType: z.enum(BUSINESS_TYPES).optional().nullable(),
   country: z.enum(COUNTRIES).optional(),
   locationName: z.string().min(1).max(VALIDATION_LIMITS.LOCATION_NAME_MAX).optional(),
 
@@ -189,6 +248,10 @@ export const settingsProfileUpdateSchema = z
       .max(VALIDATION_LIMITS.ORGANIZATION_NAME_MAX, "Organization name is too long")
       .optional(),
     industry: z.enum(INDUSTRIES).optional(),
+    // businessType is the second-level cascade. Allowed to be null when
+    // industry is "Other" (no cascade) or when the user has cleared it.
+    // superRefine below enforces that the value matches the industry.
+    businessType: z.enum(BUSINESS_TYPES).optional().nullable(),
     country: z.enum(COUNTRIES).optional(),
     // Edits the user's single Location row's name. Empty string is rejected —
     // the form should hide the field rather than send a clearing update.
@@ -208,31 +271,42 @@ export const settingsProfileUpdateSchema = z
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "No fields to update",
+  })
+  .superRefine((data, ctx) => {
+    refineIndustryBusinessTypePair(data, ctx, { requireBusinessType: false });
   });
 
 // Onboarding-specific schema with the mandatory fields actually required.
 // Used by the /onboarding form submit; the broader updateProfileSchema is
 // what a future "edit profile" surface would use.
-export const onboardingSubmitSchema = z.object({
-  organizationName: z.string().min(1, "Organization name is required").max(VALIDATION_LIMITS.ORGANIZATION_NAME_MAX),
-  industry: z.enum(INDUSTRIES, { message: "Please select an industry" }),
-  country: z.enum(COUNTRIES, { message: "Please select a country" }),
-  locationName: z.string().min(1, "Location name is required").max(VALIDATION_LIMITS.LOCATION_NAME_MAX),
-  locationCountEstimate: z
-    .number()
-    .int()
-    .min(1)
-    .max(VALIDATION_LIMITS.LOCATION_COUNT_MAX)
-    .optional()
-    .nullable(),
-  primaryPlatform: z.enum(PLATFORMS).optional().nullable(),
-  signupIntent: z.enum(SIGNUP_INTENTS).optional().nullable(),
-  signupChallengeText: z
-    .string()
-    .max(VALIDATION_LIMITS.SIGNUP_CHALLENGE_TEXT_MAX)
-    .optional()
-    .nullable(),
-});
+export const onboardingSubmitSchema = z
+  .object({
+    organizationName: z.string().min(1, "Organization name is required").max(VALIDATION_LIMITS.ORGANIZATION_NAME_MAX),
+    industry: z.enum(INDUSTRIES, { message: "Please select an industry" }),
+    // businessType is required when industry isn't "Other" (superRefine
+    // enforces). Sent as null/undefined when industry is "Other"; the UI
+    // hides the second dropdown in that case.
+    businessType: z.enum(BUSINESS_TYPES).optional().nullable(),
+    country: z.enum(COUNTRIES, { message: "Please select a country" }),
+    locationName: z.string().min(1, "Location name is required").max(VALIDATION_LIMITS.LOCATION_NAME_MAX),
+    locationCountEstimate: z
+      .number()
+      .int()
+      .min(1)
+      .max(VALIDATION_LIMITS.LOCATION_COUNT_MAX)
+      .optional()
+      .nullable(),
+    primaryPlatform: z.enum(PLATFORMS).optional().nullable(),
+    signupIntent: z.enum(SIGNUP_INTENTS).optional().nullable(),
+    signupChallengeText: z
+      .string()
+      .max(VALIDATION_LIMITS.SIGNUP_CHALLENGE_TEXT_MAX)
+      .optional()
+      .nullable(),
+  })
+  .superRefine((data, ctx) => {
+    refineIndustryBusinessTypePair(data, ctx, { requireBusinessType: true });
+  });
 
 // MVP Phase 1 founder-inquiry schemas. See MVP.md Section 13.4.
 // The form is used in four places (expired-link recovery, pricing-page CTA,
