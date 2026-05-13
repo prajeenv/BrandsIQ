@@ -99,6 +99,32 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
+  // Onboarding gate: every authenticated user must complete onboarding
+  // (User.organizationName set) before they reach any /dashboard/* route.
+  // The flag is on the JWT (token.hasOnboarded) so this check is free —
+  // no DB call. Refreshed via session.update() after onboarding submits.
+  // We deliberately scope to /dashboard/* and exclude /onboarding itself
+  // to avoid a redirect loop.
+  if (
+    token &&
+    pathname.startsWith("/dashboard") &&
+    !pathname.startsWith("/dashboard/admin") && // admin gate handles itself above
+    token.hasOnboarded === false
+  ) {
+    return NextResponse.redirect(new URL("/onboarding", request.url));
+  }
+
+  // Mirror: once onboarding is complete, the /onboarding page itself
+  // shouldn't be reachable. Bounces refresh-and-back-to-onboarding loops
+  // and gives a clean post-submit redirect destination.
+  if (
+    token &&
+    pathname.startsWith("/onboarding") &&
+    token.hasOnboarded === true
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   return NextResponse.next();
 }
 
