@@ -55,7 +55,9 @@ const PROFILE_FIXTURE = {
   email: "a@x.com",
   name: "Alice",
   organizationName: "Bear Bakery",
-  industry: "Cafe",
+  // Two-level cascade.
+  industry: "Food & Beverage",
+  businessType: "Cafe / coffee shop",
   country: "United Kingdom",
   locationCountEstimate: 3,
   primaryPlatform: "Google",

@@ -47,7 +47,11 @@ function makeRequest(body: unknown): Request {
 
 const validProfile = {
   organizationName: 'The Bear Bakery',
-  industry: 'Cafe',
+  // Two-level cascade. "Food & Beverage" is the top-level industry,
+  // "Cafe / coffee shop" is the second-level businessType under it.
+  // The old single-level "Cafe" value is no longer valid.
+  industry: 'Food & Beverage',
+  businessType: 'Cafe / coffee shop',
   country: 'United Kingdom',
   locationName: 'The Bear Bakery — Shoreditch',
 };
@@ -77,7 +81,8 @@ describe('PATCH /api/user/profile', () => {
     const res = await PATCH(
       makeRequest({
         organizationName: 'Cafe',
-        industry: 'Cafe',
+        industry: 'Food & Beverage',
+        businessType: 'Cafe / coffee shop',
         // country missing
         locationName: 'X',
       }),
@@ -93,6 +98,84 @@ describe('PATCH /api/user/profile', () => {
       makeRequest({
         ...validProfile,
         industry: 'Underwater Basket Weaving',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when businessType is missing for a non-Other industry', async () => {
+    // Cascade superRefine: businessType is required unless industry is "Other".
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+
+    const { businessType: _omitted, ...withoutBusinessType } = validProfile;
+    void _omitted;
+    const res = await PATCH(makeRequest(withoutBusinessType));
+    expect(res.status).toBe(400);
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when businessType does not belong to the chosen industry', async () => {
+    // "Pharmacy" lives under Retail. Sending it with Food & Beverage should
+    // be rejected by the superRefine cross-field check.
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+
+    const res = await PATCH(
+      makeRequest({
+        ...validProfile,
+        industry: 'Food & Beverage',
+        businessType: 'Pharmacy',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts industry="Other" with no businessType', async () => {
+    // "Other" industry hides the cascade. businessType must be absent or null.
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'u-1',
+      email: 'a@x.com',
+      name: 'A',
+      isBetaUser: false,
+      organizationName: null,
+    });
+    mockPrisma.user.update.mockResolvedValue({
+      id: 'u-1',
+      email: 'a@x.com',
+      name: 'A',
+      organizationName: 'Wholly Unique Thing',
+      industry: 'Other',
+      businessType: null,
+      country: 'United Kingdom',
+      isBetaUser: false,
+      tier: 'FREE',
+    });
+    mockPrisma.location.findFirst.mockResolvedValue(null);
+    mockPrisma.location.create.mockResolvedValue({ id: 'loc-1' });
+
+    const res = await PATCH(
+      makeRequest({
+        organizationName: 'Wholly Unique Thing',
+        industry: 'Other',
+        // No businessType
+        country: 'United Kingdom',
+        locationName: 'HQ',
+      }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects industry="Other" when businessType is sent', async () => {
+    // The cascade is hidden for "Other"; the form should send null. If the
+    // client sends a businessType anyway it's an internally inconsistent
+    // payload — reject it.
+    mockAuth.mockResolvedValue({ user: { id: 'u-1', email: 'a@x.com', name: 'A' } });
+
+    const res = await PATCH(
+      makeRequest({
+        ...validProfile,
+        industry: 'Other',
+        businessType: 'Cafe / coffee shop',
       }),
     );
     expect(res.status).toBe(400);
@@ -120,7 +203,8 @@ describe('PATCH /api/user/profile', () => {
       email: 'a@x.com',
       name: 'A',
       organizationName: 'The Bear Bakery',
-      industry: 'Cafe',
+      industry: 'Food & Beverage',
+      businessType: 'Cafe / coffee shop',
       country: 'United Kingdom',
       isBetaUser: false,
       tier: 'FREE',

@@ -35,11 +35,13 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   INDUSTRIES,
+  BUSINESS_TYPES_BY_INDUSTRY,
   COUNTRIES,
   PLATFORMS,
   VALIDATION_LIMITS,
   TIER_LIMITS,
   type Industry,
+  type BusinessType,
   type Country,
   type Platform,
 } from "@/lib/constants";
@@ -51,6 +53,7 @@ interface ProfileData {
   name: string | null;
   organizationName: string | null;
   industry: string | null;
+  businessType: string | null;
   country: string | null;
   locationCountEstimate: number | null;
   primaryPlatform: string | null;
@@ -83,6 +86,7 @@ export function ProfileForm() {
   const [name, setName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [industry, setIndustry] = useState<string>("");
+  const [businessType, setBusinessType] = useState<string>("");
   const [country, setCountry] = useState<string>("");
   const [locationName, setLocationName] = useState("");
   const [locationCountEstimate, setLocationCountEstimate] = useState<string>("");
@@ -112,6 +116,7 @@ export function ProfileForm() {
       setName(p.name ?? "");
       setOrganizationName(p.organizationName ?? "");
       setIndustry(p.industry ?? "");
+      setBusinessType(p.businessType ?? "");
       setCountry(p.country ?? "");
       setLocationName(loc?.name ?? "");
       setLocationCountEstimate(
@@ -147,8 +152,23 @@ export function ProfileForm() {
       payload.organizationName = trimmedOrg;
     }
 
-    if (industry && industry !== (profile.industry ?? "")) {
+    // Industry + businessType travel as a cascade pair. If industry changed
+    // we must also clear/refresh businessType in the same payload so the
+    // server-side cross-field check sees a consistent pair. If only
+    // businessType changed (industry untouched), we send businessType alone.
+    const industryChanged = industry && industry !== (profile.industry ?? "");
+    const businessTypeChanged = businessType !== (profile.businessType ?? "");
+    if (industryChanged) {
       payload.industry = industry;
+      // industry == "Other" => no cascade => businessType must be null.
+      // Otherwise send whatever the user has currently picked (may be empty
+      // string if they haven't picked yet; we coerce that to null so the
+      // server treats it as cleared, which is correct mid-edit).
+      payload.businessType =
+        industry === "Other" || businessType === "" ? null : businessType;
+    } else if (businessTypeChanged) {
+      // Industry stayed the same; only businessType moved.
+      payload.businessType = businessType === "" ? null : businessType;
     }
 
     if (country && country !== (profile.country ?? "")) {
@@ -193,6 +213,7 @@ export function ProfileForm() {
     name,
     organizationName,
     industry,
+    businessType,
     country,
     locationName,
     locationCountEstimate,
@@ -434,7 +455,15 @@ export function ProfileForm() {
                 <Label htmlFor="industry">Industry</Label>
                 <Select
                   value={industry}
-                  onValueChange={(value) => setIndustry(value as Industry)}
+                  onValueChange={(value) => {
+                    setIndustry(value as Industry);
+                    // Reset the cascade locally so the second dropdown
+                    // doesn't surface a stale value (e.g. "Pharmacy" still
+                    // selected after switching from Retail to Hospitality).
+                    // buildChangedPayload couples the two so the PATCH body
+                    // stays internally consistent.
+                    setBusinessType("");
+                  }}
                 >
                   <SelectTrigger id="industry">
                     <div className="flex items-center gap-2 w-full">
@@ -474,6 +503,34 @@ export function ProfileForm() {
                 </Select>
               </div>
             </div>
+
+            {/* Business type — second-level cascade. Hidden when industry
+                is "Other" (no list to show) or unset. */}
+            {industry && industry !== "Other" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="businessType">Business type</Label>
+                <Select
+                  value={businessType}
+                  onValueChange={(value) => setBusinessType(value as BusinessType)}
+                >
+                  <SelectTrigger id="businessType">
+                    <div className="flex items-center gap-2 w-full">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      <SelectValue placeholder="Select business type" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(BUSINESS_TYPES_BY_INDUSTRY[industry as Industry] ?? []).map(
+                      (value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </section>
 
           <Separator />

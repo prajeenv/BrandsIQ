@@ -73,6 +73,12 @@ export async function PATCH(request: Request) {
   if (data.name !== undefined) userUpdate.name = data.name;
   if (data.organizationName !== undefined) userUpdate.organizationName = data.organizationName;
   if (data.industry !== undefined) userUpdate.industry = data.industry;
+  // businessType is the cascade partner. The Zod superRefine has already
+  // verified the pair is internally consistent — if industry changed and the
+  // form sent both, we trust them. If only industry changed (cascade reset
+  // server-side), the form is expected to send businessType = null too;
+  // the route doesn't auto-null it because explicit > inferred.
+  if (data.businessType !== undefined) userUpdate.businessType = data.businessType;
   if (data.country !== undefined) userUpdate.country = data.country;
   if (data.locationCountEstimate !== undefined)
     userUpdate.locationCountEstimate = data.locationCountEstimate;
@@ -105,6 +111,7 @@ export async function PATCH(request: Request) {
             name: true,
             organizationName: true,
             industry: true,
+            businessType: true,
             country: true,
             locationCountEstimate: true,
             primaryPlatform: true,
@@ -121,6 +128,7 @@ export async function PATCH(request: Request) {
             name: true,
             organizationName: true,
             industry: true,
+            businessType: true,
             country: true,
             locationCountEstimate: true,
             primaryPlatform: true,
@@ -210,6 +218,7 @@ export async function GET() {
       name: true,
       organizationName: true,
       industry: true,
+      businessType: true,
       country: true,
       locationCountEstimate: true,
       primaryPlatform: true,

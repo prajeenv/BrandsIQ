@@ -35,9 +35,12 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   INDUSTRIES,
+  BUSINESS_TYPES_BY_INDUSTRY,
   COUNTRIES,
   PLATFORMS,
   VALIDATION_LIMITS,
+  type Industry,
+  type BusinessType,
 } from "@/lib/constants";
 import { onboardingSubmitSchema, type OnboardingSubmitInput } from "@/lib/validations";
 import { useCredits } from "@/components/providers/CreditsProvider";
@@ -74,9 +77,22 @@ export default function OnboardingPage() {
   });
 
   const industry = watch("industry");
+  const businessType = watch("businessType");
   const country = watch("country");
   const primaryPlatform = watch("primaryPlatform");
   const signupIntent = watch("signupIntent");
+
+  // Cascade: businessType options depend on industry. When industry changes
+  // we clear the previously-selected businessType so it can't be stale (e.g.,
+  // user picked Retail → "Pharmacy", then changed industry to Hospitality —
+  // "Pharmacy" must not silently survive).
+  const businessTypeOptions =
+    industry && industry !== "Other"
+      ? BUSINESS_TYPES_BY_INDUSTRY[industry as Industry]
+      : [];
+
+  // Industry "Other" has no cascade — hide the second dropdown entirely.
+  const showBusinessType = Boolean(industry) && industry !== "Other";
 
   const onSubmit = async (data: OnboardingSubmitInput) => {
     setIsSubmitting(true);
@@ -89,6 +105,8 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           organizationName: data.organizationName.trim(),
           industry: data.industry,
+          // businessType is null when industry is "Other" (no cascade).
+          businessType: data.businessType ?? null,
           country: data.country,
           locationName: data.locationName.trim(),
           locationCountEstimate: data.locationCountEstimate ?? null,
@@ -183,11 +201,15 @@ export default function OnboardingPage() {
                   <Label htmlFor="industry">Industry *</Label>
                   <Select
                     value={industry ?? ""}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
                       setValue("industry", value as OnboardingSubmitInput["industry"], {
                         shouldValidate: true,
-                      })
-                    }
+                      });
+                      // Reset the cascade — clear businessType so a stale
+                      // value (e.g. Pharmacy chosen under Retail) can't
+                      // survive a switch to a different industry.
+                      setValue("businessType", null, { shouldValidate: true });
+                    }}
                     disabled={isSubmitting}
                   >
                     <SelectTrigger id="industry">
@@ -239,6 +261,40 @@ export default function OnboardingPage() {
                   )}
                 </div>
               </div>
+
+              {/* Business type — second-level cascade. Hidden when industry
+                  is "Other" (no list to show) or unset. */}
+              {showBusinessType && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="businessType">Business type *</Label>
+                  <Select
+                    value={businessType ?? ""}
+                    onValueChange={(value) =>
+                      setValue("businessType", value as BusinessType, {
+                        shouldValidate: true,
+                      })
+                    }
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="businessType">
+                      <div className="flex items-center gap-2 w-full">
+                        <Briefcase className="h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Select business type" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {businessTypeOptions.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.businessType && (
+                    <p className="text-xs text-red-600">{errors.businessType.message}</p>
+                  )}
+                </div>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">

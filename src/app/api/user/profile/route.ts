@@ -115,6 +115,9 @@ export async function PATCH(request: Request) {
       data: {
         organizationName: data.organizationName,
         industry: data.industry,
+        // Cascade pair — businessType is null when industry is "Other".
+        // See refineIndustryBusinessTypePair in src/lib/validations.ts.
+        businessType: data.businessType ?? null,
         country: data.country,
         locationCountEstimate: data.locationCountEstimate ?? null,
         primaryPlatform: data.primaryPlatform ?? null,
@@ -127,6 +130,7 @@ export async function PATCH(request: Request) {
         name: true,
         organizationName: true,
         industry: true,
+        businessType: true,
         country: true,
         locationCountEstimate: true,
         primaryPlatform: true,
