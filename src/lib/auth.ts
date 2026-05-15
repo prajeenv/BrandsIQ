@@ -70,11 +70,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           image: user.image,
           tier: user.tier,
-          // Surfaced so the jwt callback can seed token.hasOnboarded on
-          // first sign-in for credentials users (OAuth has its own path
-          // that re-queries the DB). The boolean is computed in jwt — we
-          // pass through the raw value here to avoid recomputing.
-          organizationName: user.organizationName,
         };
       },
     }),
@@ -152,47 +147,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true;
     },
 
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user, account }) {
       // Initial sign in - user object is available
       if (user) {
         token.id = user.id;
         token.tier = (user as { tier?: string }).tier || "FREE";
-        // Track onboarding completion at JWT level. Powers the middleware
-        // gate that bounces un-onboarded users from /dashboard/* to
-        // /onboarding without a per-request DB lookup. The value is
-        // refreshed on (a) OAuth flow, (b) session.update() after onboarding
-        // or settings save. Credentials authorize() returns organizationName
-        // so existing returning users keep their hasOnboarded=true on signin.
-        token.hasOnboarded =
-          (user as { organizationName?: string | null }).organizationName != null;
       }
 
       // For OAuth, fetch the latest user data from database
       if (account?.provider === "google" && token.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: token.email },
-          select: { id: true, tier: true, organizationName: true },
+          select: { id: true, tier: true },
         });
         if (dbUser) {
           token.id = dbUser.id;
           token.tier = dbUser.tier || "FREE";
-          token.hasOnboarded = dbUser.organizationName != null;
-        }
-      }
-
-      // session.update() triggers a JWT callback pass. Re-read the
-      // onboarding flag from the DB so the middleware gate stops
-      // bouncing the user the moment they finish /onboarding (or undo a
-      // settings save that cleared organizationName — defensive, since
-      // settings autosave guards against clearing required fields).
-      if (trigger === "update" && token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: { tier: true, organizationName: true },
-        });
-        if (dbUser) {
-          token.tier = dbUser.tier || "FREE";
-          token.hasOnboarded = dbUser.organizationName != null;
         }
       }
 
@@ -211,7 +181,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         session.user.tier = (token.tier as string) || "FREE";
         session.user.isFounder = token.isFounder ?? false;
-        session.user.hasOnboarded = token.hasOnboarded ?? false;
       }
       return session;
     },

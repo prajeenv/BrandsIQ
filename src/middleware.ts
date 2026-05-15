@@ -99,31 +99,14 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // Onboarding gate: every authenticated user must complete onboarding
-  // (User.organizationName set) before they reach any /dashboard/* route.
-  // The flag is on the JWT (token.hasOnboarded) so this check is free —
-  // no DB call. Refreshed via session.update() after onboarding submits.
-  // We deliberately scope to /dashboard/* and exclude /onboarding itself
-  // to avoid a redirect loop.
-  if (
-    token &&
-    pathname.startsWith("/dashboard") &&
-    !pathname.startsWith("/dashboard/admin") && // admin gate handles itself above
-    token.hasOnboarded === false
-  ) {
-    return NextResponse.redirect(new URL("/onboarding", request.url));
-  }
-
-  // Mirror: once onboarding is complete, the /onboarding page itself
-  // shouldn't be reachable. Bounces refresh-and-back-to-onboarding loops
-  // and gives a clean post-submit redirect destination.
-  if (
-    token &&
-    pathname.startsWith("/onboarding") &&
-    token.hasOnboarded === true
-  ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
+  // Onboarding gate is handled at the server-component layout level —
+  // see src/app/(dashboard)/dashboard/layout.tsx and
+  // src/app/(dashboard)/onboarding/page.tsx. Previously we tried a
+  // JWT-backed gate here (PR #99), but session.updateAge (1 day) meant
+  // the JWT cookie wouldn't re-issue immediately after onboarding
+  // submitted, leaving users stuck on /onboarding until signout/signin.
+  // The server-component approach reads fresh from DB on every
+  // server-rendered request.
 
   return NextResponse.next();
 }

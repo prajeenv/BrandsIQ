@@ -33,91 +33,8 @@ beforeEach(() => {
   isFounderEmailMock.mockReturnValue(false);
 });
 
-describe("middleware — onboarding gate", () => {
-  it("redirects authenticated un-onboarded users from /dashboard to /onboarding", async () => {
-    getTokenMock.mockResolvedValue({
-      email: "user@example.com",
-      hasOnboarded: false,
-    });
-
-    const res = (await middleware(makeRequest("/dashboard"))) as NextResponse;
-
-    expect(res.status).toBe(307); // Temporary redirect
-    expect(res.headers.get("location")).toBe("https://example.com/onboarding");
-  });
-
-  it("redirects un-onboarded users from /dashboard/reviews to /onboarding", async () => {
-    getTokenMock.mockResolvedValue({
-      email: "user@example.com",
-      hasOnboarded: false,
-    });
-
-    const res = (await middleware(
-      makeRequest("/dashboard/reviews"),
-    )) as NextResponse;
-
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://example.com/onboarding");
-  });
-
-  it("lets onboarded users reach /dashboard normally", async () => {
-    getTokenMock.mockResolvedValue({
-      email: "user@example.com",
-      hasOnboarded: true,
-    });
-
-    const res = (await middleware(makeRequest("/dashboard"))) as NextResponse;
-
-    // No redirect — NextResponse.next() produces a normal 200-ish response
-    // with no Location header.
-    expect(res.headers.get("location")).toBeNull();
-  });
-
-  it("lets un-onboarded users reach /onboarding itself", async () => {
-    getTokenMock.mockResolvedValue({
-      email: "user@example.com",
-      hasOnboarded: false,
-    });
-
-    const res = (await middleware(makeRequest("/onboarding"))) as NextResponse;
-
-    // No redirect — they're allowed in
-    expect(res.headers.get("location")).toBeNull();
-  });
-
-  it("redirects onboarded users away from /onboarding to /dashboard", async () => {
-    // Prevents refresh-into-onboarding loops once a user has completed it.
-    getTokenMock.mockResolvedValue({
-      email: "user@example.com",
-      hasOnboarded: true,
-    });
-
-    const res = (await middleware(makeRequest("/onboarding"))) as NextResponse;
-
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://example.com/dashboard");
-  });
-
-  it("allows founders to reach /dashboard/admin/* even when un-onboarded", async () => {
-    // The admin gate handles its own access control (404 for non-founders).
-    // We deliberately don't block founders from admin pages just because
-    // they haven't onboarded — admin tooling pre-dates onboarding for the
-    // founder account.
-    getTokenMock.mockResolvedValue({
-      email: "prajeen@example.com",
-      hasOnboarded: false,
-    });
-    isFounderEmailMock.mockReturnValue(true);
-
-    const res = (await middleware(
-      makeRequest("/dashboard/admin/beta-invites"),
-    )) as NextResponse;
-
-    // Not redirected to /onboarding (and not 404'd, since they're a founder).
-    expect(res.headers.get("location")).toBeNull();
-  });
-
-  it("redirects unauthenticated users to signin (existing behavior preserved)", async () => {
+describe("middleware — auth + redirect rules", () => {
+  it("redirects unauthenticated users from /dashboard to signin", async () => {
     getTokenMock.mockResolvedValue(null);
 
     const res = (await middleware(makeRequest("/dashboard"))) as NextResponse;
@@ -126,16 +43,74 @@ describe("middleware — onboarding gate", () => {
     expect(res.headers.get("location")).toContain("/auth/signin");
   });
 
-  it("does not run the onboarding gate for non-dashboard routes", async () => {
-    // /pricing isn't gated even though the user is un-onboarded.
-    getTokenMock.mockResolvedValue({
-      email: "user@example.com",
-      hasOnboarded: false,
-    });
+  it("returns 401 JSON for unauthenticated protected API requests", async () => {
+    getTokenMock.mockResolvedValue(null);
 
-    // /pricing isn't in protectedRoutes, so middleware falls through to
-    // NextResponse.next() with no redirect.
+    const res = (await middleware(
+      makeRequest("/api/reviews"),
+    )) as NextResponse;
+
+    expect(res.status).toBe(401);
+  });
+
+  it("redirects authenticated users from /auth/signin to /dashboard", async () => {
+    getTokenMock.mockResolvedValue({ email: "user@example.com" });
+
+    const res = (await middleware(makeRequest("/auth/signin"))) as NextResponse;
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://example.com/dashboard");
+  });
+
+  it("lets authenticated users reach /dashboard without onboarding-gate logic in middleware", async () => {
+    // The onboarding gate moved to the server-component layout
+    // (src/app/(dashboard)/dashboard/layout.tsx). Middleware no longer
+    // reads or enforces onboarding state — that's intentional, see the
+    // PR that reverted the JWT-based gate.
+    getTokenMock.mockResolvedValue({ email: "user@example.com" });
+
+    const res = (await middleware(makeRequest("/dashboard"))) as NextResponse;
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("lets authenticated users reach /onboarding without middleware-level redirect", async () => {
+    // The mirror gate (onboarded → /dashboard) also moved to the
+    // server-component page (src/app/(dashboard)/onboarding/page.tsx).
+    getTokenMock.mockResolvedValue({ email: "user@example.com" });
+
+    const res = (await middleware(makeRequest("/onboarding"))) as NextResponse;
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("returns 404 for non-founders on /dashboard/admin/*", async () => {
+    getTokenMock.mockResolvedValue({ email: "user@example.com" });
+    isFounderEmailMock.mockReturnValue(false);
+
+    const res = (await middleware(
+      makeRequest("/dashboard/admin/beta-invites"),
+    )) as NextResponse;
+
+    expect(res.status).toBe(404);
+  });
+
+  it("allows founders to reach /dashboard/admin/*", async () => {
+    getTokenMock.mockResolvedValue({ email: "prajeen@example.com" });
+    isFounderEmailMock.mockReturnValue(true);
+
+    const res = (await middleware(
+      makeRequest("/dashboard/admin/beta-invites"),
+    )) as NextResponse;
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("does not block /pricing for un-onboarded users (middleware no longer checks)", async () => {
+    getTokenMock.mockResolvedValue({ email: "user@example.com" });
+
     const res = (await middleware(makeRequest("/pricing"))) as NextResponse;
+
     expect(res.headers.get("location")).toBeNull();
   });
 });

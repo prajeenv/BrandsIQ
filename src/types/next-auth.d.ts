@@ -11,17 +11,11 @@ declare module "next-auth" {
       // Exposed on the session so client components like Sidebar can render
       // founder-only UI without needing to read FOUNDER_EMAILS in the browser.
       isFounder: boolean;
-      // True once User.organizationName is set (i.e., onboarding submitted).
-      // Drives the middleware gate that redirects un-onboarded users from
-      // /dashboard/* to /onboarding. Refreshed on session.update() after the
-      // onboarding form (or settings page) writes the field.
-      hasOnboarded: boolean;
     } & DefaultSession["user"];
   }
 
   interface User extends DefaultUser {
     tier?: string;
-    organizationName?: string | null;
   }
 }
 
@@ -30,6 +24,5 @@ declare module "next-auth/jwt" {
     id?: string;
     tier?: string;
     isFounder?: boolean;
-    hasOnboarded?: boolean;
   }
 }
