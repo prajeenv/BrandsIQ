@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
@@ -60,7 +59,9 @@ import { useCredits } from "@/components/providers/CreditsProvider";
  * enough (max 7 visible) that one screen is less friction than a wizard.
  */
 export default function OnboardingPage() {
-  const router = useRouter();
+  // Note: we deliberately use window.location.href below for the post-submit
+  // redirect rather than router.push, to dodge a NextAuth session-update /
+  // cookie-commit race against client-side navigation. See onSubmit().
   const { update: updateSession } = useSession();
   const { isBetaUser, refreshCredits } = useCredits();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,7 +145,15 @@ export default function OnboardingPage() {
         // Non-fatal — value will refresh on next dashboard load anyway.
       }
 
-      router.push("/dashboard");
+      // Hard navigation rather than router.push so the next request to
+      // /dashboard is a fresh server round-trip with the updated session
+      // cookie. updateSession() above refreshes the JWT (so middleware
+      // reads hasOnboarded=true and lets us through the onboarding gate),
+      // but client-side navigation races against the cookie commit in
+      // some browsers — we observed staging E2E failures where the
+      // middleware kept bouncing back to /onboarding after a successful
+      // submit. A full reload eliminates the race.
+      window.location.href = "/dashboard";
     } catch {
       setError("Failed to save your profile. Please check your connection and try again.");
     } finally {
