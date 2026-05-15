@@ -26,6 +26,7 @@ import { getTextDirection } from "@/lib/language-detection";
 import { CREDIT_COSTS } from "@/lib/constants";
 import { useCredits } from "@/components/providers/CreditsProvider";
 import { OutOfCreditsDialog } from "@/components/dashboard";
+import { trackResponseGenerated } from "@/lib/posthog-events";
 
 interface Review {
   id: string;
@@ -92,6 +93,7 @@ export default function GenerateResponsePage() {
     refreshCredits,
     currentPhase,
     isBetaUser,
+    tier,
     organizationName,
   } = useCredits();
   const { data: session } = useSession();
@@ -152,6 +154,13 @@ export default function GenerateResponsePage() {
         setGeneratedResponse(result.data.response);
         setCreditsRemaining(result.data.creditsRemaining);
         toast.success("Response generated successfully!");
+        // PostHog: response_generated. Mirrors the event fired from the
+        // inline ResponsePanel path — both surface lead to the same
+        // POST /api/reviews/[id]/generate call so a user can land here
+        // from either entry point.
+        trackResponseGenerated({
+          tone: result.data.response.toneUsed ?? "default",
+        });
         refreshCredits();
       } else {
         if (result.error?.code === "INSUFFICIENT_CREDITS") {
@@ -394,6 +403,7 @@ export default function GenerateResponsePage() {
         actionType="generate"
         currentPhase={currentPhase}
         isBetaUser={isBetaUser}
+        tier={tier}
         submitterName={session?.user?.name ?? null}
         submitterEmail={session?.user?.email ?? null}
         submitterBusinessName={organizationName}

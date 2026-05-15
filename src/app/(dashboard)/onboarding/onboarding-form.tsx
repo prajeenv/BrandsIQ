@@ -42,6 +42,7 @@ import {
 } from "@/lib/constants";
 import { onboardingSubmitSchema, type OnboardingSubmitInput } from "@/lib/validations";
 import { useCredits } from "@/components/providers/CreditsProvider";
+import { trackOnboardingCompleted } from "@/lib/posthog-events";
 
 /**
  * Onboarding form (client component). Server gate lives in the parent
@@ -114,6 +115,16 @@ export function OnboardingForm() {
         setError(json.error?.message ?? "Failed to save your profile. Please try again.");
         return;
       }
+
+      // PostHog: onboarding completion event. Captures the categorical
+      // signals we'll group by in PostHog dashboards. businessType is null
+      // when industry is "Other" (no cascade). Fires before navigation so
+      // we don't race against the page unload.
+      trackOnboardingCompleted({
+        industry: data.industry ?? null,
+        businessType: data.businessType ?? null,
+        country: data.country ?? null,
+      });
 
       // Refresh CreditsProvider state so the newly-saved organizationName
       // is in memory before the user reaches /dashboard. Without this, the

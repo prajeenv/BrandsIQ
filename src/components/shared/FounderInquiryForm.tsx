@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createFounderInquirySchema, type CreateFounderInquiryInput } from "@/lib/validations";
 import type { FounderInquiryType, FounderInquirySource } from "@/lib/constants";
+import { trackFounderInquirySubmitted } from "@/lib/posthog-events";
 
 /**
  * Shared founder-inquiry form. Used in four places per MVP.md Section 13.4:
@@ -159,6 +160,16 @@ export function FounderInquiryForm({
         setError(json.error?.message ?? "Failed to send. Please try again.");
         return;
       }
+
+      // PostHog: inquiry funnel. The categorical type + source pair lets
+      // us answer "where do most beta requests come from?" in dashboards.
+      // Defaults to "other" if no source was provided by the caller —
+      // some embed contexts (e.g. a future general-help surface) may omit
+      // it.
+      trackFounderInquirySubmitted({
+        type,
+        source: source ?? "other",
+      });
 
       setSuccess(true);
       onSuccess?.();
