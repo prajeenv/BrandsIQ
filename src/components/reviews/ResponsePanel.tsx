@@ -24,6 +24,10 @@ import { ResponseVersionHistory } from "./ResponseVersionHistory";
 import { CREDIT_COSTS } from "@/lib/constants";
 import { useCredits } from "@/components/providers/CreditsProvider";
 import { OutOfCreditsDialog } from "@/components/dashboard";
+import {
+  trackResponseGenerated,
+  trackResponseRegenerated,
+} from "@/lib/posthog-events";
 
 interface ResponseVersion {
   id: string;
@@ -107,6 +111,7 @@ export function ResponsePanel({
     refreshCredits,
     currentPhase,
     isBetaUser,
+    tier,
     organizationName,
   } = useCredits();
   const { data: session } = useSession();
@@ -192,6 +197,9 @@ export function ResponsePanel({
             : null
         );
         toast.success(`Response regenerated with ${tone} tone!`);
+        // PostHog: response_regenerated. tone is always one of the three
+        // explicit modifier values here (the function signature enforces).
+        trackResponseRegenerated({ tone });
         refreshCredits();
         onResponseUpdate?.(); // This will fetch fresh data including the new version
       } else {
@@ -268,6 +276,11 @@ export function ResponsePanel({
           versions: [],
         });
         toast.success("Response generated successfully!");
+        // PostHog: response_generated. toneUsed defaults to "default" on
+        // initial generation when no modifier was selected.
+        trackResponseGenerated({
+          tone: result.data.response.toneUsed ?? "default",
+        });
         refreshCredits();
         onResponseUpdate?.();
       } else {
@@ -337,6 +350,7 @@ export function ResponsePanel({
           actionType={outOfCreditsActionType}
           currentPhase={currentPhase}
           isBetaUser={isBetaUser}
+          tier={tier}
           submitterName={session?.user?.name ?? null}
           submitterEmail={session?.user?.email ?? null}
           submitterBusinessName={organizationName}

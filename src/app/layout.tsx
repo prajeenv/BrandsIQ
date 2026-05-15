@@ -50,12 +50,18 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <PostHogProvider>
-          <SessionProvider>
+        {/* SessionProvider must wrap PostHogProvider because the
+            PostHogSessionSync component inside PostHogProvider calls
+            useSession() to identify users on sign-in / reset on
+            sign-out. With the previous order (PostHog outside Session),
+            useSession() returned undefined during prerender and the
+            destructure crashed the Next.js static export. */}
+        <SessionProvider>
+          <PostHogProvider>
             {children}
             <Toaster position="top-right" richColors closeButton />
-          </SessionProvider>
-        </PostHogProvider>
+          </PostHogProvider>
+        </SessionProvider>
       </body>
     </html>
   );

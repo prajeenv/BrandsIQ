@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createReviewSchema, type CreateReviewInput } from "@/lib/validations";
 import { PLATFORMS, VALIDATION_LIMITS } from "@/lib/constants";
+import { trackSentimentAnalyzed } from "@/lib/posthog-events";
 import { getSupportedLanguages, detectLanguage, isRTLLanguage } from "@/lib/language-detection";
 
 interface ReviewFormProps {
@@ -118,6 +119,23 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
 
       if (result.success) {
         toast.success(mode === "edit" ? "Review updated!" : "Review added successfully!");
+
+        // PostHog: sentiment_analyzed. Only fires on create (not edit) when
+        // a sentiment was actually produced — skipped sentiment (no credits)
+        // is signalled by sentimentWarning + null review.sentiment. The
+        // review object on the response carries the resulting sentiment.
+        if (
+          mode === "create" &&
+          !result.data?.sentimentWarning &&
+          result.data?.review?.sentiment
+        ) {
+          trackSentimentAnalyzed({
+            sentiment: result.data.review.sentiment as
+              | "positive"
+              | "neutral"
+              | "negative",
+          });
+        }
 
         // Pass sentimentSkipped param if sentiment was skipped due to no credits
         const reviewUrl = result.data?.sentimentWarning

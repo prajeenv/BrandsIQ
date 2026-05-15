@@ -11,9 +11,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FounderInquiryForm } from "@/components/shared/FounderInquiryForm";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getNextResetDate } from "@/lib/utils";
 import type { SystemPhase } from "@/lib/system-phase";
+import { trackCreditBalanceLow } from "@/lib/posthog-events";
 
 interface LowCreditWarningProps {
   creditsRemaining: number;
@@ -132,6 +133,21 @@ export function LowCreditWarning({
     sentimentRemaining,
     sentimentTotal
   );
+
+  // PostHog: credit_balance_low. Fire once per low-credit episode (i.e.,
+  // when warningType transitions from "none" → anything else). The ref
+  // guards against re-firing on every re-render while the banner is up.
+  // When credits eventually refresh and warningType returns to "none", we
+  // reset the ref so a future drop can fire the event again.
+  const hasTrackedLowRef = useRef(false);
+  useEffect(() => {
+    if (warningType !== "none" && !hasTrackedLowRef.current) {
+      trackCreditBalanceLow({ tier, isBetaUser });
+      hasTrackedLowRef.current = true;
+    } else if (warningType === "none" && hasTrackedLowRef.current) {
+      hasTrackedLowRef.current = false;
+    }
+  }, [warningType, tier, isBetaUser]);
 
   // Don't show if no warning or dismissed
   if (isDismissed || warningType === "none") {

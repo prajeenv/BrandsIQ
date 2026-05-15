@@ -12,6 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signUpSchema, type SignUpInput } from "@/lib/validations";
+import {
+  trackSignupCompletedWithBeta,
+  trackSignupCompletedNoBeta,
+  trackBetaInviteLinkUsed,
+} from "@/lib/posthog-events";
 
 interface SignupFormProps {
   callbackUrl?: string;
@@ -176,6 +181,19 @@ export function SignupForm({ callbackUrl = "/dashboard" }: SignupFormProps) {
         }
         setError(result.error?.message || "Failed to create account");
         return;
+      }
+
+      // PostHog: signup-funnel events. The server-returned isBetaUser is
+      // the source of truth — if the user-supplied betaCode failed
+      // server-side validation (despite the client pre-check passing), the
+      // signup still succeeds as a Free user and we want to record the
+      // _actual_ outcome.
+      const userIsBetaUser = Boolean(result?.data?.user?.isBetaUser);
+      if (userIsBetaUser) {
+        trackSignupCompletedWithBeta();
+        trackBetaInviteLinkUsed();
+      } else {
+        trackSignupCompletedNoBeta();
       }
 
       setSuccess(true);

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CreditCard, Calendar } from "lucide-react";
+import { trackZeroBalanceDialogShown } from "@/lib/posthog-events";
 import {
   Dialog,
   DialogContent,
@@ -28,9 +29,10 @@ interface OutOfCreditsDialogProps {
   // for any pre-iteration-2 call sites.
   currentPhase?: SystemPhase;
   isBetaUser?: boolean;
-  // tier is reserved for Phase 2 ("Starter / Growth") tier-specific copy.
-  // Accepted but ignored under phase_1; renamed _tier to satisfy the linter.
-  _tier?: string;
+  // tier is used for PostHog segmentation on zero_balance_dialog_shown
+  // and reserved for Phase 2 tier-specific dialog copy. Optional with a
+  // safe "FREE" default so pre-iteration-2 call sites still compile.
+  tier?: string;
   // Pre-fill submitter info for FounderInquiryForm. When all three are
   // provided we hide the submitter fields entirely — the user has already
   // given us this info at signup/onboarding. Callers in the dashboard
@@ -49,10 +51,22 @@ export function OutOfCreditsDialog({
   actionType = "generate",
   currentPhase = "phase_2",
   isBetaUser = false,
+  tier = "FREE",
   submitterName,
   submitterEmail,
   submitterBusinessName,
 }: OutOfCreditsDialogProps) {
+  // PostHog: zero_balance_dialog_shown. Fires once per dialog opening
+  // (when `open` flips from false → true). The dependency array deliberately
+  // omits `tier`/`isBetaUser` so re-renders with the same `open=true` don't
+  // re-fire. Edge: if a parent re-mounts the dialog with open=true on
+  // initial render we'll emit once — correct.
+  useEffect(() => {
+    if (open) {
+      trackZeroBalanceDialogShown({ tier, isBetaUser });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   // Hide submitter fields when we have what we need from session/onboarding.
   // We require name + email at minimum; business name is allowed to be null
   // (a user who somehow lands here without finishing onboarding still gets
