@@ -70,6 +70,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           image: user.image,
           tier: user.tier,
+          // Surfaced so the jwt callback can stash it on the session for
+          // PostHog identification (PostHogSessionSync reads it).
+          // isBetaUser changes very rarely (founder-granted) so JWT-staleness
+          // isn't an issue here — the next sign-in picks up any change.
+          isBetaUser: user.isBetaUser,
         };
       },
     }),
@@ -152,17 +157,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.tier = (user as { tier?: string }).tier || "FREE";
+        token.isBetaUser =
+          (user as { isBetaUser?: boolean }).isBetaUser ?? false;
       }
 
       // For OAuth, fetch the latest user data from database
       if (account?.provider === "google" && token.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: token.email },
-          select: { id: true, tier: true },
+          select: { id: true, tier: true, isBetaUser: true },
         });
         if (dbUser) {
           token.id = dbUser.id;
           token.tier = dbUser.tier || "FREE";
+          token.isBetaUser = dbUser.isBetaUser;
         }
       }
 
@@ -181,6 +189,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         session.user.tier = (token.tier as string) || "FREE";
         session.user.isFounder = token.isFounder ?? false;
+        session.user.isBetaUser = token.isBetaUser ?? false;
       }
       return session;
     },

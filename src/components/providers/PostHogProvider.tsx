@@ -30,34 +30,37 @@ function PostHogPageView() {
  * page pageviews etc.) are aliased to the user on first identify(), so the
  * funnel stays intact from "first visit" through "signed-in usage".
  *
- * We use a ref to track the last identified userId and avoid re-identifying
- * on every session re-render — identify() is idempotent but capture spam is
- * still spam.
+ * The dedupe key is `userId:tier:isBetaUser` rather than just userId — when
+ * tier or isBetaUser change (e.g. founder grants beta access after sign-in),
+ * we re-identify so the Person record reflects the new state. Without this,
+ * the initial identify wins and subsequent property changes never make it to
+ * PostHog. (This was the bug fixed in the PR that introduced this comment.)
  */
 function PostHogSessionSync() {
   const { data: session, status } = useSession();
-  const lastIdentifiedId = useRef<string | null>(null);
+  const lastIdentifiedStateRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
 
     const userId = session?.user?.id;
     const tier = session?.user?.tier ?? "FREE";
+    const isBetaUser = session?.user?.isBetaUser ?? false;
 
     if (userId) {
-      if (lastIdentifiedId.current !== userId) {
-        // We don't yet expose isBetaUser on the session (CreditsProvider
-        // tracks it, but that's per-route, not global). Default to false;
-        // the call sites for trackZeroBalanceDialogShown / trackCreditBalanceLow
-        // pass the live value explicitly.
-        identifyUser(userId, { tier, isBetaUser: false });
-        lastIdentifiedId.current = userId;
+      // Re-identify whenever any tracked attribute changes, not just on
+      // user-id change. Cheap (one identify call per change) and keeps
+      // PostHog's Person record in sync.
+      const stateKey = `${userId}:${tier}:${isBetaUser}`;
+      if (lastIdentifiedStateRef.current !== stateKey) {
+        identifyUser(userId, { tier, isBetaUser });
+        lastIdentifiedStateRef.current = stateKey;
       }
-    } else if (lastIdentifiedId.current !== null) {
+    } else if (lastIdentifiedStateRef.current !== null) {
       // User signed out — clear so subsequent anonymous events on this
       // browser aren't attributed to the previous user.
       resetUser();
-      lastIdentifiedId.current = null;
+      lastIdentifiedStateRef.current = null;
     }
   }, [session, status]);
 
@@ -69,6 +72,13 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN as string, {
       api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
       capture_pageview: false, // Manually captured via PostHogPageView for App Router
+      // Explicit Person profile policy: only create/update Person records for
+      // users we've called identify() on. Default in posthog-js v1.117+ but
+      // worth being explicit so future PostHog version bumps don't silently
+      // change behaviour. Our identify() call lives in PostHogSessionSync
+      // below — anonymous traffic stays anonymous, authenticated users get
+      // a full Person record with tier + isBetaUser.
+      person_profiles: "identified_only",
     });
   }, []);
 
