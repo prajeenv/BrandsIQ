@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/prisma";
 
 type RouteParams = { params: Promise<{ code: string }> };
@@ -20,10 +21,26 @@ export async function GET(_request: Request, { params }: RouteParams) {
     });
   }
 
-  const invite = await prisma.betaInviteLink.findUnique({
-    where: { code },
-    select: { expiresAt: true, usedAt: true },
-  });
+  let invite;
+  try {
+    invite = await prisma.betaInviteLink.findUnique({
+      where: { code },
+      select: { expiresAt: true, usedAt: true },
+    });
+  } catch (error) {
+    // A DB failure here means we can't tell the signup form whether the
+    // invite is good. Capture loudly — a systematic failure would silently
+    // block legitimate beta signups. Fail safe toward "doesn't exist": the
+    // form routes that to the expired-link recovery page (graceful) rather
+    // than crashing the signup flow.
+    Sentry.captureException(error, {
+      tags: { area: "phase_1_invite_validation" },
+    });
+    return NextResponse.json({
+      success: true,
+      data: { valid: false, expired: false, used: false, exists: false },
+    });
+  }
 
   if (!invite) {
     return NextResponse.json({

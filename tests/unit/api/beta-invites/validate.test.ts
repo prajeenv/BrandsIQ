@@ -65,6 +65,25 @@ describe('GET /api/beta-invites/[code]/validate', () => {
     expect(json.data).toEqual({ valid: false, expired: false, used: false, exists: false });
   });
 
+  it('fails safe to exists=false when the DB lookup throws (Sentry-instrumented path)', async () => {
+    // The route captures to Sentry (no-op in test env) and returns a
+    // graceful "doesn't exist" rather than crashing the signup flow.
+    mockPrisma.betaInviteLink.findUnique.mockRejectedValue(
+      new Error('connection reset'),
+    );
+
+    const res = await callValidate('DB-IS-DOWN');
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data).toEqual({
+      valid: false,
+      expired: false,
+      used: false,
+      exists: false,
+    });
+  });
+
   it('rejects codes longer than 64 chars without hitting the DB', async () => {
     const longCode = 'a'.repeat(65);
     const res = await callValidate(longCode);

@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "./prisma";
 import { SESSION_CONFIG, BETA_PLAN, TIER_LIMITS } from "./constants";
 import { getCurrentPhase } from "./system-phase";
@@ -234,8 +235,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         } catch (error) {
           // Reading cookies can fail in some edge runtime contexts; treat as
           // no-cookie. The user will be created as Free — visible failure
-          // mode rather than a silent crash.
+          // mode rather than a silent crash. Capture to Sentry so we can see
+          // how often OAuth signups silently miss their beta invite (this
+          // directly costs a beta user their 150/750 allocation).
           console.error("[auth.events.signIn] failed to read invite cookie:", error);
+          Sentry.captureException(error, {
+            tags: { area: "phase_1_oauth_invite_cookie" },
+          });
         }
       }
 
@@ -245,46 +251,77 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       // Apply allocation, mark invite used (if any), create default brand
       // voice — all atomically so the user can't end up half-initialized.
-      await prisma.$transaction(async (tx) => {
-        await tx.user.update({
-          where: { id: user.id! },
-          data: {
-            credits: allocation.credits,
-            tier: "FREE",
-            isBetaUser,
-            sentimentCredits: allocation.sentimentQuota,
-            creditsResetDate: resetDate,
-            sentimentResetDate: resetDate,
-          },
-        });
-
-        await tx.brandVoice.create({
-          data: {
-            userId: user.id!,
-            tone: "professional",
-            formality: 3,
-            keyPhrases: ["Thank you", "We appreciate your feedback"],
-            styleNotes: "Be genuine and empathetic",
-          },
-        });
-
-        if (appliedCode) {
-          await tx.betaInviteLink.update({
-            where: { code: appliedCode },
+      //
+      // This is the single most important path to instrument: a silent
+      // failure here means a beta user (entitled to 150/750) gets created
+      // as Free (15/35), or a user ends up with no brand voice. We capture
+      // to Sentry AND re-throw — failing loudly is correct. NextAuth surfaces
+      // the error; better the user sees a sign-in failure they can retry
+      // than silently lose their beta allocation. The $transaction already
+      // guarantees atomicity (no half-applied state).
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: user.id! },
             data: {
-              usedAt: new Date(),
-              usedByUserId: user.id!,
+              credits: allocation.credits,
+              tier: "FREE",
+              isBetaUser,
+              sentimentCredits: allocation.sentimentQuota,
+              creditsResetDate: resetDate,
+              sentimentResetDate: resetDate,
             },
           });
-        }
-      });
 
-      // Best-effort cookie cleanup (don't crash signup if it fails)
+          await tx.brandVoice.create({
+            data: {
+              userId: user.id!,
+              tone: "professional",
+              formality: 3,
+              keyPhrases: ["Thank you", "We appreciate your feedback"],
+              styleNotes: "Be genuine and empathetic",
+            },
+          });
+
+          if (appliedCode) {
+            await tx.betaInviteLink.update({
+              where: { code: appliedCode },
+              data: {
+                usedAt: new Date(),
+                usedByUserId: user.id!,
+              },
+            });
+          }
+        });
+      } catch (error) {
+        Sentry.captureException(error, {
+          tags: { area: "phase_1_beta_allocation" },
+          extra: {
+            userId: user.id,
+            isBetaUser,
+            appliedCode,
+            allocation,
+          },
+        });
+        // Re-throw — do NOT swallow. A failed allocation must not result in
+        // a silently-Free beta user.
+        throw error;
+      }
+
+      // Best-effort cookie cleanup (don't crash signup if it fails). The
+      // cookie is short-lived (10-min Max-Age) so a failed delete is
+      // genuinely harmless — it'll expire on its own. Capture to Sentry at
+      // a lower severity so we can spot if it's failing systematically
+      // (which could indicate an edge-runtime cookie API problem) without
+      // it ever blocking a sign-in.
       try {
         const cookieStore = await cookies();
         cookieStore.delete(INVITE_COOKIE_NAME);
-      } catch {
-        // ignore
+      } catch (error) {
+        Sentry.captureException(error, {
+          level: "warning",
+          tags: { area: "phase_1_oauth_invite_cookie" },
+        });
       }
     },
   },
