@@ -103,18 +103,47 @@ export async function POST(request: NextRequest) {
       sentimentAnalyzed = true;
     }
 
-    // Create review
-    const review = await prisma.review.create({
-      data: {
-        userId: session.user.id,
-        platform,
-        reviewText,
-        rating,
-        reviewerName,
-        reviewDate: reviewDate ? new Date(reviewDate) : null,
-        detectedLanguage: finalLanguage,
-        sentiment,
-      },
+    // Resolve the user's Location and create the review atomically.
+    //
+    // MVP enforces exactly one Location per user (MVP.md Section 7), so we
+    // attach the review to the user's single Location — same "first/only
+    // location" pattern used in the onboarding + settings-profile routes.
+    //
+    // Defensive create: every user that reaches "add review" has been
+    // through the onboarding gate (PR #103), which creates a Location. But
+    // if a Location is somehow missing we create a "Default Location"
+    // inline rather than inserting a review with a null locationId. This
+    // keeps the data clean (prerequisite for the iteration-3 NOT NULL
+    // contract migration) and self-heals the row. Wrapped in a transaction
+    // so a review can never be created without its Location, even under a
+    // concurrent request.
+    const review = await prisma.$transaction(async (tx) => {
+      let location = await tx.location.findFirst({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+
+      if (!location) {
+        location = await tx.location.create({
+          data: { userId: session.user.id, name: "Default Location" },
+          select: { id: true },
+        });
+      }
+
+      return tx.review.create({
+        data: {
+          userId: session.user.id,
+          locationId: location.id,
+          platform,
+          reviewText,
+          rating,
+          reviewerName,
+          reviewDate: reviewDate ? new Date(reviewDate) : null,
+          detectedLanguage: finalLanguage,
+          sentiment,
+        },
+      });
     });
 
     // Log sentiment usage and deduct credits if analyzed
