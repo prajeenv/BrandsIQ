@@ -3,7 +3,7 @@
  * Runs against real PostgreSQL in CI
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { getTestPrisma, cleanDatabase, createTestUser, disconnectPrisma } from './helpers';
+import { getTestPrisma, cleanDatabase, createTestUser, createTestLocation, disconnectPrisma } from './helpers';
 
 const canRunIntegration = !!process.env.DATABASE_URL?.includes('localhost');
 
@@ -69,10 +69,12 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
   it('creates review with cascading relationships', async () => {
     const db = getTestPrisma();
     const user = await createTestUser();
+    const location = await createTestLocation(user.id);
 
     const review = await db.review.create({
       data: {
         userId: user.id,
+        locationId: location.id,
         platform: 'Google',
         reviewText: 'Great service!',
         rating: 5,
@@ -136,10 +138,12 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
   it('preserves audit trail when review is deleted (SetNull)', async () => {
     const db = getTestPrisma();
     const user = await createTestUser();
+    const location = await createTestLocation(user.id);
 
     const review = await db.review.create({
       data: {
         userId: user.id,
+        locationId: location.id,
         platform: 'Google',
         reviewText: 'Test review',
         detectedLanguage: 'English',
@@ -170,10 +174,12 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
   it('deducts sentiment credits and creates audit log', async () => {
     const db = getTestPrisma();
     const user = await createTestUser({ sentimentCredits: 35 });
+    const location = await createTestLocation(user.id);
 
     const review = await db.review.create({
       data: {
         userId: user.id,
+        locationId: location.id,
         platform: 'Amazon',
         reviewText: 'Good product',
         detectedLanguage: 'English',

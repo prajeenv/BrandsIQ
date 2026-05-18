@@ -3,7 +3,7 @@
  * Runs against real PostgreSQL in CI
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { getTestPrisma, cleanDatabase, createTestUser, disconnectPrisma } from './helpers';
+import { getTestPrisma, cleanDatabase, createTestUser, createTestLocation, disconnectPrisma } from './helpers';
 
 const canRunIntegration = !!process.env.DATABASE_URL?.includes('localhost');
 
@@ -19,11 +19,13 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
   it('creates a review, generates response, edits, and publishes', async () => {
     const db = getTestPrisma();
     const user = await createTestUser({ credits: 15 });
+    const location = await createTestLocation(user.id);
 
     // Step 1: Create review
     const review = await db.review.create({
       data: {
         userId: user.id,
+        locationId: location.id,
         platform: 'Google',
         reviewText: 'Excellent service and friendly staff!',
         rating: 5,
@@ -91,10 +93,12 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
   it('handles regeneration with version tracking', async () => {
     const db = getTestPrisma();
     const user = await createTestUser({ credits: 15 });
+    const location = await createTestLocation(user.id);
 
     const review = await db.review.create({
       data: {
         userId: user.id,
+        locationId: location.id,
         platform: 'Amazon',
         reviewText: 'Great product!',
         rating: 4,
@@ -149,10 +153,12 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
   it('enforces unique review-response relationship', async () => {
     const db = getTestPrisma();
     const user = await createTestUser();
+    const location = await createTestLocation(user.id);
 
     const review = await db.review.create({
       data: {
         userId: user.id,
+        locationId: location.id,
         platform: 'Yelp',
         reviewText: 'Nice place',
         detectedLanguage: 'English',
@@ -217,12 +223,13 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
   it('supports review filtering by platform and sentiment', async () => {
     const db = getTestPrisma();
     const user = await createTestUser();
+    const location = await createTestLocation(user.id);
 
     await db.review.createMany({
       data: [
-        { userId: user.id, platform: 'Google', reviewText: 'Great', detectedLanguage: 'English', sentiment: 'positive' },
-        { userId: user.id, platform: 'Google', reviewText: 'Bad', detectedLanguage: 'English', sentiment: 'negative' },
-        { userId: user.id, platform: 'Amazon', reviewText: 'OK', detectedLanguage: 'English', sentiment: 'neutral' },
+        { userId: user.id, locationId: location.id, platform: 'Google', reviewText: 'Great', detectedLanguage: 'English', sentiment: 'positive' },
+        { userId: user.id, locationId: location.id, platform: 'Google', reviewText: 'Bad', detectedLanguage: 'English', sentiment: 'negative' },
+        { userId: user.id, locationId: location.id, platform: 'Amazon', reviewText: 'OK', detectedLanguage: 'English', sentiment: 'neutral' },
       ],
     });
 
