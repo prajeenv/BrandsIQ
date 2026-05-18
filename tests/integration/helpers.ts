@@ -68,6 +68,26 @@ export async function createTestUser(overrides?: Record<string, unknown>) {
 }
 
 /**
+ * Create a Location for a test user. Review.locationId is NOT NULL
+ * (iteration 3 PR 3b), so any test that creates reviews must give the
+ * user a Location first and pass its id. MVP enforces one Location per
+ * user — tests should create exactly one.
+ */
+export async function createTestLocation(
+  userId: string,
+  overrides?: Record<string, unknown>,
+) {
+  const db = getTestPrisma();
+  return db.location.create({
+    data: {
+      userId,
+      name: 'Test Location',
+      ...overrides,
+    },
+  });
+}
+
+/**
  * Disconnect prisma after all tests
  */
 export async function disconnectPrisma() {

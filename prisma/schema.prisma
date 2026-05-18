@@ -156,10 +156,13 @@ model Review {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // MVP Phase 1: Location is nullable in iteration 1 (existing rows backfilled by
-  // scripts/backfill-locations.ts). A follow-up migration in iteration 3 makes it non-null.
-  locationId String?
-  location   Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  // MVP Phase 1: nullable in iteration 1 (existing rows backfilled by
+  // scripts/backfill-locations.ts), made non-null in iteration 3 (PR 3b)
+  // once review creation was wired to always set it (PR 3a) and both
+  // staging + prod were verified at 0 null rows. Every review belongs to
+  // exactly one Location (MVP enforces one Location per user).
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   platform     String // "google" | "amazon" | "shopify" | "trustpilot" | "other"
   reviewText   String    @db.Text // 1-2000 chars
