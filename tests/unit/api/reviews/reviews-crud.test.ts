@@ -23,6 +23,7 @@ const mockPrisma = vi.hoisted(() => {
   return {
     user: m(),
     review: m(),
+    location: m(),
     reviewResponse: m(),
     responseVersion: m(),
     brandVoice: m(),
@@ -157,6 +158,8 @@ describe('POST /api/reviews', () => {
   it('creates review with auto-detected language and returns 201', async () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
     mockPrisma.review.findFirst.mockResolvedValueOnce(null); // no duplicate
+    // Location lookup inside the create transaction — user has one.
+    mockPrisma.location.findFirst.mockResolvedValueOnce({ id: 'loc-1' });
     mockPrisma.review.create.mockResolvedValueOnce(baseReview);
     // $transaction for sentiment logging (array style)
     mockPrisma.sentimentUsage.create.mockResolvedValueOnce({});
@@ -173,12 +176,23 @@ describe('POST /api/reviews', () => {
     expect(json.data.review.detectedLanguage).toBe('English');
     expect(json.data.sentimentAnalyzed).toBe(true);
     expect(mockPrisma.review.create).toHaveBeenCalledTimes(1);
+    // The review is attached to the user's existing Location, not created fresh.
+    expect(mockPrisma.location.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: mockSession.user.id } }),
+    );
+    expect(mockPrisma.location.create).not.toHaveBeenCalled();
+    expect(mockPrisma.review.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ locationId: 'loc-1' }),
+      }),
+    );
   });
 
   it('skips sentiment when user has no sentiment credits and still creates review', async () => {
     const userNoSentiment = { ...baseUser, sentimentCredits: 0 };
     mockPrisma.user.findUnique.mockResolvedValueOnce(userNoSentiment);
     mockPrisma.review.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.location.findFirst.mockResolvedValueOnce({ id: 'loc-1' });
 
     const reviewNoSentiment = { ...baseReview, sentiment: null };
     mockPrisma.review.create.mockResolvedValueOnce(reviewNoSentiment);
@@ -193,8 +207,42 @@ describe('POST /api/reviews', () => {
     expect(json.data.review.sentiment).toBeNull();
     expect(json.data.sentimentAnalyzed).toBe(false);
     expect(json.data.sentimentWarning).toBe('Sentiment analysis skipped: no credits remaining');
-    // No sentiment logging calls since analysis was skipped
-    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    // Sentiment logging was skipped (no credits). The sentiment-usage
+    // transaction must not run — assert on the specific call rather than
+    // $transaction overall, since the location+review create now also
+    // uses a (callback-style) $transaction.
+    expect(mockPrisma.sentimentUsage.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a Default Location inline when the user somehow has none', async () => {
+    // Defensive path: every user normally onboards (which creates a
+    // Location) before reaching "add review", but if a Location is missing
+    // we create one inline rather than inserting a null-locationId review.
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.location.findFirst.mockResolvedValueOnce(null); // no location!
+    mockPrisma.location.create.mockResolvedValueOnce({ id: 'loc-new' });
+    mockPrisma.review.create.mockResolvedValueOnce(baseReview);
+    mockPrisma.sentimentUsage.create.mockResolvedValueOnce({});
+    mockPrisma.user.update.mockResolvedValueOnce({});
+
+    const req = createRequest('/api/reviews', { method: 'POST', body: validBody });
+
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.success).toBe(true);
+    expect(mockPrisma.location.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { userId: mockSession.user.id, name: 'Default Location' },
+      }),
+    );
+    expect(mockPrisma.review.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ locationId: 'loc-new' }),
+      }),
+    );
   });
 });
 
