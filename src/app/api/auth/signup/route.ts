@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/prisma";
 import { signUpSchema } from "@/lib/validations";
 import { sendVerificationEmail } from "@/lib/email";
@@ -9,6 +10,10 @@ import { BETA_PLAN, TIER_LIMITS } from "@/lib/constants";
 import { getCurrentPhase } from "@/lib/system-phase";
 
 export async function POST(request: Request) {
+  // Hoisted so the catch block can tag the Sentry event by whether the
+  // failing signup was on the beta-code path (the riskier one — it touches
+  // BetaInviteLink + allocation in a transaction) vs a plain Free signup.
+  let betaCodeProvided = false;
   try {
     // Rate limiting
     const ip = getClientIP(request);
@@ -40,6 +45,7 @@ export async function POST(request: Request) {
     }
 
     const { email, password, name, betaCode } = validation.data;
+    betaCodeProvided = Boolean(betaCode);
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -194,6 +200,12 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("Signup error:", error);
+    Sentry.captureException(error, {
+      tags: {
+        area: betaCodeProvided ? "phase_1_signup_beta" : "phase_1_signup",
+      },
+      extra: { betaCodeProvided },
+    });
     return NextResponse.json(
       {
         success: false,

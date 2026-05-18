@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createFounderInquirySchema } from "@/lib/validations";
@@ -94,17 +95,38 @@ export async function POST(request: Request) {
     );
   }
 
-  const inquiry = await prisma.founderInquiry.create({
-    data: {
-      type: data.type,
-      source: data.source ?? null,
-      userId: session?.user?.id ?? null,
-      submitterName,
-      submitterEmail,
-      businessName: data.businessName ?? null,
-      message: data.message,
-    },
-  });
+  let inquiry;
+  try {
+    inquiry = await prisma.founderInquiry.create({
+      data: {
+        type: data.type,
+        source: data.source ?? null,
+        userId: session?.user?.id ?? null,
+        submitterName,
+        submitterEmail,
+        businessName: data.businessName ?? null,
+        message: data.message,
+      },
+    });
+  } catch (error) {
+    // A failed insert here means a prospect's beta request / more-credits
+    // ask is lost entirely. Capture loudly and return a structured 500 so
+    // the form can show a retry rather than an unhandled crash.
+    Sentry.captureException(error, {
+      tags: { area: "phase_1_founder_inquiry" },
+      extra: { type: data.type, source: data.source ?? null },
+    });
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Could not submit your request. Please try again.",
+        },
+      },
+      { status: 500, headers: rateLimitResult.headers },
+    );
+  }
 
   // Notify the founder via Resend. Non-blocking from the user's perspective;
   // wrapped in catch so an email send failure doesn't fail the inquiry.
@@ -118,6 +140,15 @@ export async function POST(request: Request) {
     inquiryId: inquiry.id,
   }).catch((err) => {
     console.error("Failed to send founder inquiry notification:", err);
+    // The inquiry row IS saved (the founder can still see it in the admin
+    // view), so this is a warning, not an error — but a systematically
+    // failing notification means the founder isn't getting real-time
+    // alerts and should know.
+    Sentry.captureException(err, {
+      level: "warning",
+      tags: { area: "phase_1_founder_inquiry" },
+      extra: { inquiryId: inquiry.id, channel: "email_notification" },
+    });
   });
 
   return NextResponse.json(

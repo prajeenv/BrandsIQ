@@ -218,4 +218,30 @@ describe('POST /api/founder-inquiries', () => {
     expect(json.success).toBe(true);
     expect(json.data.inquiryId).toBe('inq-3');
   });
+
+  it('returns a structured 500 (not an unhandled crash) when the inquiry insert fails', async () => {
+    // Sentry-instrumented path (capture is a no-op in test env). The point
+    // is the response is a clean INTERNAL_ERROR the form can retry on,
+    // rather than an unhandled rejection / generic crash.
+    mockAuth.mockResolvedValue(null);
+    mockPrisma.founderInquiry.create.mockRejectedValue(
+      new Error('unique constraint violated'),
+    );
+
+    const res = await POST(
+      makeRequest({
+        type: 'beta_request',
+        source: 'pricing',
+        submitterEmail: 'anita@example.com',
+        message: 'Please let me in',
+      }),
+    );
+
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('INTERNAL_ERROR');
+    // Email notification must NOT be attempted if the row never saved.
+    expect(mockEmail.sendFounderInquiryNotification).not.toHaveBeenCalled();
+  });
 });
