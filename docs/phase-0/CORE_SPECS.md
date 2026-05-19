@@ -290,7 +290,7 @@ Source: `prisma/schema.prisma`. Added in iteration 1 of `docs/MVP_Phase-1/MVP.md
 - Profile fields (all nullable): `organizationName`, `industry`, `country`, `locationCountEstimate Int?`, `primaryPlatform`, `signupIntent`, `signupChallengeText`
 
 **`Review` addition:**
-- `locationId String?` — nullable in iteration 1 (backfilled by `scripts/backfill-locations.ts`); becomes non-null in iteration 3 contract migration
+- `locationId String` — added nullable in iteration 1 (backfilled by the since-removed `scripts/backfill-locations.ts`); made `NOT NULL` in iteration 3's contract migration (`20260517120000_review_location_id_not_null`). Review creation now always sets `locationId` (iteration 3, PR 3a), so the column is non-nullable and the backfill script has been deleted.
 
 **New models:**
 - `Location` (`id`, `userId` FK Cascade, `name`) — MVP enforces 1 per user at the application layer; schema supports many for forward compatibility

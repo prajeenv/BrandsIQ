@@ -16,19 +16,15 @@ Source of truth: `docs/MVP_Phase-1/MVP.md`.
 
 Set both in Vercel env vars for staging and prod. `FOUNDER_EMAILS` is harmless to leak; `CURRENT_PHASE` is harmless to leak.
 
-### One-shot data migration: backfill locations
+### `Review.locationId` lifecycle (historical — no action required)
 
-After the iteration-1 Prisma migration adds `Location` and `Review.locationId`, every existing user needs a "Default Location" and every existing review needs `locationId` populated.
+This is the complete history of the `Review.locationId` column. There is no operational step here anymore; it is documented so future readers understand how the column reached its current `NOT NULL` state.
 
-```bash
-# Dry run first (default)
-npx tsx scripts/backfill-locations.ts
+1. **Iteration 1 (expand):** the Prisma migration added `Location` and a *nullable* `Review.locationId`. A one-shot script (`scripts/backfill-locations.ts`, idempotent, dry-run by default) created a "Default Location" per existing user and populated `locationId` on existing reviews. It was run manually on a staging-clone first, then prod.
+2. **Iteration 3, PR 3a:** `POST /api/reviews` now always sets `locationId` — it looks up the user's single `Location` and defensively creates a "Default Location" inline (in the same `$transaction`) if one is missing. This fixed a latent bug: review creation never set `locationId` before, so every app-created review since iteration 1 had `locationId = NULL`.
+3. **Iteration 3, PR 3b:** migration `20260517120000_review_location_id_not_null` makes `Review.locationId` `NOT NULL` (guarded by a `DO $$` null-count check that `RAISE EXCEPTION`s if any null row exists at apply time). `schema.prisma` tightened `locationId String?`→`String`. `scripts/backfill-locations.ts` was deleted — its premise (a nullable column) no longer exists and it could not type-check against the tightened schema.
 
-# Apply changes after verification
-npx tsx scripts/backfill-locations.ts --apply
-```
-
-The script is idempotent — safe to re-run on partial failures. Run on staging-clone first, verify counts, then run on prod.
+The column is now `NOT NULL`. No backfill step exists or is needed.
 
 ### Beta invite link lifecycle
 
@@ -63,6 +59,12 @@ Used in four places — expired-link recovery, pricing-page CTA, OutOfCreditsDia
 1. **Submit** — `POST /api/founder-inquiries` accepts both authenticated and unauthenticated submissions. Rate-limited per-IP at 60 req/min via `apiRateLimit`. Refuses with 400 if neither the form nor the session provides a `submitterEmail`.
 2. **Notify** — `sendFounderInquiryNotification` emails the founder at `FOUNDER_PUBLIC_EMAIL`. `replyTo` is set to the submitter's email so the founder can hit Reply and respond directly. The HTML body escapes the user-supplied message to prevent markup injection.
 3. **Resolve** — Founder visits `/dashboard/admin/founder-inquiries`, clicks into the inquiry, adds notes, marks resolved. Re-open is also supported. Filtering by type + resolved status (default view: open only).
+
+### Observability (iteration 3)
+
+- **PostHog event taxonomy** — typed helper at `src/lib/posthog-events.ts`. Events: `signup_completed_with_beta`, `signup_completed_no_beta`, `onboarding_completed`, `beta_invite_link_used`, `founder_inquiry_submitted`, `zero_balance_dialog_shown`, `credit_balance_low`, `response_generated`, `response_regenerated`, `sentiment_analyzed`. `PostHogSessionSync` identifies users on session change. Event properties are categorical only (`industry`, `businessType`, `country`, `tier`, `isBetaUser`) — no PII (no `organizationName`/email/name on events).
+- **Sentry phase-1 coverage** — server paths tagged under `area: phase_1_*` (`phase_1_beta_allocation`, `phase_1_oauth_invite_cookie`, `phase_1_signup_beta`, `phase_1_signup`, `phase_1_founder_inquiry`, `phase_1_invite_validation`). Re-throw policy is per-path by blast radius: beta-allocation captures-then-rethrows (loud); invite-validation fails safe; founder-inquiry returns a structured 500; cookie cleanup swallows at warning level.
+- **`Review.locationId` NOT NULL** — migration `20260517120000_review_location_id_not_null` (iteration 3, PR 3b). See the `Review.locationId` lifecycle note above. The `/sentry-example-page` + `/api/sentry-example-api` scaffolding was removed (PR 4a).
 
 ### Test commands
 

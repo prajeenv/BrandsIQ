@@ -17,12 +17,12 @@
 |-------|--------|------------|----------|----------|
 | Phase 0: Documentation | ✅ Complete | Jan 1, 2026 | Jan 6, 2026 | 6 days |
 | Phase 1: Core MVP | ✅ Complete | Jan 7, 2026 | Mar 27, 2026 | ~12 weeks |
-| MVP Phase 1 (Closed Beta) | 🚧 In Progress (iter. 1 & 2 done) | May 9, 2026 | - | - |
+| MVP Phase 1 (Closed Beta) | ✅ Complete (iter. 1, 2 & 3 done) | May 9, 2026 | May 19, 2026 | ~11 days |
 | MVP Phase 2 (Commercial Launch) | ⏳ Not Started | - | - | - |
 | Phase 2: CSV Import | ⏳ Not Started | - | - | - |
 | Phase 3: Integrations | ⏳ Not Started | - | - | - |
 
-**Overall Progress:** Original Core MVP complete; closed-beta layer iteration 1 of 3 done.
+**Overall Progress:** Original Core MVP complete; closed-beta layer complete (all 3 iterations shipped to production).
 
 ---
 
@@ -981,8 +981,8 @@ The closed-beta layer added on top of the original Core MVP. Validates product-m
 | Iter. | Scope | Status |
 |------|-------|--------|
 | 1 | Schema + lib helpers + invite-code APIs + admin UI + signup integration + tests | ✅ Done |
-| 2 | `/onboarding` wizard + `FounderInquiryForm` + phase-aware dialogs + closed-beta pricing banner | ⏳ Not started |
-| 3 | PostHog event taxonomy + Sentry coverage + `Review.locationId` non-null contract migration + final doc pass | ⏳ Not started |
+| 2 | `/onboarding` wizard + `FounderInquiryForm` + phase-aware dialogs + closed-beta pricing banner | ✅ Done |
+| 3 | PostHog event taxonomy + Sentry coverage + `Review.locationId` non-null contract migration + final doc pass | ✅ Done |
 
 ### ✅ Iteration 1 — Schema, Beta Plan, Invite-Code Signup, Admin Page
 
@@ -1065,11 +1065,27 @@ The closed-beta layer added on top of the original Core MVP. Validates product-m
 - Public POST /api/founder-inquiries rate-limited, refuses no-email submissions
 - Onboarding submission transactional; notification via `waitUntil`
 
-### ⏳ Iteration 3 — Observability + cleanup + final doc pass
+### ✅ Iteration 3 — Observability + cleanup + final doc pass
 
-PostHog event taxonomy, Sentry coverage, `Review.locationId` non-null migration, final reconciliation pass on all docs.
+**Status:** Complete. Shipped to main + deployed to production across PRs #104/#105, #107, #108, #109, #110.
+
+**What shipped:**
+
+- **PostHog event taxonomy** (PRs #104/#105) — new `src/lib/posthog-events.ts` typed helper. Events: `signup_completed_with_beta`, `signup_completed_no_beta`, `onboarding_completed`, `beta_invite_link_used`, `founder_inquiry_submitted`, `zero_balance_dialog_shown`, `credit_balance_low`, `response_generated`, `response_regenerated`, `sentiment_analyzed`. `PostHogSessionSync` component identifies users on session change. Event properties categorical-only (industry, businessType, country, tier, isBetaUser) — no PII. `isBetaUser` added to the NextAuth JWT/session alongside `isFounder`.
+- **Sentry phase-1 coverage** (PR #107) — server paths tagged `area: phase_1_*` (`phase_1_beta_allocation`, `phase_1_oauth_invite_cookie`, `phase_1_signup_beta`, `phase_1_signup`, `phase_1_founder_inquiry`, `phase_1_invite_validation`). Per-path re-throw policy by blast radius.
+- **`Review.locationId` contract migration** — PR #108 (3a): `POST /api/reviews` now always sets `locationId` (defensively creates a "Default Location" inline in a `$transaction` if missing); fixed a latent bug where every app-created review since iteration 1 had `locationId = NULL`. PR #109 (3b): migration `20260517120000_review_location_id_not_null` makes the column `NOT NULL` (guarded by a `DO $$` null-count check), `schema.prisma` tightened `String?`→`String`, `scripts/backfill-locations.ts` deleted.
+- **Cleanup** — PR #110 (4a): `/sentry-example-page` + `/api/sentry-example-api` scaffolding removed.
+- **Docs** — final reconciliation pass: CORE_SPECS.md, IMPLEMENTATION_GUIDE.md, SECURITY_AUTH.md, DECISIONS.md (4 new decisions, #35–38), and this PROGRESS.md updated to the shipped state.
+
+**No new env vars.**
+
+**Decisions** (cross-reference DECISIONS.md "Iteration 3" subsection):
+- PostHog event properties categorical-only / no PII
+- Sentry per-path re-throw policy by blast radius
+- `locationId` expand→backfill→fix→contract, 3a/3b split
+- `isBetaUser` on JWT/session (value fixed per session; founder grant takes effect next sign-in)
 
 ---
 
-**Last Updated:** May 11, 2026
-**Status:** MVP Phase 1 (Closed Beta) iteration 2 complete on `feat/mvp-phase-1-iteration-2`. Awaiting PR review and staging verification before iteration 3 begins.
+**Last Updated:** May 19, 2026
+**Status:** MVP Phase 1 (Closed Beta) complete — all 3 iterations shipped to main + deployed to production. PostHog taxonomy, Sentry phase-1 coverage, and the `Review.locationId` NOT NULL contract migration are live. Next: MVP Phase 2 (Commercial Launch) when the Phase 2 trigger fires.

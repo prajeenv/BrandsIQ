@@ -1383,6 +1383,40 @@ Branch: `feat/mvp-phase-1-iteration-2`. Four commits: API layer, shared UI, page
 - New E2E spec `tests/e2e/iteration-2-surfaces.spec.ts` — 7 cases: pricing banner under phase_1, tier cards swap CTAs, banner CTA opens dialog, admin page 404 for unauth, admin API 404 for unauth, public POST accepts valid submission, public POST rejects no-email submission. Updated existing `beta-link-expired` E2E to assert embedded form fields instead of mailto link.
 - Total: **652 unit tests passing** (up from 611) + **5 new integration scenarios** (10 total with iteration 1's) + **7 new E2E tests** (covered alongside the existing E2E suite)
 
+### Iteration 3 — PostHog Taxonomy, Sentry Coverage, `locationId` Contract Migration, Cleanup
+
+Shipped to main + production across PRs #104/#105 (PostHog), #107 (Sentry), #108 (PR 3a: review-creation always sets `locationId`), #109 (PR 3b: `locationId` NOT NULL migration), #110 (PR 4a: sentry-example scaffolding removed).
+
+#### Decision 35: PostHog event properties are categorical-only — no PII
+
+- **Decision:** Events emitted via `src/lib/posthog-events.ts` carry only categorical properties (`industry`, `businessType`, `country`, `tier`, `isBetaUser`). Never `organizationName`, email, or name.
+- **Why:** The validation targets (MVP.md Section 14) are segmentation questions answerable from categorical buckets. Putting PII into a third-party analytics product widens the GDPR surface for zero analytical benefit and would require DPA scrutiny we don't need.
+- **Risk:** Low ✅.
+
+#### Decision 36: Sentry re-throw policy is per-path by blast radius
+
+- **Decision:** Phase-1 server paths capture to Sentry under `area: phase_1_*` tags, but the re-throw behaviour differs per path: beta-allocation captures-then-rethrows (loud — a user silently denied beta credits is a real defect); invite-validation fails safe (a flaky validate call should not block signup); founder-inquiry returns a structured 500 (the submitter sees a clean error, the founder still gets the Sentry event); OAuth invite-cookie cleanup swallows at warning level (a stale 10-minute cookie is harmless).
+- **Why:** A uniform rethrow-everything policy would convert harmless transient failures (cookie cleanup, validation hiccups) into blocked signups. A uniform swallow-everything policy would hide the one failure that genuinely costs a user money (beta allocation). Tailoring by blast radius is the correct trade-off.
+- **Risk:** Low ✅.
+
+#### Decision 37: `locationId` expand→backfill→fix→contract, split into 3a and 3b
+
+- **Decision:** The `Review.locationId` rollout was: iteration 1 added a nullable column + ran the one-shot backfill (expand + backfill); iteration 3 PR 3a made review creation always set `locationId` (fix the write path); iteration 3 PR 3b applied the `NOT NULL` migration guarded by a `DO $$` null-count check and deleted `scripts/backfill-locations.ts` (contract).
+- **Why split 3a from 3b:** PR 3a fixed a latent bug — review creation never set `locationId`, so every app-created review since iteration 1 was `NULL`. The contract migration (3b) would `RAISE EXCEPTION` on those nulls. 3a must ship, deploy, and start producing non-null rows *before* 3b backfills the stragglers and locks the constraint. Shipping them together would risk the migration failing in production against rows the just-deployed code hadn't fixed yet.
+- **Risk:** Low ✅. Standard expand/contract discipline; the null-count guard makes 3b fail-closed rather than corrupt data.
+
+#### Decision 38: `isBetaUser` added to the NextAuth JWT/session
+
+- **Decision:** `isBetaUser` is carried on the token + session alongside `isFounder` and `tier`, so phase-aware UI and PostHog identify can read it without an extra fetch.
+- **Trade-off:** The value is fixed for the session lifetime. A founder-granted beta upgrade only takes effect on the user's next sign-in.
+- **Why acceptable:** Mid-session founder grants are rare (the founder grants beta out-of-band, the user typically isn't mid-session at that instant) and the existing `isFounder` claim already has the same staleness characteristic. Adding session-refresh plumbing for a rare event is not worth the complexity.
+- **Risk:** Low ✅.
+
+#### Test/cleanup notes for iteration 3
+
+- `scripts/backfill-locations.ts` deleted (premise removed by the NOT NULL contract).
+- `/sentry-example-page` and `/api/sentry-example-api` scaffolding deleted (PR 4a).
+
 ---
 
 ## Decision Log
@@ -1413,7 +1447,7 @@ Branch: `feat/mvp-phase-1-iteration-2`. Four commits: API layer, shared UI, page
 | 20 | OAuth invite-code via short-lived HttpOnly cookie | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
 | 21 | No auto-confirmation email to inquiry submitters | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
 | 22 | `FOUNDER_EMAILS` env-var admin gate (no User.isAdmin) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
-| 23 | `Review.locationId` two-phase migration (nullable → backfill → non-null) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Iter. 1 done; iter. 3 pending |
+| 23 | `Review.locationId` two-phase migration (nullable → backfill → non-null) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Completed (iter. 3 contract migration shipped) |
 | 24 | Manual one-shot backfill via tsx (not Vercel hook) | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
 | 25 | Beta plan is `isBetaUser` flag, not a Tier enum value | MVP Phase 1 / It. 1 | May 9 | Low ✅ | ✅ Implemented |
 | 26 | Single-page onboarding form (visually grouped sections), not multi-step wizard | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
@@ -1425,12 +1459,25 @@ Branch: `feat/mvp-phase-1-iteration-2`. Four commits: API layer, shared UI, page
 | 32 | No auto-confirmation email to inquirer; founder notification uses `replyTo` | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
 | 33 | `POST /api/founder-inquiries` is public + rate-limited; refuses no-email submissions | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
 | 34 | Onboarding submission transactional; notification email via `waitUntil` | MVP Phase 1 / It. 2 | May 11 | Low ✅ | ✅ Implemented |
+| 35 | PostHog event properties categorical-only (no PII) | MVP Phase 1 / It. 3 | May 19 | Low ✅ | ✅ Implemented |
+| 36 | Sentry re-throw policy per-path by blast radius | MVP Phase 1 / It. 3 | May 19 | Low ✅ | ✅ Implemented |
+| 37 | `locationId` expand→backfill→fix→contract, 3a/3b split | MVP Phase 1 / It. 3 | May 19 | Low ✅ | ✅ Implemented |
+| 38 | `isBetaUser` added to NextAuth JWT/session (value fixed per session) | MVP Phase 1 / It. 3 | May 19 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**May 19, 2026** — MVP Phase 1 (Closed Beta), Iteration 3
+- PostHog event taxonomy: new `src/lib/posthog-events.ts` typed helper emitting `signup_completed_with_beta`, `signup_completed_no_beta`, `onboarding_completed`, `beta_invite_link_used`, `founder_inquiry_submitted`, `zero_balance_dialog_shown`, `credit_balance_low`, `response_generated`, `response_regenerated`, `sentiment_analyzed`. `PostHogSessionSync` identifies users on session change. Event properties categorical-only — no PII (Decision 35). PRs #104/#105.
+- `isBetaUser` added to the NextAuth JWT/session alongside `isFounder` and `tier` (Decision 38).
+- Sentry coverage on phase-1 server paths, tagged `area: phase_1_*`; per-path re-throw policy by blast radius (Decision 36). PR #107.
+- `Review.locationId`: PR #108 (3a) makes `POST /api/reviews` always set `locationId` (fixed a latent bug — every app-created review since iteration 1 had `locationId = NULL`); PR #109 (3b) migration `20260517120000_review_location_id_not_null` makes the column `NOT NULL` (guarded by a `DO $$` null-count check), `schema.prisma` tightened `String?`→`String`, `scripts/backfill-locations.ts` deleted (Decision 37).
+- PR #110 (4a): `/sentry-example-page` + `/api/sentry-example-api` scaffolding removed.
+- Docs reconciled (this pass): CORE_SPECS.md, IMPLEMENTATION_GUIDE.md, SECURITY_AUTH.md, DECISIONS.md, PROGRESS.md updated to reflect shipped iteration-3 state.
+- All decisions Low ✅ risk; all shipped to main + production.
 
 **May 11, 2026** — MVP Phase 1 (Closed Beta), Iteration 2
 - New constants in `src/lib/constants.ts`: `INDUSTRIES` (6 + Other), `COUNTRIES` (9 + Other), `SIGNUP_INTENTS`, `FOUNDER_INQUIRY_TYPES`, `FOUNDER_INQUIRY_SOURCES`. Extended `VALIDATION_LIMITS` with organisation/location/message/notes bounds.
@@ -1591,4 +1638,4 @@ Branch: `feat/mvp-phase-1-iteration-2`. Four commits: API layer, shared UI, page
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** May 9, 2026 (MVP Phase 1 closed-beta, iteration 1: schema + lib + APIs + UI + tests)
+**Last Reviewed:** May 19, 2026 (MVP Phase 1 closed-beta, iteration 3: PostHog taxonomy + Sentry coverage + `locationId` NOT NULL contract migration + cleanup)

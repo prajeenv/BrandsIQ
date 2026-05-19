@@ -281,6 +281,13 @@ The `CURRENT_PHASE` env var (`phase_1` | `phase_2`) is server-only — `process.
 
 ---
 
+## MVP Phase 1: iteration-3 observability + session additions
+
+- **Sentry on phase-1 server paths.** The new signup/invite/beta paths now have explicit Sentry error capture, tagged under `area: phase_1_*` (`phase_1_beta_allocation`, `phase_1_oauth_invite_cookie`, `phase_1_signup_beta`, `phase_1_signup`, `phase_1_founder_inquiry`, `phase_1_invite_validation`). Re-throw is per-path by blast radius: beta-allocation captures-then-rethrows (loud), invite-validation fails safe, founder-inquiry returns a structured 500, and the OAuth invite-cookie cleanup swallows at warning level (a stale cookie is non-fatal).
+- **`isBetaUser` on the NextAuth JWT/session.** `isBetaUser` is now carried on the token and session alongside `isFounder` and `tier`. The value is fixed for the session — a founder-granted beta upgrade only takes effect on the user's next sign-in. Acceptable because mid-session founder grants are rare.
+
+---
+
 ## Email Verification
 
 **File:** `lib/email.ts`
