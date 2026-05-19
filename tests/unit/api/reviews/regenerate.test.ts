@@ -56,6 +56,8 @@ const mockDeductCreditsAtomic = vi.hoisted(() =>
   }),
 );
 
+const mockLogIfInjectionAttempt = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+
 vi.mock('@/lib/auth', () => ({ auth: mockAuth }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/ai/claude', () => ({
@@ -65,6 +67,10 @@ vi.mock('@/lib/ai/claude', () => ({
 vi.mock('@/lib/db-utils', () => ({
   getOrCreateBrandVoice: mockGetOrCreateBrandVoice,
   deductCreditsAtomic: mockDeductCreditsAtomic,
+}));
+vi.mock('@/lib/security-log', () => ({
+  logIfInjectionAttempt: mockLogIfInjectionAttempt,
+  SecurityEventTypes: { INJECTION_ATTEMPT: 'injection_attempt' },
 }));
 vi.mock('@/lib/constants', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/constants')>();
@@ -360,5 +366,47 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     // Neither credit deduction nor version save should happen
     expect(mockDeductCreditsAtomic).not.toHaveBeenCalled();
     expect(mockPrisma.reviewResponse.update).not.toHaveBeenCalled();
+  });
+
+  // ─── Iteration 1: prompt-injection audit logging (spec §10.6) ────
+  describe('prompt-injection audit logging', () => {
+    it('calls logIfInjectionAttempt with the review text on every successful regeneration', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+      mockPrisma.reviewResponse.update.mockResolvedValueOnce({
+        ...reviewWithResponse.response,
+        responseText: 'Updated response',
+        toneUsed: 'friendly',
+      });
+      mockPrisma.responseVersion.create.mockResolvedValueOnce({ id: 'ver-1' });
+      mockPrisma.creditUsage.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      const req = createRequest('/api/reviews/review-1/regenerate', {
+        method: 'POST',
+        body: { tone: 'friendly' },
+      });
+
+      await POST(req, routeParams({ id: 'review-1' }));
+
+      expect(mockLogIfInjectionAttempt).toHaveBeenCalledWith({
+        text: 'Great service!',
+        userId: 'clu1234567890abcdef',
+        fieldName: 'review_text',
+      });
+    });
+
+    it('does not call logIfInjectionAttempt when the review is not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      mockPrisma.review.findFirst.mockResolvedValueOnce(null);
+
+      const req = createRequest('/api/reviews/review-1/regenerate', {
+        method: 'POST',
+        body: { tone: 'friendly' },
+      });
+
+      await POST(req, routeParams({ id: 'review-1' }));
+
+      expect(mockLogIfInjectionAttempt).not.toHaveBeenCalled();
+    });
   });
 });
