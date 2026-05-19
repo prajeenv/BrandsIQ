@@ -18,11 +18,12 @@
 | Phase 0: Documentation | ✅ Complete | Jan 1, 2026 | Jan 6, 2026 | 6 days |
 | Phase 1: Core MVP | ✅ Complete | Jan 7, 2026 | Mar 27, 2026 | ~12 weeks |
 | MVP Phase 1 (Closed Beta) | ✅ Complete (iter. 1, 2 & 3 done) | May 9, 2026 | May 19, 2026 | ~11 days |
+| Brand Voice Page Redesign | 🚧 In progress (iter. 1 done) | May 20, 2026 | - | - |
 | MVP Phase 2 (Commercial Launch) | ⏳ Not Started | - | - | - |
 | Phase 2: CSV Import | ⏳ Not Started | - | - | - |
 | Phase 3: Integrations | ⏳ Not Started | - | - | - |
 
-**Overall Progress:** Original Core MVP complete; closed-beta layer complete (all 3 iterations shipped to production).
+**Overall Progress:** Original Core MVP complete; closed-beta layer complete (all 3 iterations shipped to production); brand voice redesign iteration 1 complete on branch.
 
 ---
 
@@ -1089,3 +1090,63 @@ The closed-beta layer added on top of the original Core MVP. Validates product-m
 
 **Last Updated:** May 19, 2026
 **Status:** MVP Phase 1 (Closed Beta) complete — all 3 iterations shipped to main + deployed to production. PostHog taxonomy, Sentry phase-1 coverage, and the `Review.locationId` NOT NULL contract migration are live. Next: MVP Phase 2 (Commercial Launch) when the Phase 2 trigger fires.
+
+---
+
+## Brand Voice Page Redesign
+
+**Source of truth:** `docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md`
+**Plan:** `C:/Users/amith/.claude/plans/docs-mvp-phase-1-brand-voice-redesign-md-streamed-ripple.md`
+**Started:** May 20, 2026
+
+A four-section restructure of the brand voice settings screen (Voice / Examples / Personalization / Contact & sign-off), drop of the Formality field, fix of a JSON-render bug on Style guidelines, addition of post-processed salutation + sign-off + conditional reply-to email, rating-conditional response structure templates, and prompt-injection defenses across the brand voice fields AND review text. User confirmed all reviews/brand-voice rows are throwaway test data, eliminating the data-migration burden — Iteration 3 is a clean reset.
+
+### Iteration plan
+
+| Iter. | Scope | Status |
+|---|---|---|
+| 1 | Sanitize helper + review-text retrofit + SecurityLog | ✅ Done (May 20) |
+| 2 | Validation schema + constants + normalize adapter | ⏳ Not started |
+| 3 | Clean-reset schema migration + minimal route field-name cutover | ⏳ Not started |
+| 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ⏳ Not started |
+| 5 | Post-processing module + route wiring | ⏳ Not started |
+| 6 | Frontend restructure + API Zod cutover + regenerate dialog | ⏳ Not started |
+
+### ✅ Iteration 1 — Sanitize helper + review-text retrofit + SecurityLog table
+
+**Branch:** `feat/brand-voice-redesign-iter-1`
+**Status:** Locally verified (lint:strict / type-check / 783 unit tests all passing). PR pending.
+
+**What shipped:**
+
+- **`src/lib/ai/sanitize.ts` (NEW)** — pure module: `wrapUserContent(label, content)` (wraps user-supplied text in clearly labeled delimiters, strips literal `<<<...>>>` spoof markers), `SUSPICIOUS_PATTERNS` + `detectInjectionAttempt(text)` (returns matched-pattern source strings for non-blocking logging), `INSTRUCTION_REINFORCEMENT` constant (security lines only this iteration; structural/length lines added iter 4).
+- **`src/lib/security-log.ts` (NEW)** — `logIfInjectionAttempt({text, userId, fieldName})` swallows persistence errors, truncates `preview` to 200 chars to keep the GDPR surface small, exports `SecurityEventTypes`.
+- **Prisma schema** — new `SecurityLog` model (`userId String?` SetNull, `eventType`, `fieldName`, `matchedPatterns String[]`, `preview String? @db.Text`, indexed on `(userId, createdAt)` and `eventType`); `User.securityLogs` back-relation. Migration `20260519180000_add_security_log/migration.sql` — pure additive `CREATE TABLE`, no `DO $$` guard needed (brand-new table).
+- **`src/lib/ai/claude.ts`** — `buildUserPrompt` wraps `reviewText` via `wrapUserContent('Customer review', ...)` and accepts optional `customRegenerateInstructions` (dormant until iter 6, wrapped + binding when provided); `buildSystemPrompt` appends `INSTRUCTION_REINFORCEMENT` after the brand-voice configuration. `GenerateResponseParams` gains `customRegenerateInstructions?: string`.
+- **Routes** — `POST /api/reviews/[id]/generate` and `.../regenerate` both call `logIfInjectionAttempt` on the review text immediately after the review is fetched (`fieldName: "review_text"`). Logging is non-blocking and cannot fail the generation flow.
+- **No new env vars.**
+- **No behavior change for clean reviews.** Reinforcement tail is purely additive content; existing tests use `toContain` and stay green.
+
+**Test coverage delta:**
+
+| Type | Before iter 1 | After iter 1 | New from this iteration |
+|---|---|---|---|
+| Unit tests (suite total) | 748 | 783 | +35 |
+| New unit test files | — | — | 2 (`sanitize.test.ts`, `security-log.test.ts`) |
+| Modified unit test files | — | — | 3 (`claude.test.ts`, `generate.test.ts`, `regenerate.test.ts`) |
+| Integration tests | — | +3 scenarios (gated on localhost DB) | 1 new file (`security-log.test.ts`) |
+| E2E specs | — | — | 0 |
+
+**Verification status:**
+
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` 783 passed, 0 failed (60 test files)
+- ⏳ Integration tests run in CI's PostgreSQL container
+
+**Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 1" subsection): #39 security retrofit ships first; #40 new SecurityLog table (not Sentry-only); #41 audit persistence in routes, `sanitize.ts` stays pure; #42 reinforcement tail has security lines only this iteration; #43 `customRegenerateInstructions` plumbed but dormant.
+
+---
+
+**Last Updated:** May 20, 2026
+**Status:** Brand voice redesign iteration 1 complete on branch (PR pending). MVP Phase 1 (Closed Beta) remains the most recent production deploy.
