@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateReviewResponse, DEFAULT_MODEL, ToneModifier } from "@/lib/ai/claude";
+import { assembleResponse } from "@/lib/ai/post-process";
 import { deductCreditsAtomic, getOrCreateBrandVoice } from "@/lib/db-utils";
-import { CREDIT_COSTS, RESPONSE_BODY_CHAR_MAX } from "@/lib/constants";
+import { CREDIT_COSTS } from "@/lib/constants";
 import { logIfInjectionAttempt } from "@/lib/security-log";
 import { CreditActionValues } from "@/types/database";
 
@@ -177,20 +178,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Iter 4: truncate the model body to RESPONSE_BODY_CHAR_MAX (≈ "200
-    // words"). The assembled response — salutation + body + sign-off +
-    // optional reply-to email — stays well within
-    // VALIDATION_LIMITS.RESPONSE_TEXT_MAX (= 2000). Iter 5's
-    // `assembleResponse` will replace this with closing-block-aware
-    // truncation so salutation/sign-off are never chopped.
-    let responseText = generatedResponse.responseText;
-    if (responseText.length > RESPONSE_BODY_CHAR_MAX) {
-      responseText = responseText.substring(0, RESPONSE_BODY_CHAR_MAX);
-      const lastPeriod = responseText.lastIndexOf(".");
-      if (lastPeriod > RESPONSE_BODY_CHAR_MAX - 100) {
-        responseText = responseText.substring(0, lastPeriod + 1);
-      }
-    }
+    // Iter 5: deterministically assemble the final response. `assembleResponse`
+    // prepends the configured salutation (with {firstName} substitution from
+    // review.reviewerName and canonicalisation when no name is available),
+    // appends the sign-off block (literal \n converted to real newlines),
+    // and for negative reviews with the email-invitation toggle on
+    // substitutes the [your email] placeholder in the model body with the
+    // brand's configured reply-to email. The model body is internally
+    // truncated to RESPONSE_BODY_CHAR_MAX (sentence-boundary aware);
+    // salutation and sign-off are appended afterwards and never truncated.
+    // Spec §7, §9.4, §13.1, §13.2.
+    const responseText = assembleResponse({
+      modelBody: generatedResponse.responseText,
+      brandVoice,
+      review: {
+        rating: review.rating,
+        sentiment: review.sentiment,
+        reviewerName: review.reviewerName,
+      },
+    });
 
     // Deduct credits atomically
     const creditResult = await deductCreditsAtomic(

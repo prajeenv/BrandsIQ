@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { testBrandVoiceSchema } from "@/lib/validations";
 import { generateReviewResponse } from "@/lib/ai/claude";
+import { assembleResponse } from "@/lib/ai/post-process";
 import { detectLanguage } from "@/lib/language-detection";
 import { toLegacyShape } from "../_legacy-bridge";
 
@@ -83,6 +84,23 @@ export async function POST(request: NextRequest) {
       e2eMockOptIn,
     });
 
+    // Iter 5: run the same post-processing assembly as the real generate
+    // / regenerate routes so the test panel shows the user exactly what
+    // they would see on a real review (preview == prod). The test panel
+    // does not collect a reviewer name or sentiment, so the salutation
+    // falls back to "Hello," via canonicalisation and the email
+    // substitution fires only when the panel passes a 1- or 2-star
+    // rating AND the brand voice has the toggle on + a reply-to email.
+    const responseText = assembleResponse({
+      modelBody: generatedResponse.responseText,
+      brandVoice,
+      review: {
+        rating: rating ?? null,
+        sentiment: null,
+        reviewerName: null,
+      },
+    });
+
     // The test panel UI still consumes the legacy brand-voice shape on
     // the response (iter 6 rewrites the panel). Reuse the brand-voice
     // bridge's `toLegacyShape` so the projection has one source of
@@ -92,7 +110,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         response: {
-          responseText: generatedResponse.responseText,
+          responseText,
           model: generatedResponse.model,
           isTestMode: true,
           creditsUsed: 0, // No credits deducted for test mode
