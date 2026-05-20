@@ -1105,8 +1105,8 @@ A four-section restructure of the brand voice settings screen (Voice / Examples 
 
 | Iter. | Scope | Status |
 |---|---|---|
-| 1 | Sanitize helper + review-text retrofit + SecurityLog | ✅ Done (May 20) |
-| 2 | Validation schema + constants + normalize adapter | ⏳ Not started |
+| 1 | Sanitize helper + review-text retrofit + SecurityLog | ✅ Done (May 20, merged via PR #120) |
+| 2 | Validation schema + constants + normalize adapter | ✅ Done (May 20) |
 | 3 | Clean-reset schema migration + minimal route field-name cutover | ⏳ Not started |
 | 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ⏳ Not started |
 | 5 | Post-processing module + route wiring | ⏳ Not started |
@@ -1146,7 +1146,42 @@ A four-section restructure of the brand voice settings screen (Voice / Examples 
 
 **Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 1" subsection): #39 security retrofit ships first; #40 new SecurityLog table (not Sentry-only); #41 audit persistence in routes, `sanitize.ts` stays pure; #42 reinforcement tail has security lines only this iteration; #43 `customRegenerateInstructions` plumbed but dormant.
 
+### ✅ Iteration 2 — Validation schema + constants + normalize adapter
+
+**Branch:** `feat/brand-voice-redesign-iter-2`
+**Status:** Locally verified (lint:strict / type-check / 871 unit tests passing). PR pending.
+
+Pure type/validation/constant changes — zero DB changes, zero runtime behaviour change for clean inputs. Makes the new V2 contract explicit and unit-tested before the schema reset (iter 3) so iter 3 becomes "DB only". The one externally visible behaviour change is the response cap raise (500→2000), which is intentional, tested across validations + route + component layers, and documented in DECISION #45.
+
+**What shipped:**
+
+- **`src/lib/constants.ts`** — new exports: `BRAND_VOICE_TONES_V2` (4 lowercase keys), `BRAND_VOICE_TONE_INFO_V2` (display labels + descriptors per spec §4.1), `DEFAULT_BRAND_VOICE_TONE_V2`, `LEGACY_TONE_TO_V2` (maps every legacy key + the `"default"` sentinel from `ReviewResponse.toneUsed`), `NEGATIVE_REVIEW_FRAMINGS` + `DEFAULT_NEGATIVE_REVIEW_FRAMING`, `BRAND_VOICE_LIMITS_V2` (per-field caps from spec §4.2/§4.3/§5.1/§7.x), `RESPONSE_BODY_CHAR_MAX = 1200`. Legacy `BRAND_VOICE_TONES` / `BRAND_VOICE_TONE_INFO` / `BRAND_VOICE_LIMITS` / `FORMALITY_*` retained until iter 6 cuts the form payload over. `VALIDATION_LIMITS.RESPONSE_TEXT_MAX` raised 500 → 2000.
+- **`src/lib/validations.ts`** — new `brandVoiceSchemaV2` per spec §9.2 with the lowercase-key tone enum (DECISION #44), V2 sample-response object shape (`{ratingContext: 1-5|'any', responseText}`), per-item + joined-total caps on styleGuidelines (DECISION #48), header-injection guard on `replyToEmail` (DECISION #49). Old `brandVoiceSchema` retained until iter 6 cutover. `updateResponseSchema` automatically picks up the new 2000 cap via `VALIDATION_LIMITS.RESPONSE_TEXT_MAX`.
+- **`src/lib/ai/brand-voice-normalize.ts` (NEW, pure module)** — `normalizeBrandVoice(raw)` accepts any plausible payload (legacy DB row, V2 row, partial object, untrusted JSON, even `null`) and returns the canonical `NormalizedBrandVoice` shape. Legacy `styleNotes` (JSON-stringified array OR newline-separated string) → `string[]`. Legacy `sampleResponses: string[]` → `[{ratingContext: 'any', ...}]`. Legacy tones mapped via `LEGACY_TONE_TO_V2`. Unknown / malformed values fall back to defaults. Unit-tested now (DECISION #46); wired into `generateReviewResponse` in iter 4.
+- **`src/lib/ai/claude.ts`** — `BrandVoiceConfig` extended with all V2 fields as optional (DECISION #47). The three inline call sites in `generate`/`regenerate`/`brand-voice/test` continue to typecheck without modification. No runtime change — the new fields are not yet read by `buildSystemPrompt` (that lands in iter 4).
+- **Test fallout fixed in-iteration:** `tests/unit/lib/constants.test.ts` "RESPONSE_TEXT_MAX is 500" → 2000; `tests/unit/lib/validations.test.ts` updateResponseSchema 500-cap tests → 2000; `tests/unit/api/reviews/response-edit.test.ts` "exceeding 500 characters" → "exceeding the max length"; `tests/unit/components/reviews/response-editor.test.tsx` hard-coded `501`/`510` replaced with `VALIDATION_LIMITS.RESPONSE_TEXT_MAX + 1` / `+ 10` so future cap changes don't break the tests.
+
+**Test coverage delta:**
+
+| Type | Before iter 2 (suite total) | After iter 2 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 783 | 871 | **+88** |
+| New unit test files | — | — | 1 (`tests/unit/lib/ai/brand-voice-normalize.test.ts`) |
+| Modified unit test files | — | — | 3 (`validations.test.ts`, `constants.test.ts`, `response-editor.test.tsx`) |
+| Test files fixed for the cap raise | — | — | 2 (`response-edit.test.ts`, `response-editor.test.tsx`) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+**Verification status:**
+
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` 871 passed, 0 failed (61 test files)
+- No DB migration this iteration; nothing for `prisma migrate deploy` to run.
+
+**Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 2" subsection): #44 tone storage = lowercase keys + display map; #45 RESPONSE_TEXT_MAX 500→2000 + new RESPONSE_BODY_CHAR_MAX=1200; #46 normalizeBrandVoice in its own pure module; #47 BrandVoiceConfig extended with optional V2 fields; #48 styleGuidelines per-item AND joined-total caps; #49 replyToEmail rejects `\n`/`\r` (header-injection guard).
+
 ---
 
 **Last Updated:** May 20, 2026
-**Status:** Brand voice redesign iteration 1 complete on branch (PR pending). MVP Phase 1 (Closed Beta) remains the most recent production deploy.
+**Status:** Brand voice redesign iteration 2 complete on branch (PR pending). Iteration 1 merged via PR #120. MVP Phase 1 (Closed Beta) remains the most recent production deploy.
