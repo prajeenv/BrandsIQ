@@ -213,7 +213,10 @@ describe('POST /api/auth/signup', () => {
     );
   });
 
-  it('creates default brand voice on success', async () => {
+  it('creates default brand voice on success with V2 shape', async () => {
+    // Iter 3 clean-reset: signup now writes the V2 brand_voices columns —
+    // tone V2 key, keyPhrases + styleGuidelines, with the new
+    // Personalization + Contact/sign-off columns taking DB defaults.
     const req = createRequest('/api/auth/signup', {
       method: 'POST',
       body: validSignupBody,
@@ -224,8 +227,7 @@ describe('POST /api/auth/signup', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           userId: 'user-123',
-          tone: 'professional',
-          formality: 3,
+          tone: 'friendly_professional',
         }),
       })
     );

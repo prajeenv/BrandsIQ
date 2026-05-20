@@ -536,7 +536,14 @@ export async function shouldResetCredits(userId: string): Promise<boolean> {
 // ============================================
 
 /**
- * Get or create default brand voice for user
+ * Get or create default brand voice for user.
+ *
+ * Brand voice redesign iter 3: schema is the V2 shape — formality dropped,
+ * styleNotes/sampleResponses replaced by JSONB columns. All defaults flow
+ * from the column DEFAULT clauses so the create() block can stay tight; we
+ * only need to pass `userId` and `tone` here (tone is included explicitly
+ * because the column default is the V2 key string and being explicit makes
+ * the intent obvious at the call site).
  */
 export async function getOrCreateBrandVoice(userId: string) {
   let brandVoice = await prisma.brandVoice.findUnique({
@@ -547,10 +554,10 @@ export async function getOrCreateBrandVoice(userId: string) {
     brandVoice = await prisma.brandVoice.create({
       data: {
         userId,
-        tone: "professional",
-        formality: 3,
-        keyPhrases: [],
-        sampleResponses: [],
+        // All other columns have DB-level defaults — see BrandVoice model
+        // in prisma/schema.prisma and the iter-3 reset migration. We pass
+        // `tone` explicitly for self-documentation; the rest fall through.
+        tone: "friendly_professional",
       },
     });
   }

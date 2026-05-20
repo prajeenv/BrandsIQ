@@ -2,19 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { brandVoiceSchema } from "@/lib/validations";
-
-// Default brand voice settings
-const DEFAULT_BRAND_VOICE = {
-  tone: "professional",
-  formality: 3,
-  keyPhrases: ["Thank you", "We appreciate your feedback"],
-  styleNotes: "Be genuine and empathetic",
-  sampleResponses: [],
-};
+import { fromLegacyForm, toLegacyShape } from "./_legacy-bridge";
 
 /**
- * GET /api/brand-voice - Get user's brand voice settings
- * Creates default brand voice if none exists
+ * Brand voice redesign iter 3 ⇄ iter 6 bridge.
+ *
+ * The DB columns are now the V2 shape (iter 3 reset migration). The form
+ * still sends and consumes the legacy shape until iter 6 rewrites it. This
+ * route translates in both directions via `src/app/api/brand-voice/_legacy-
+ * bridge.ts` so the form keeps working without modification on staging.
+ *
+ * Iter 6 deletes `_legacy-bridge.ts`, swaps validation to `brandVoiceSchema
+ * V2`, and returns V2 shape directly.
+ */
+
+/**
+ * GET /api/brand-voice — return the user's brand voice in the legacy shape
+ * the existing form expects. Creates a default row via DB column defaults
+ * if none exists.
  */
 export async function GET() {
   try {
@@ -35,30 +40,22 @@ export async function GET() {
       where: { userId: session.user.id },
     });
 
-    // Create default if doesn't exist
+    // Create default if doesn't exist — all V2 columns have DB-level
+    // defaults so we only need `userId` and the explicit tone (the column
+    // default is the V2 key string; being explicit makes the intent
+    // obvious at the call site).
     if (!brandVoice) {
       brandVoice = await prisma.brandVoice.create({
         data: {
           userId: session.user.id,
-          ...DEFAULT_BRAND_VOICE,
+          tone: "friendly_professional",
         },
       });
     }
 
     return NextResponse.json({
       success: true,
-      data: {
-        brandVoice: {
-          id: brandVoice.id,
-          tone: brandVoice.tone,
-          formality: brandVoice.formality,
-          keyPhrases: brandVoice.keyPhrases,
-          styleNotes: brandVoice.styleNotes,
-          sampleResponses: brandVoice.sampleResponses,
-          createdAt: brandVoice.createdAt.toISOString(),
-          updatedAt: brandVoice.updatedAt.toISOString(),
-        },
-      },
+      data: { brandVoice: toLegacyShape(brandVoice) },
     });
   } catch (error) {
     console.error("Error fetching brand voice:", error);
@@ -76,8 +73,9 @@ export async function GET() {
 }
 
 /**
- * PUT /api/brand-voice - Update user's brand voice settings
- * Creates brand voice if doesn't exist (upsert)
+ * PUT /api/brand-voice — accept the legacy form's payload (still validated
+ * by the legacy `brandVoiceSchema` until iter 6), translate to the V2
+ * column write shape via the bridge, and upsert.
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -95,7 +93,6 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
 
-    // Validate input
     const validationResult = brandVoiceSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
@@ -111,42 +108,37 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { tone, formality, keyPhrases, styleNotes, sampleResponses } = validationResult.data;
+    // Translate the legacy payload to V2 column values. Untouched V2
+    // columns (the toggles, sign-off, framing, reply-to-email) keep their
+    // existing values on update or take the DB defaults on create.
+    const v2 = fromLegacyForm({
+      tone: validationResult.data.tone,
+      formality: validationResult.data.formality,
+      keyPhrases: validationResult.data.keyPhrases,
+      styleNotes: validationResult.data.styleNotes ?? null,
+      sampleResponses: validationResult.data.sampleResponses,
+    });
 
-    // Upsert brand voice (create if doesn't exist, update if exists)
     const brandVoice = await prisma.brandVoice.upsert({
       where: { userId: session.user.id },
       update: {
-        tone,
-        formality,
-        keyPhrases: keyPhrases || [],
-        styleNotes: styleNotes || null,
-        sampleResponses: sampleResponses || [],
+        tone: v2.tone,
+        keyPhrases: v2.keyPhrases,
+        styleGuidelines: v2.styleGuidelines,
+        sampleResponses: v2.sampleResponses,
       },
       create: {
         userId: session.user.id,
-        tone,
-        formality,
-        keyPhrases: keyPhrases || [],
-        styleNotes: styleNotes || null,
-        sampleResponses: sampleResponses || [],
+        tone: v2.tone,
+        keyPhrases: v2.keyPhrases,
+        styleGuidelines: v2.styleGuidelines,
+        sampleResponses: v2.sampleResponses,
       },
     });
 
     return NextResponse.json({
       success: true,
-      data: {
-        brandVoice: {
-          id: brandVoice.id,
-          tone: brandVoice.tone,
-          formality: brandVoice.formality,
-          keyPhrases: brandVoice.keyPhrases,
-          styleNotes: brandVoice.styleNotes,
-          sampleResponses: brandVoice.sampleResponses,
-          createdAt: brandVoice.createdAt.toISOString(),
-          updatedAt: brandVoice.updatedAt.toISOString(),
-        },
-      },
+      data: { brandVoice: toLegacyShape(brandVoice) },
     });
   } catch (error) {
     console.error("Error updating brand voice:", error);

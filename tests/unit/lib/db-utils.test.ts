@@ -584,9 +584,10 @@ describe('getOrCreateBrandVoice', () => {
     expect(mockPrisma.brandVoice.create).not.toHaveBeenCalled();
   });
 
-  it('creates default brand voice if none exists', async () => {
+  it('creates default brand voice with V2 shape if none exists', async () => {
     mockPrisma.brandVoice.findUnique.mockResolvedValue(null);
-    const defaultBV = { ...TEST_BRAND_VOICE, tone: 'professional', formality: 3 };
+    // V2 default (iter 3 clean-reset). All other columns take DB defaults.
+    const defaultBV = { ...TEST_BRAND_VOICE, tone: 'friendly_professional' };
     mockPrisma.brandVoice.create.mockResolvedValue(defaultBV);
 
     const result = await getOrCreateBrandVoice(TEST_USER.id);
@@ -595,8 +596,7 @@ describe('getOrCreateBrandVoice', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           userId: TEST_USER.id,
-          tone: 'professional',
-          formality: 3,
+          tone: 'friendly_professional',
         }),
       })
     );

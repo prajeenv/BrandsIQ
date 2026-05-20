@@ -1106,8 +1106,8 @@ A four-section restructure of the brand voice settings screen (Voice / Examples 
 | Iter. | Scope | Status |
 |---|---|---|
 | 1 | Sanitize helper + review-text retrofit + SecurityLog | ✅ Done (May 20, merged via PR #120) |
-| 2 | Validation schema + constants + normalize adapter | ✅ Done (May 20) |
-| 3 | Clean-reset schema migration + minimal route field-name cutover | ⏳ Not started |
+| 2 | Validation schema + constants + normalize adapter | ✅ Done (May 20, merged via PR #121) |
+| 3 | Clean-reset schema migration + route cutover + legacy form bridge | ✅ Done (May 20) |
 | 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ⏳ Not started |
 | 5 | Post-processing module + route wiring | ⏳ Not started |
 | 6 | Frontend restructure + API Zod cutover + regenerate dialog | ⏳ Not started |
@@ -1181,7 +1181,50 @@ Pure type/validation/constant changes — zero DB changes, zero runtime behaviou
 
 **Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 2" subsection): #44 tone storage = lowercase keys + display map; #45 RESPONSE_TEXT_MAX 500→2000 + new RESPONSE_BODY_CHAR_MAX=1200; #46 normalizeBrandVoice in its own pure module; #47 BrandVoiceConfig extended with optional V2 fields; #48 styleGuidelines per-item AND joined-total caps; #49 replyToEmail rejects `\n`/`\r` (header-injection guard).
 
+### ✅ Iteration 3 — Clean-reset schema migration + route cutover + legacy form bridge
+
+**Branch:** `feat/brand-voice-redesign-iter-3`
+**Status:** Locally verified (lint:strict / type-check / 902 unit tests passing). PR pending.
+
+**The biggest schema change in the redesign.** Drops the `formality` column, replaces `styleNotes` (text storing `JSON.stringify(array)` — the headline bug) with a JSONB `style_guidelines` column, replaces `sampleResponses (String[])` with a JSONB `sample_responses` column of `{ratingContext, responseText}` objects, adds the 8 new Personalization + Contact/sign-off columns, and adds CHECK constraints on `tone` + `negative_review_framing`. Truncates `brand_voices` + `reviews` + `review_responses` + `response_versions` — all throwaway pre-launch test data per the user's explicit confirmation in the plan-decision discussion.
+
+The brand voice form continues to work between this iteration's deploy and iter 6's form rewrite via a small adapter in `/api/brand-voice/_legacy-bridge.ts` that translates the legacy payload ↔ V2 columns in both directions. Iter 6 deletes the bridge.
+
+**What shipped:**
+
+- **`prisma/schema.prisma`** — `BrandVoice` model fully rewritten to the V2 shape: tone (V2 key with default `friendly_professional`), `keyPhrases String[] @map("key_phrases")`, `styleGuidelines Json @default("[]") @map("style_guidelines")`, `sampleResponses Json @default("[]") @map("sample_responses")`, `acknowledgeNamedStaff Boolean`, `acknowledgeOccasions Boolean`, `salutationPattern @db.VarChar(100)`, `signoffLines @db.Text`, `negativeReviewEmailEnabled Boolean`, `negativeReviewFraming @db.VarChar(32)`, `negativeReviewFramingCustom String? @db.Text`, `replyToEmail String? @db.VarChar(254)`.
+- **`prisma/migrations/20260520120000_brand_voice_redesign_reset/migration.sql` (NEW)** — single transaction: TRUNCATE 4 tables (with RESTART IDENTITY CASCADE) → DROP `formality` + `styleNotes` + `sampleResponses` → RENAME `keyPhrases` to `key_phrases` to match Prisma `@map` → ADD V2 columns with safe defaults → ADD CHECK constraints on `tone` and `negative_review_framing` → post-condition `DO $$` guard that fails loudly if any of the four tables still has rows. Header comment explains the clean-reset rationale and links to spec + DECISIONS row 50.
+- **`src/app/api/brand-voice/_legacy-bridge.ts` (NEW, pure module, deleted in iter 6)** — `fromLegacyForm(payload)` converts the legacy form's PUT payload into a V2 column write (tone via `legacyToneToV2`, `styleNotes` via `parseLegacyStyleNotes` → `styleGuidelines` string array, `sampleResponses` string[] wrapped as `{ratingContext: 'any', responseText}` objects). `toLegacyShape(row)` projects a V2 row back to the legacy response shape the form expects (V2 tone mapped via `v2ToneToLegacy`, formality stubbed at 3, `styleGuidelines` re-serialised as JSON-stringified `styleNotes`, sample objects flattened to string array).
+- **`src/app/api/brand-voice/route.ts`** — GET + PUT now use the bridge in both directions. The legacy `brandVoiceSchema` still validates incoming payloads (Zod cutover is deferred to iter 6 per DECISION 52).
+- **`src/app/api/brand-voice/test/route.ts`** — V2 column reads, inline projection back to the legacy `BrandVoiceConfig` shape for `generateReviewResponse` (the prompt builder hasn't been rewritten yet — that's iter 4). Returns the legacy projection for the test panel UI.
+- **`src/app/api/reviews/[id]/generate/route.ts` + `regenerate/route.ts`** — each contains an inline projection (V2 row → legacy `BrandVoiceConfig`) so the unchanged `buildSystemPrompt` still has *something* to render between iter 3 and iter 4. Three copies of the same 8-line projection get deleted in iter 4 (DECISION 55).
+- **`src/lib/db-utils.ts`** — `getOrCreateBrandVoice` simplified: passes `userId` plus an explicit `tone: "friendly_professional"`; everything else takes the DB-level column defaults.
+- **`src/lib/auth.ts` + `src/app/api/auth/signup/route.ts`** — both default-brand-voice writers updated to V2 shape (`tone: "friendly_professional"`, `keyPhrases`, `styleGuidelines: [...]`; remaining columns take DB defaults).
+- **`src/lib/ai/claude.ts`** — `BrandVoiceConfig` legacy fields (`formality`, `styleNotes`, legacy string-array `sampleResponses`) marked OPTIONAL (DECISION 53); `buildSystemPrompt` adds inline guards so missing values don't blow up. Iter 4 removes these fields and rewrites the function.
+- **`scripts/test-db.ts`** — updated to V2 shape so the helper script keeps working.
+
+**Test coverage delta:**
+
+| Type | Before iter 3 (suite total) | After iter 3 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 871 | 902 | **+31** |
+| New unit test files | — | — | 1 (`tests/unit/api/brand-voice/legacy-bridge.test.ts`, 18 cases) |
+| Modified unit test files | — | — | 3 (`brand-voice.test.ts`, `db-utils.test.ts`, `signup.test.ts`) |
+| New integration test files | — | — | 1 (`tests/integration/brand-voice-schema.test.ts`, 5 scenarios) |
+| Modified integration test files | — | — | 2 (`beta-flow.test.ts`, `review-lifecycle.test.ts` — fixture shape) |
+| E2E specs | — | — | 0 |
+
+**Verification status:**
+
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` 902 passed, 0 failed (62 test files)
+- ⏳ Integration tests + migration apply will run in CI's PostgreSQL container
+- ⏳ Staging migrate-deploy will execute the TRUNCATE — by design (DECISION 50)
+
+**Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 3" subsection): #50 clean-reset migration (TRUNCATE in SQL); #51 legacy form bridge; #52 API field-name cutover iter 3, Zod schema cutover iter 6; #53 legacy `BrandVoiceConfig` fields go OPTIONAL (removed iter 4); #54 CHECK constraints on tone + negative_review_framing; #55 inline V2→legacy projection in generate/regenerate/test routes (deleted iter 4).
+
 ---
 
 **Last Updated:** May 20, 2026
-**Status:** Brand voice redesign iteration 2 complete on branch (PR pending). Iteration 1 merged via PR #120. MVP Phase 1 (Closed Beta) remains the most recent production deploy.
+**Status:** Brand voice redesign iteration 3 complete on branch (PR pending). Iterations 1 + 2 merged to main. MVP Phase 1 (Closed Beta) remains the most recent production deploy.

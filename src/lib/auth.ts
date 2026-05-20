@@ -273,13 +273,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
           });
 
+          // Default brand voice — V2 shape (iter 3 clean-reset).
+          // Remaining columns (styleGuidelines, sampleResponses, the
+          // Personalization + Contact/sign-off columns) take their DB-level
+          // defaults from prisma/schema.prisma.
           await tx.brandVoice.create({
             data: {
               userId: user.id!,
-              tone: "professional",
-              formality: 3,
+              tone: "friendly_professional",
               keyPhrases: ["Thank you", "We appreciate your feedback"],
-              styleNotes: "Be genuine and empathetic",
+              styleGuidelines: ["Be genuine and empathetic"],
             },
           });
 

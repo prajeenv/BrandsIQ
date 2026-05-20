@@ -130,16 +130,62 @@ model VerificationToken {
 // BRAND VOICE
 // ============================================
 
+// Brand voice redesign iter 3: clean-reset migration to the V2 shape.
+//
+// User confirmed the system is pre-launch with throwaway test data; the
+// iter-3 migration TRUNCATEs the brand_voices + reviews + responses tables
+// before applying these changes, so there is no data migration. After the
+// migration getOrCreateBrandVoice() lazily recreates a default row for each
+// user on their next dashboard read.
+//
+// Shape derives from docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §9.1, with
+// tone stored as a stable lowercase key (DECISION 44, iter 2). Drops the
+// formality column entirely (the field is removed from the screen).
 model BrandVoice {
   id     String @id @default(cuid())
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tone            String   @default("professional") // "friendly" | "professional" | "casual" | "formal"
-  formality       Int      @default(3) // 1-5 scale
-  keyPhrases      String[] @default([])
-  styleNotes      String?  @db.Text
-  sampleResponses String[] @default([])
+  // V2 tone keys: "warm_casual" | "friendly_professional" |
+  // "polished_formal" | "empathetic_attentive". Enforced by CHECK
+  // constraint defined in the migration SQL (Prisma doesn't model SQL
+  // CHECK constraints natively in 5.x).
+  tone String @default("friendly_professional")
+
+  // Spec §4.2/§4.3/§5.1: arrays now live in proper columns with the
+  // right shape — keyPhrases stays as a Postgres String[] (already
+  // fits), styleGuidelines becomes a JSONB string array (was a text
+  // column called styleNotes storing JSON.stringify(array) — the
+  // headline JSON-render bug fixed by this redesign), and
+  // sampleResponses becomes a JSONB array of {ratingContext,
+  // responseText} objects (was String[]).
+  keyPhrases      String[] @default([]) @map("key_phrases")
+  styleGuidelines Json     @default("[]") @map("style_guidelines")
+  sampleResponses Json     @default("[]") @map("sample_responses")
+
+  // Personalization toggles (spec §6.1/§6.2). Default ON — most
+  // hospitality brands want named-staff and occasion acknowledgement.
+  acknowledgeNamedStaff Boolean @default(true) @map("acknowledge_named_staff")
+  acknowledgeOccasions  Boolean @default(true) @map("acknowledge_occasions")
+
+  // Contact & sign-off (spec §7.x). Applied during post-processing
+  // in iter 5 — never sent to the model, never present in the
+  // model-emitted body.
+  salutationPattern String @default("Dear {firstName},") @map("salutation_pattern") @db.VarChar(100)
+  signoffLines      String @default("Warmest regards,\nThe Team") @map("signoff_lines") @db.Text
+
+  // Negative-review email invitation. Opt-in (default OFF) because it
+  // requires the user to provide an address. Framing values enforced
+  // by CHECK constraint in the migration SQL: "management_contact" |
+  // "investigation" | "open_channel" | "custom".
+  negativeReviewEmailEnabled  Boolean @default(false) @map("negative_review_email_enabled")
+  negativeReviewFraming       String  @default("investigation") @map("negative_review_framing") @db.VarChar(32)
+  negativeReviewFramingCustom String? @map("negative_review_framing_custom") @db.Text
+
+  // Reply-to email. Nullable. RFC 5321 caps the address at 254 chars;
+  // Zod additionally rejects literal \n / \r (header-injection guard,
+  // DECISION 49 / iter 2).
+  replyToEmail String? @map("reply_to_email") @db.VarChar(254)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

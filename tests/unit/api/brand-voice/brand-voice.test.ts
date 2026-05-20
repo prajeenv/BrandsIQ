@@ -51,14 +51,24 @@ function createRequest(
   });
 }
 
-const defaultBrandVoice = {
+// V2-shape brand_voices row (iter 3 clean-reset). The route's GET/PUT
+// project this back to the legacy form-friendly shape via `_legacy-bridge`,
+// so the assertions below mostly check the projection.
+const defaultBrandVoiceV2 = {
   id: 'bv1',
   userId: 'clu1234567890abcdef',
-  tone: 'professional',
-  formality: 3,
+  tone: 'friendly_professional',
   keyPhrases: ['Thank you', 'We appreciate your feedback'],
-  styleNotes: 'Be genuine and empathetic',
+  styleGuidelines: ['Be genuine and empathetic'],
   sampleResponses: [],
+  acknowledgeNamedStaff: true,
+  acknowledgeOccasions: true,
+  salutationPattern: 'Dear {firstName},',
+  signoffLines: 'Warmest regards,\nThe Team',
+  negativeReviewEmailEnabled: false,
+  negativeReviewFraming: 'investigation',
+  negativeReviewFramingCustom: null,
+  replyToEmail: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -82,21 +92,30 @@ describe('GET /api/brand-voice', () => {
     expect(json.success).toBe(false);
   });
 
-  it('returns existing brand voice', async () => {
-    mockPrisma.brandVoice.findUnique.mockResolvedValue(defaultBrandVoice);
+  it('returns existing brand voice projected to the legacy form shape', async () => {
+    mockPrisma.brandVoice.findUnique.mockResolvedValue(defaultBrandVoiceV2);
 
     const res = await GET();
 
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
+    // friendly_professional V2 key projects back to "professional" for the
+    // legacy form's tone selector (see V2_TO_LEGACY_TONE in _legacy-bridge.ts).
     expect(json.data.brandVoice.tone).toBe('professional');
+    // Formality column is dropped; bridge stubs at 3 so the legacy form
+    // displays "Balanced" without blowing up.
     expect(json.data.brandVoice.formality).toBe(3);
+    // styleGuidelines (V2 string[]) is re-serialised as a JSON-stringified
+    // array on `styleNotes` so the form's `styleNotesToArray` can parse it.
+    expect(json.data.brandVoice.styleNotes).toBe(
+      JSON.stringify(['Be genuine and empathetic']),
+    );
   });
 
-  it('creates default brand voice if none exists', async () => {
+  it('creates default brand voice with V2 shape if none exists', async () => {
     mockPrisma.brandVoice.findUnique.mockResolvedValue(null);
-    mockPrisma.brandVoice.create.mockResolvedValue(defaultBrandVoice);
+    mockPrisma.brandVoice.create.mockResolvedValue(defaultBrandVoiceV2);
 
     const res = await GET();
 
@@ -107,7 +126,7 @@ describe('GET /api/brand-voice', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           userId: mockSession.user.id,
-          tone: 'professional',
+          tone: 'friendly_professional',
         }),
       })
     );
@@ -163,13 +182,12 @@ describe('PUT /api/brand-voice', () => {
     expect(json.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('upserts brand voice successfully', async () => {
-    const updatedBrandVoice = {
-      ...defaultBrandVoice,
-      tone: 'friendly',
-      formality: 4,
+  it('upserts brand voice and translates legacy payload to V2 column writes', async () => {
+    const upsertedRow = {
+      ...defaultBrandVoiceV2,
+      tone: 'friendly_professional',
     };
-    mockPrisma.brandVoice.upsert.mockResolvedValue(updatedBrandVoice);
+    mockPrisma.brandVoice.upsert.mockResolvedValue(upsertedRow);
 
     const req = createRequest('/api/brand-voice', {
       method: 'PUT',
@@ -180,16 +198,23 @@ describe('PUT /api/brand-voice', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalled();
+    // Legacy "friendly" payload → V2 "friendly_professional" column write.
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ tone: 'friendly_professional' }),
+        create: expect.objectContaining({ tone: 'friendly_professional' }),
+      }),
+    );
   });
 
-  it('returns updated brand voice data', async () => {
-    const updatedBrandVoice = {
-      ...defaultBrandVoice,
-      tone: 'casual',
+  it('round-trips through the bridge: legacy "casual" → V2 "warm_casual" → legacy "casual"', async () => {
+    // Form sends legacy "casual"; bridge writes V2 "warm_casual"; the mock
+    // returns the V2 row; bridge projects back to "casual" for the form.
+    mockPrisma.brandVoice.upsert.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      tone: 'warm_casual',
       keyPhrases: ['Thanks!', 'Cheers'],
-    };
-    mockPrisma.brandVoice.upsert.mockResolvedValue(updatedBrandVoice);
+    });
 
     const req = createRequest('/api/brand-voice', {
       method: 'PUT',
@@ -202,5 +227,69 @@ describe('PUT /api/brand-voice', () => {
     expect(json.success).toBe(true);
     expect(json.data.brandVoice.tone).toBe('casual');
     expect(json.data.brandVoice.keyPhrases).toEqual(['Thanks!', 'Cheers']);
+    // The V2 column actually written was "warm_casual".
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ tone: 'warm_casual' }),
+      }),
+    );
+  });
+
+  it('converts legacy styleNotes (JSON-stringified array) to V2 styleGuidelines string[]', async () => {
+    mockPrisma.brandVoice.upsert.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      styleGuidelines: ['Rule one', 'Rule two'],
+    });
+
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: {
+        tone: 'professional',
+        formality: 3,
+        styleNotes: JSON.stringify(['Rule one', 'Rule two']),
+      },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          styleGuidelines: ['Rule one', 'Rule two'],
+        }),
+      }),
+    );
+  });
+
+  it('wraps legacy sampleResponses string[] as {ratingContext:"any", responseText} objects', async () => {
+    mockPrisma.brandVoice.upsert.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      sampleResponses: [
+        { ratingContext: 'any', responseText: 'Thanks!' },
+        { ratingContext: 'any', responseText: 'Cheers' },
+      ],
+    });
+
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: {
+        tone: 'professional',
+        formality: 3,
+        sampleResponses: ['Thanks!', 'Cheers'],
+      },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          sampleResponses: [
+            { ratingContext: 'any', responseText: 'Thanks!' },
+            { ratingContext: 'any', responseText: 'Cheers' },
+          ],
+        }),
+      }),
+    );
   });
 });
