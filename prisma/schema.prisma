@@ -70,6 +70,7 @@ model User {
   locations        Location[]
   betaInvitesUsed  BetaInviteLink[] @relation("BetaInviteUsedBy")
   founderInquiries FounderInquiry[]
+  securityLogs     SecurityLog[]
 
   @@index([email])
   @@index([tier])
@@ -356,4 +357,44 @@ model FounderInquiry {
   @@index([type, resolvedAt])
   @@index([userId])
   @@map("founder_inquiries")
+}
+
+// ============================================
+// SECURITY AUDIT
+// See docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §10.6
+// ============================================
+
+// SecurityLog records non-blocking detections of suspicious patterns in
+// user-supplied text that flows into AI prompts (review text, brand voice
+// fields, regenerate instructions). Logging only — never blocks save or
+// generation. False positives are tolerable. PII concerns: only short
+// previews are stored (≤200 chars) and the row survives user deletion via
+// SetNull so the audit trail is preserved; GDPR anonymisation should redact
+// the preview when a user is deleted.
+model SecurityLog {
+  id String @id @default(cuid())
+
+  // Nullable because review-text detection can fire before any session
+  // mutation (and so we can SetNull on user deletion without losing the row).
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // eventType: coarse category for grouping. Phase 1 uses "injection_attempt".
+  eventType       String
+  // fieldName: which input the suspicious text came from. Values:
+  //   "review_text" | "regenerate_instructions" |
+  //   "brand_voice.styleGuidelines" | "brand_voice.keyPhrases" |
+  //   "brand_voice.sampleResponses[i]" | "brand_voice.negativeReviewFramingCustom"
+  fieldName       String
+  // The regex `source` of every pattern that matched.
+  matchedPatterns String[]
+  // First ~200 chars of the offending text for debugging. Kept short to keep
+  // GDPR surface small.
+  preview         String?  @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([eventType])
+  @@map("security_logs")
 }

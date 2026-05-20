@@ -5,6 +5,8 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { INSTRUCTION_REINFORCEMENT, wrapUserContent } from "./sanitize";
+
 // Default model for response generation
 export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
@@ -26,6 +28,14 @@ export interface GenerateResponseParams {
   brandVoice: BrandVoiceConfig;
   isTestMode?: boolean;
   toneModifier?: ToneModifier;
+  /**
+   * Optional free-text instructions for a single regeneration. Plumbed in
+   * iteration 1 but only wired into the UI in iteration 6 of the brand voice
+   * redesign. When provided, the value is wrapped via the sanitize helper and
+   * appended to the user prompt as a binding directive for this generation
+   * only — it is never persisted.
+   */
+  customRegenerateInstructions?: string;
 }
 
 export interface GeneratedResponse {
@@ -80,6 +90,7 @@ export async function generateReviewResponse(
     brandVoice,
     isTestMode = false,
     toneModifier,
+    customRegenerateInstructions,
   } = params;
 
   // E2E mock mode: return canned response without calling Claude API
@@ -110,6 +121,7 @@ export async function generateReviewResponse(
     rating,
     detectedLanguage,
     isTestMode,
+    customRegenerateInstructions,
   });
 
   // Retry logic for transient errors (429 rate limit, 529 overloaded)
@@ -210,6 +222,10 @@ BRAND VOICE CONFIGURATION:
 
   prompt += `\n\nRespond ONLY with the response text. Do not include any explanations, notes, or meta-commentary.`;
 
+  // Spec §10.3 — appended AFTER all user-configured sections so the model treats
+  // these as the binding rules even if user-supplied content attempts to override.
+  prompt += `\n\n${INSTRUCTION_REINFORCEMENT}`;
+
   return prompt;
 }
 
@@ -222,8 +238,9 @@ function buildUserPrompt(params: {
   rating?: number | null;
   detectedLanguage: string;
   isTestMode: boolean;
+  customRegenerateInstructions?: string;
 }): string {
-  const { reviewText, platform, rating, detectedLanguage, isTestMode } = params;
+  const { reviewText, platform, rating, detectedLanguage, isTestMode, customRegenerateInstructions } = params;
 
   let prompt = `Write a response to this ${platform} review`;
 
@@ -231,9 +248,21 @@ function buildUserPrompt(params: {
     prompt += ` (${rating}/5 stars)`;
   }
 
+  // Spec §10.5: review text flows into the user prompt wrapped via the sanitize
+  // helper so it is treated as data, not instructions. The wrapper also strips
+  // any literal `<<<...>>>` markers that would attempt to spoof the delimiters.
   prompt += ` in ${detectedLanguage}:
 
-"${reviewText}"`;
+${wrapUserContent("Customer review", reviewText)}`;
+
+  if (customRegenerateInstructions && customRegenerateInstructions.trim().length > 0) {
+    // Spec §8.2 / §10.5: single-use directive for this regeneration, wrapped to
+    // make injection inside it harmless, and followed by an explicit binding
+    // sentence so the model treats it as a hard requirement for this turn only.
+    prompt += `\n\n${wrapUserContent("Additional instructions for this regeneration", customRegenerateInstructions)}
+
+The Additional instructions block above is binding for this single regeneration only — apply it on top of the brand voice configuration.`;
+  }
 
   if (isTestMode) {
     prompt += `\n\n(This is a test response to preview the brand voice settings)`;

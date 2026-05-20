@@ -35,6 +35,7 @@ export async function cleanDatabase() {
       locations,
       beta_invite_links,
       founder_inquiries,
+      security_logs,
       verification_tokens,
       sessions,
       accounts,

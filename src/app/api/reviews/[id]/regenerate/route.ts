@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { generateReviewResponse, DEFAULT_MODEL, ToneModifier } from "@/lib/ai/claude";
 import { deductCreditsAtomic, getOrCreateBrandVoice } from "@/lib/db-utils";
 import { CREDIT_COSTS, VALIDATION_LIMITS } from "@/lib/constants";
+import { logIfInjectionAttempt } from "@/lib/security-log";
 import { CreditActionValues } from "@/types/database";
 
 interface RouteParams {
@@ -138,6 +139,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 400 }
       );
     }
+
+    // Non-blocking audit log for prompt-injection patterns in the review text.
+    // Spec §10.6 — regeneration still proceeds either way.
+    await logIfInjectionAttempt({
+      text: review.reviewText,
+      userId: session.user.id,
+      fieldName: "review_text",
+    });
 
     // Get brand voice
     const brandVoice = await getOrCreateBrandVoice(session.user.id);
