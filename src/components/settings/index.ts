@@ -1,9 +1,11 @@
 export { BrandVoiceForm } from "./BrandVoiceForm";
 export { ProfileForm } from "./ProfileForm";
 export { ToneSelector } from "./ToneSelector";
-export { FormalitySlider } from "./FormalitySlider";
 export { KeyPhrasesInput } from "./KeyPhrasesInput";
-export { SampleResponsesInput } from "./SampleResponsesInput";
+export { SampleResponsesInput, type SampleResponseItem } from "./SampleResponsesInput";
 export { TestResponsePanel } from "./TestResponsePanel";
 export { StyleGuidelinesInput } from "./StyleGuidelinesInput";
 export { CollapsibleTextItem } from "./CollapsibleTextItem";
+export { PersonalizationSection } from "./PersonalizationSection";
+export { ContactSignoffSection } from "./ContactSignoffSection";
+export { ExampleChips } from "./ExampleChips";

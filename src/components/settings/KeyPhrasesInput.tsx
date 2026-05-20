@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
-import { BRAND_VOICE_LIMITS } from "@/lib/constants";
+import { BRAND_VOICE_LIMITS_V2 } from "@/lib/constants";
 
 interface KeyPhrasesInputProps {
   value: string[];
@@ -20,8 +20,8 @@ export function KeyPhrasesInput({ value, onChange, disabled }: KeyPhrasesInputPr
     const trimmed = inputValue.trim();
     if (
       trimmed &&
-      trimmed.length <= BRAND_VOICE_LIMITS.KEY_PHRASE_MAX_LENGTH &&
-      value.length < BRAND_VOICE_LIMITS.KEY_PHRASES_MAX &&
+      trimmed.length <= BRAND_VOICE_LIMITS_V2.KEY_PHRASE_MAX &&
+      value.length < BRAND_VOICE_LIMITS_V2.KEY_PHRASES_MAX_ITEMS &&
       !value.includes(trimmed)
     ) {
       onChange([...value, trimmed]);
@@ -42,7 +42,7 @@ export function KeyPhrasesInput({ value, onChange, disabled }: KeyPhrasesInputPr
     }
   };
 
-  const canAddMore = value.length < BRAND_VOICE_LIMITS.KEY_PHRASES_MAX;
+  const canAddMore = value.length < BRAND_VOICE_LIMITS_V2.KEY_PHRASES_MAX_ITEMS;
 
   return (
     <div className="space-y-3">
@@ -54,7 +54,7 @@ export function KeyPhrasesInput({ value, onChange, disabled }: KeyPhrasesInputPr
           onKeyDown={handleKeyDown}
           placeholder="Type a phrase and press Enter..."
           disabled={disabled || !canAddMore}
-          maxLength={BRAND_VOICE_LIMITS.KEY_PHRASE_MAX_LENGTH}
+          maxLength={BRAND_VOICE_LIMITS_V2.KEY_PHRASE_MAX}
           className="flex-1"
         />
         <Button
@@ -93,7 +93,7 @@ export function KeyPhrasesInput({ value, onChange, disabled }: KeyPhrasesInputPr
 
       {/* Counter */}
       <p className="text-xs text-muted-foreground">
-        {value.length} / {BRAND_VOICE_LIMITS.KEY_PHRASES_MAX} phrases
+        {value.length} / {BRAND_VOICE_LIMITS_V2.KEY_PHRASES_MAX_ITEMS} phrases
         {!canAddMore && " (maximum reached)"}
       </p>
     </div>

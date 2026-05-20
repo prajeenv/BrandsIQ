@@ -1,0 +1,264 @@
+"use client";
+
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import {
+  BRAND_VOICE_LIMITS_V2,
+  NEGATIVE_REVIEW_FRAMINGS,
+  type NegativeReviewFraming,
+} from "@/lib/constants";
+import { ExampleChips } from "./ExampleChips";
+
+/**
+ * Contact & sign-off section of the V2 brand voice form (iter 6).
+ *
+ * Spec §7. Four controls:
+ *   §7.1 Salutation pattern with `{firstName}` variable + suggested chips.
+ *   §7.2 Sign-off (multi-line) + suggested chips.
+ *   §7.3 Negative-review email invitation toggle.
+ *   §7.4 Framing radio + custom textarea (only visible when 7.3 is ON).
+ *   §7.5 Reply-to email + soft warning when toggle is ON but email is empty
+ *        (only visible when 7.3 is ON).
+ *
+ * The salutation, sign-off, and reply-to email are applied during iter 5's
+ * post-processing — they never enter the AI prompt directly.
+ */
+
+const SALUTATION_CHIPS: readonly string[] = [
+  "Dear {firstName},",
+  "Hi {firstName},",
+  "Hello {firstName},",
+  "Hello,",
+];
+
+const SIGNOFF_CHIPS: readonly string[] = [
+  "Warmest regards,\nThe Team",
+  "With thanks,\nThe Manager",
+  "Kind regards,\nThe Team",
+  "Best wishes,\nThe Team",
+];
+
+const FRAMING_LABELS: Record<NegativeReviewFraming, { label: string; description: string }> = {
+  management_contact: {
+    label: "Promise that management will contact the customer",
+    description:
+      'Example: "A member of our management team would like to look into this with you directly. Please email [your email] with your booking details and we\'ll be in touch."',
+  },
+  investigation: {
+    label: "Ask for booking details so we can investigate (Recommended)",
+    description:
+      'Example: "We\'d like to look into your experience further. Please send your booking details to [your email] so we can follow up properly."',
+  },
+  open_channel: {
+    label: "Simply provide it as a way to follow up",
+    description:
+      'Example: "If you\'d like to discuss this further, please don\'t hesitate to contact us at [your email]."',
+  },
+  custom: {
+    label: "Custom instructions",
+    description: "For brands with specific phrasing or obligations.",
+  },
+};
+
+interface ContactSignoffSectionProps {
+  salutationPattern: string;
+  signoffLines: string;
+  negativeReviewEmailEnabled: boolean;
+  negativeReviewFraming: NegativeReviewFraming;
+  negativeReviewFramingCustom: string | null;
+  replyToEmail: string | null;
+  onSalutationPatternChange: (_value: string) => void;
+  onSignoffLinesChange: (_value: string) => void;
+  onNegativeReviewEmailEnabledChange: (_value: boolean) => void;
+  onNegativeReviewFramingChange: (_value: NegativeReviewFraming) => void;
+  onNegativeReviewFramingCustomChange: (_value: string) => void;
+  onReplyToEmailChange: (_value: string) => void;
+  disabled?: boolean;
+}
+
+export function ContactSignoffSection({
+  salutationPattern,
+  signoffLines,
+  negativeReviewEmailEnabled,
+  negativeReviewFraming,
+  negativeReviewFramingCustom,
+  replyToEmail,
+  onSalutationPatternChange,
+  onSignoffLinesChange,
+  onNegativeReviewEmailEnabledChange,
+  onNegativeReviewFramingChange,
+  onNegativeReviewFramingCustomChange,
+  onReplyToEmailChange,
+  disabled,
+}: ContactSignoffSectionProps) {
+  // Spec §7.5: soft warning — toggle on AND email empty/whitespace-only.
+  // Non-blocking; save still proceeds. The form's auto-save flow doesn't
+  // change — this just surfaces an inline hint near the email input.
+  const showEmailMissingWarning =
+    negativeReviewEmailEnabled && (replyToEmail == null || replyToEmail.trim().length === 0);
+
+  return (
+    <div className="space-y-6">
+      {/* §7.1 Salutation */}
+      <div className="space-y-2">
+        <Label htmlFor="salutation-pattern" className="text-sm font-medium">
+          Salutation
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          How responses open. Use <code className="text-xs bg-muted px-1 py-0.5 rounded">{"{firstName}"}</code> to personalise.
+        </p>
+        <Input
+          id="salutation-pattern"
+          value={salutationPattern}
+          onChange={(e) => onSalutationPatternChange(e.target.value)}
+          maxLength={BRAND_VOICE_LIMITS_V2.SALUTATION_MAX}
+          placeholder="Dear {firstName},"
+          disabled={disabled}
+        />
+        <ExampleChips
+          label="Suggestions"
+          items={SALUTATION_CHIPS}
+          onPick={onSalutationPatternChange}
+          disabled={disabled}
+        />
+      </div>
+
+      {/* §7.2 Sign-off */}
+      <div className="space-y-2">
+        <Label htmlFor="signoff-lines" className="text-sm font-medium">
+          Sign-off
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          How responses close. Press enter for a new line.
+        </p>
+        <Textarea
+          id="signoff-lines"
+          value={signoffLines}
+          onChange={(e) => onSignoffLinesChange(e.target.value)}
+          maxLength={BRAND_VOICE_LIMITS_V2.SIGNOFF_MAX}
+          rows={3}
+          placeholder={"Warmest regards,\nThe Team"}
+          className="resize-none"
+          disabled={disabled}
+        />
+        <ExampleChips
+          label="Suggestions"
+          items={SIGNOFF_CHIPS}
+          onPick={onSignoffLinesChange}
+          disabled={disabled}
+          previewLines
+        />
+      </div>
+
+      {/* §7.3 Negative-review email invitation toggle */}
+      <div className="flex items-start justify-between gap-4 rounded-md border bg-card p-4">
+        <div className="flex-1 space-y-1">
+          <Label htmlFor="neg-email-enabled" className="text-sm font-medium cursor-pointer">
+            Invite customers to contact you via email
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            When a customer leaves a negative review (1–2 stars or negative sentiment), our AI will
+            invite them to reach out via email so the conversation can continue privately.
+          </p>
+        </div>
+        <Switch
+          id="neg-email-enabled"
+          checked={negativeReviewEmailEnabled}
+          onCheckedChange={onNegativeReviewEmailEnabledChange}
+          disabled={disabled}
+        />
+      </div>
+
+      {/* §7.4 Framing radio + §7.5 Reply-to email — only when toggle is ON */}
+      {negativeReviewEmailEnabled && (
+        <div className="space-y-6 rounded-md border border-dashed bg-muted/30 p-4">
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">
+              How should our AI frame the invitation?
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Controls how the email is framed in negative review responses. Doesn&apos;t affect positive
+              reviews — there, the email simply doesn&apos;t appear in the body.
+            </p>
+            <RadioGroup
+              value={negativeReviewFraming}
+              onValueChange={(v) => onNegativeReviewFramingChange(v as NegativeReviewFraming)}
+              disabled={disabled}
+              className="space-y-2"
+            >
+              {NEGATIVE_REVIEW_FRAMINGS.map((framing) => {
+                const info = FRAMING_LABELS[framing];
+                return (
+                  <div key={framing} className="flex items-start gap-3">
+                    <RadioGroupItem value={framing} id={`framing-${framing}`} className="mt-1" />
+                    <div className="flex-1 space-y-1">
+                      <Label htmlFor={`framing-${framing}`} className="text-sm font-medium cursor-pointer">
+                        {info.label}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">{info.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </RadioGroup>
+
+            {/* Custom framing textarea — only when 'custom' is selected */}
+            {negativeReviewFraming === "custom" && (
+              <div className="space-y-2 pl-7">
+                <Label htmlFor="framing-custom" className="text-xs font-medium">
+                  Custom instructions
+                </Label>
+                <Textarea
+                  id="framing-custom"
+                  value={negativeReviewFramingCustom ?? ""}
+                  onChange={(e) => onNegativeReviewFramingCustomChange(e.target.value)}
+                  maxLength={BRAND_VOICE_LIMITS_V2.FRAMING_CUSTOM_MAX}
+                  rows={3}
+                  placeholder="For brands with specific phrasing or obligations…"
+                  disabled={disabled}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(negativeReviewFramingCustom ?? "").length} / {BRAND_VOICE_LIMITS_V2.FRAMING_CUSTOM_MAX} characters
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* §7.5 Reply-to email */}
+          <div className="space-y-2">
+            <Label htmlFor="reply-to-email" className="text-sm font-medium">
+              Reply-to email
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              The email address that will appear in the responses above.
+            </p>
+            <Input
+              id="reply-to-email"
+              type="email"
+              value={replyToEmail ?? ""}
+              onChange={(e) => onReplyToEmailChange(e.target.value)}
+              maxLength={BRAND_VOICE_LIMITS_V2.REPLY_TO_EMAIL_MAX}
+              placeholder="hello@yourbrand.com"
+              disabled={disabled}
+            />
+            {showEmailMissingWarning && (
+              <Alert variant="default" className="border-yellow-500/50 bg-yellow-500/5">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-xs">
+                  Add an email above or turn off the contact invitation. The toggle is on but no
+                  email is configured.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

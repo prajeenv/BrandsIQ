@@ -13,43 +13,51 @@ import {
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Sparkles, Briefcase, Smile, Heart } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Sparkles, Briefcase, Smile, Heart, Coffee } from "lucide-react";
+import {
+  BRAND_VOICE_TONES_V2,
+  BRAND_VOICE_TONE_INFO_V2,
+  type BrandVoiceToneV2,
+} from "@/lib/constants";
 
-type ToneOption = "professional" | "friendly" | "empathetic";
+/**
+ * Regenerate dialog (iter 6).
+ *
+ * Spec §8.1 — the tone-modifier presets now match the four V2 brand voice
+ * tones exactly (`warm_casual`, `friendly_professional`, `polished_formal`,
+ * `empathetic_attentive`). The legacy `apologetic` option is dropped
+ * because (a) it duplicated the empathetic preset semantically and (b) the
+ * iter-4 prompt builder treats apology as content-routed via the structure
+ * templates, not as a register.
+ *
+ * Spec §8.2 — a new "Additional instructions" textarea (free text, 500
+ * char cap, single-use, not persisted) lets the user attach a per-
+ * regeneration directive like "mention our loyalty program once" or
+ * "address the dessert complaint specifically". The value is sent in the
+ * regenerate request body as `additionalInstructions` and forwarded to
+ * the iter-1 `customRegenerateInstructions` slot on `claude.ts`, which
+ * wraps it via the sanitize helper before injecting into the user prompt.
+ */
+const TONE_ICONS: Record<BrandVoiceToneV2, React.ReactNode> = {
+  warm_casual: <Coffee className="h-4 w-4" />,
+  friendly_professional: <Smile className="h-4 w-4" />,
+  polished_formal: <Briefcase className="h-4 w-4" />,
+  empathetic_attentive: <Heart className="h-4 w-4" />,
+};
+
+export const ADDITIONAL_INSTRUCTIONS_MAX = 500;
 
 interface ToneModifierProps {
-  onRegenerate: (_tone: ToneOption) => Promise<void>;
+  onRegenerate: (_payload: {
+    tone: BrandVoiceToneV2;
+    additionalInstructions?: string;
+  }) => Promise<void>;
   isLoading?: boolean;
   disabled?: boolean;
   currentTone?: string;
   creditsNeeded?: number;
 }
-
-const toneOptions: Array<{
-  value: ToneOption;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-}> = [
-  {
-    value: "professional",
-    label: "More Professional",
-    description: "Business-like, courteous, and formal tone",
-    icon: <Briefcase className="h-4 w-4" />,
-  },
-  {
-    value: "friendly",
-    label: "More Friendly",
-    description: "Warm, personable, and approachable tone",
-    icon: <Smile className="h-4 w-4" />,
-  },
-  {
-    value: "empathetic",
-    label: "More Empathetic",
-    description: "Understanding and compassionate tone",
-    icon: <Heart className="h-4 w-4" />,
-  },
-];
 
 export function ToneModifier({
   onRegenerate,
@@ -59,12 +67,23 @@ export function ToneModifier({
   creditsNeeded = 1.0,
 }: ToneModifierProps) {
   const [open, setOpen] = useState(false);
-  const [selectedTone, setSelectedTone] = useState<ToneOption>("professional");
+  const [selectedTone, setSelectedTone] = useState<BrandVoiceToneV2>("friendly_professional");
+  const [additionalInstructions, setAdditionalInstructions] = useState("");
 
   const handleRegenerate = async () => {
-    await onRegenerate(selectedTone);
+    const trimmed = additionalInstructions.trim();
+    await onRegenerate({
+      tone: selectedTone,
+      additionalInstructions: trimmed.length > 0 ? trimmed : undefined,
+    });
     setOpen(false);
+    // Spec §8.2: clear the additional instructions after each regeneration —
+    // not persisted, single-use per turn.
+    setAdditionalInstructions("");
   };
+
+  const charsRemaining = ADDITIONAL_INSTRUCTIONS_MAX - additionalInstructions.length;
+  const isOverLimit = charsRemaining < 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -79,11 +98,12 @@ export function ToneModifier({
           {isLoading ? "Regenerating..." : "Regenerate"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Regenerate Response</DialogTitle>
+          <DialogTitle>Regenerate response</DialogTitle>
           <DialogDescription>
-            Select a tone modifier to regenerate the response with a different style.
+            Pick a different tone, add specific instructions, or both — they&apos;ll be applied just
+            for this regeneration.
             {currentTone && currentTone !== "default" && (
               <span className="block mt-1">
                 Current tone: <strong>{currentTone}</strong>
@@ -92,38 +112,69 @@ export function ToneModifier({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
-          <RadioGroup
-            value={selectedTone}
-            onValueChange={(value) => setSelectedTone(value as ToneOption)}
-            className="space-y-3"
-          >
-            {toneOptions.map((option) => (
-              <div
-                key={option.value}
-                className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-accent ${
-                  selectedTone === option.value
-                    ? "border-primary bg-accent/50"
-                    : "border-border"
-                }`}
-                onClick={() => setSelectedTone(option.value)}
-              >
-                <RadioGroupItem value={option.value} id={option.value} className="mt-1" />
-                <div className="flex-1">
-                  <Label
-                    htmlFor={option.value}
-                    className="flex items-center gap-2 cursor-pointer font-medium"
+        <div className="space-y-5 py-4">
+          {/* Tone modifier — V2 4-key set */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Change the tone for this response (optional)</Label>
+            <p className="text-xs text-muted-foreground">
+              Pick a different tone to use just for this regeneration.
+            </p>
+            <RadioGroup
+              value={selectedTone}
+              onValueChange={(value) => setSelectedTone(value as BrandVoiceToneV2)}
+              className="space-y-2"
+            >
+              {BRAND_VOICE_TONES_V2.map((tone) => {
+                const info = BRAND_VOICE_TONE_INFO_V2[tone];
+                const isSelected = selectedTone === tone;
+                return (
+                  <div
+                    key={tone}
+                    className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-accent ${
+                      isSelected ? "border-primary bg-accent/50" : "border-border"
+                    }`}
+                    onClick={() => setSelectedTone(tone)}
                   >
-                    {option.icon}
-                    {option.label}
-                  </Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {option.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </RadioGroup>
+                    <RadioGroupItem value={tone} id={`tone-${tone}`} className="mt-1" />
+                    <div className="flex-1">
+                      <Label
+                        htmlFor={`tone-${tone}`}
+                        className="flex items-center gap-2 cursor-pointer font-medium"
+                      >
+                        {TONE_ICONS[tone]}
+                        {info.label}
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">{info.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </RadioGroup>
+          </div>
+
+          {/* Additional instructions — free text */}
+          <div className="space-y-2">
+            <Label htmlFor="additional-instructions" className="text-sm font-medium">
+              Additional instructions (optional)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Anything specific you want this response to mention or address.
+            </p>
+            <Textarea
+              id="additional-instructions"
+              value={additionalInstructions}
+              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              maxLength={ADDITIONAL_INSTRUCTIONS_MAX}
+              rows={3}
+              placeholder='e.g. "mention our loyalty program" or "address the dessert complaint specifically"'
+              className="resize-none"
+            />
+            <p
+              className={`text-xs ${isOverLimit ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {additionalInstructions.length} / {ADDITIONAL_INSTRUCTIONS_MAX} characters
+            </p>
+          </div>
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -133,7 +184,7 @@ export function ToneModifier({
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={handleRegenerate} disabled={isLoading}>
+          <Button onClick={handleRegenerate} disabled={isLoading || isOverLimit}>
             {isLoading ? "Regenerating..." : "Regenerate"}
           </Button>
         </DialogFooter>
