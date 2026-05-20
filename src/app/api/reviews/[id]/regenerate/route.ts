@@ -152,6 +152,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const brandVoice = await getOrCreateBrandVoice(session.user.id);
 
     // Generate new response with tone modifier
+    // E2E mock opt-in (header gate — see DECISIONS.md #61).
+    const e2eMockOptIn = request.headers.get("x-e2e-mock") === "1";
+
     // Iter 4: pass the V2 brand voice row directly; the iter-3 V2→legacy
     // projection is gone (DECISION 55). Sentiment is forwarded so the
     // rating-conditional structure router can pick the right template
@@ -166,6 +169,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         detectedLanguage: review.detectedLanguage,
         brandVoice,
         toneModifier: tone as ToneModifier,
+        e2eMockOptIn,
       });
     } catch (error) {
       console.error("Claude API error:", error);

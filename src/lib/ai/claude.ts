@@ -96,6 +96,21 @@ export interface GenerateResponseParams {
    * generation only — it is never persisted.
    */
   customRegenerateInstructions?: string;
+  /**
+   * Set by the route handler when the inbound request carries the
+   * `x-e2e-mock: 1` header that Playwright tests send. Combined with the
+   * `E2E_MOCK_AI=true` env var (set on Vercel Preview), this opt-in causes
+   * the mock canned response to be returned instead of calling Claude.
+   *
+   * The env-var alone is not enough — both must be true. The env-var
+   * scopes mocking to Preview deployments (production never has it set);
+   * the header distinguishes a Playwright test from a real user clicking
+   * Generate inside that same Preview process. Without both gates, any
+   * manual click on staging would short-circuit Claude.
+   *
+   * See DECISIONS.md decision 61 (the follow-up to decision 15).
+   */
+  e2eMockOptIn?: boolean;
 }
 
 export interface GeneratedResponse {
@@ -158,11 +173,16 @@ export async function generateReviewResponse(
     isTestMode = false,
     toneModifier,
     customRegenerateInstructions,
+    e2eMockOptIn = false,
   } = params;
 
-  // E2E mock mode: return canned response without calling Claude API.
-  // Set E2E_MOCK_AI=true on the Vercel Preview environment to enable.
-  if (process.env.E2E_MOCK_AI === "true") {
+  // E2E mock mode — DOUBLE-GATED so manual users on Preview/staging never
+  // get the canned response.
+  //   1. `E2E_MOCK_AI=true` env var (set on Vercel Preview, unset on prod).
+  //   2. `e2eMockOptIn` — set by the route handler when the inbound request
+  //      carries the `x-e2e-mock: 1` header that Playwright tests send.
+  // Both must be true. See DECISIONS.md decision 61 (follow-up to #15).
+  if (process.env.E2E_MOCK_AI === "true" && e2eMockOptIn) {
     return {
       responseText:
         "Thank you for your feedback! We truly appreciate you taking the time to share your experience with us. Your input helps us continue to improve our service.",

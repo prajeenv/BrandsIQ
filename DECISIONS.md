@@ -1633,6 +1633,27 @@ The model now sees the user's style guidelines as a proper bulleted list instead
 
 Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 963 passed, 0 failed across 63 files.
 
+### Follow-up fix: E2E mock header-gate (May 21, 2026)
+
+Branch: `fix/e2e-mock-header-gate`. Single small fix landing between iter 4 and iter 5. Discovered when manual response generation on staging returned the canned Playwright mock string instead of a real Claude response.
+
+#### Decision 61: Mock canned response gated on env var AND a per-request header (follow-up to decision 15)
+
+- **Decision:** `generateReviewResponse` in `src/lib/ai/claude.ts` now requires BOTH `process.env.E2E_MOCK_AI === "true"` AND a new `e2eMockOptIn` param to be true before returning the canned mock response. The three routes (`generate`, `regenerate`, `brand-voice/test`) read `request.headers.get("x-e2e-mock") === "1"` and forward it as `e2eMockOptIn`. `playwright.config.ts` adds `"x-e2e-mock": "1"` to its `extraHTTPHeaders` so every test request carries it.
+- **Why:** Decision 15 (April 17, 2026) added the env-var gate alone. The implicit assumption was that "Vercel Preview" and "staging-for-manual-testing" were distinct environments. They aren't on this project: pushes to `main` build a Vercel Preview that serves as the staging URL the founder tests manually. So `E2E_MOCK_AI=true` set on Preview (the documented intent) was correct for the E2E tests AND silently short-circuiting manual generates on staging. The single env-var check couldn't tell a Playwright request from a real user click — both ran in the same Next.js process. The header opt-in adds the missing identity: only Playwright carries it.
+- **What this does NOT change:** Production safety. The env var is still required — production never has it set, so even if a hostile header `x-e2e-mock: 1` were sent there, the mock won't fire. The env var is the "what environment can mock at all" gate; the header is the "is this caller asking to mock" gate. Both must agree.
+- **Risk:** Low ✅. Additive — Playwright tests get exactly the same canned response they always have (because the config now sends the header); manual users on Preview/staging get real Claude responses instead of the canned string. No production behavior change.
+
+**Test coverage:** 6 new unit tests in `tests/unit/lib/ai/claude.test.ts` covering the full truth table:
+- env=true + header=true → mock fires (Playwright happy path).
+- env=true + header=missing → Claude runs (the manual-user bug this fixes).
+- env=true + header=false explicitly → Claude runs.
+- env=false + header=true → Claude runs (production-poisoning-attempt protection).
+- env=false + header=missing → Claude runs (production/local default).
+- env=non-"true" value + header=true → Claude runs (only literal `"true"` enables).
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 969 passed, 0 failed across 63 files (+6 from iter 4's 963).
+
 ---
 
 ## Decision Log
@@ -1701,6 +1722,7 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 58 | `max_tokens` bumped 500 → 1000 to give room for multi-paragraph + multi-language responses | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
 | 59 | `ToneModifier` type retains the legacy 3-key set this iteration; iter 6 swaps to V2 4-key set | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
 | 60 | V2 tone rendered in prompt as the human display label, not the snake_case key | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
+| 61 | E2E mock canned response gated on env var AND `x-e2e-mock` header (follow-up to #15) so manual users on Preview/staging hit real Claude | Brand Voice Redesign / fix between It. 4 + It. 5 | May 21 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 

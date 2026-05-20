@@ -144,6 +144,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // labeled few-shot examples, Personalization toggles + negative-review
     // framing as conditional fragments). The iter-3 inline V2→legacy
     // projection is gone — that's spec §9.3 / DECISION 55.
+    // E2E mock opt-in: Playwright tests send `x-e2e-mock: 1` so the
+    // canned mock response fires only for tests, never for manual users
+    // hitting the same Preview deployment. The env-var alone is not
+    // enough — see DECISIONS.md #61.
+    const e2eMockOptIn = request.headers.get("x-e2e-mock") === "1";
+
     let generatedResponse;
     try {
       generatedResponse = await generateReviewResponse({
@@ -154,6 +160,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         detectedLanguage: review.detectedLanguage,
         brandVoice,
         toneModifier: tone,
+        e2eMockOptIn,
       });
     } catch (error) {
       console.error("Claude API error:", error);
