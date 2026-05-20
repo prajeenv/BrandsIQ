@@ -1471,6 +1471,63 @@ Branch: `feat/brand-voice-redesign-iter-1`. Closes the live prompt-injection gap
 
 Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 783 passed, 0 failed; integration tests will run in CI's PostgreSQL container.
 
+### Iteration 2 — Validation schema + constants + normalize adapter (no DB, no behavior change)
+
+Branch: `feat/brand-voice-redesign-iter-2`. Pure type/validation/constant changes. The new V2 contract is exported and unit-tested, but the API routes still validate via the legacy `brandVoiceSchema` — that cutover lands in iteration 6. The only externally visible behaviour change is the response cap raise (500 → 2000), which is intentional and tested.
+
+#### Decision 44: Tone storage uses lowercase keys + display map, not the spec's literal display-string enum
+
+- **Decision:** `BRAND_VOICE_TONES_V2` are stable lowercase keys (`warm_casual`, `friendly_professional`, `polished_formal`, `empathetic_attentive`). Display labels (`"Warm & casual"`, etc.) are looked up via `BRAND_VOICE_TONE_INFO_V2[key].label`. `brandVoiceSchemaV2.tone` validates against the key set.
+- **Why:** Coupling DB values to UI copy makes any future label tweak a data migration. Lowercase keys also let `ReviewResponse.toneUsed` and the regenerate tone-modifier share the same key set as the brand voice tone field (corrected spec §8.1).
+- **Spec deviation:** Spec §9.2 Zod literally uses display strings. We deviate to the lowercase keys; the user approved this in the plan-decision discussion.
+- **Risk:** Low ✅. `LEGACY_TONE_TO_V2` covers every pre-V2 value (`friendly`, `professional`, `casual`, `formal`, `empathetic`) plus the `"default"` sentinel that the initial-generation route stores on `ReviewResponse.toneUsed`.
+
+#### Decision 45: `RESPONSE_TEXT_MAX` raised 500 → 2000; new `RESPONSE_BODY_CHAR_MAX` = 1200 added
+
+- **Decision:** `VALIDATION_LIMITS.RESPONSE_TEXT_MAX` raised from 500 to 2000 (assembled/stored + manual-edit cap). New `RESPONSE_BODY_CHAR_MAX = 1200` added for the model-emitted body alone — consumed by route truncation in iter 4 and by the closing-block-aware truncation in `assembleResponse` (iter 5).
+- **Why:** A multi-paragraph hospitality response (typical 600–1200 chars) plus salutation (~30 chars) plus sign-off (~80 chars) plus optional reply-to email line (~40 chars) blows the old 500-char budget. The spec's "2–4 paragraph + sign-off" output is structurally incompatible with the existing cap. Naive shipping with the old cap would chop the sign-off off every response.
+- **Storage impact:** `ReviewResponse.responseText` is `@db.Text` (no DB cap), so the raise is a pure validation/UI concern — no migration needed.
+- **Test fallout fixed in-iteration:** Two tests asserting `RESPONSE_TEXT_MAX === 500` and two ResponseEditor tests hard-coding `501` / `510` were updated. The ResponseEditor tests now import `VALIDATION_LIMITS.RESPONSE_TEXT_MAX` and assert *behaviour* rather than the number, so future cap changes won't break them.
+- **Risk:** Low ✅. Tested across validations, route, and component layers.
+
+#### Decision 46: `normalizeBrandVoice` lives in its own pure module, not in `claude.ts`
+
+- **Decision:** New file `src/lib/ai/brand-voice-normalize.ts` exports `normalizeBrandVoice(raw)` and `NormalizedBrandVoice`. The plan said "Add pure `normalizeBrandVoice` in `claude.ts`"; this decision splits it into its own module.
+- **Why:** Keeps `claude.ts` (which already grew in iter 1) lean. Lets the adapter be unit-tested independently of prompt construction. The function is genuinely pure (no Anthropic / no prisma), so the separation is honest. Iter 4 will import it back into `claude.ts:generateReviewResponse`.
+- **Risk:** Low ✅. Pure refactor of the plan's organisation.
+
+#### Decision 47: `BrandVoiceConfig` extended with V2 fields as optional (additive, dormant)
+
+- **Decision:** All V2 fields (`styleGuidelines`, `sampleResponsesV2`, `acknowledgeNamedStaff`, `acknowledgeOccasions`, `salutationPattern`, `signoffLines`, `negativeReviewEmailEnabled`, `negativeReviewFraming`, `negativeReviewFramingCustom`, `replyToEmail`) added as `?:` optional on the existing `BrandVoiceConfig` interface. The legacy `tone`/`formality`/`styleNotes`/`sampleResponses:string[]` fields remain required this iteration.
+- **Why:** Lets `BrandVoiceConfig` evolve in iter 4 without disturbing the three existing inline call sites in `generate`/`regenerate`/`brand-voice/test` routes — they still typecheck without modification. Iter 4 will swap the call sites to consume normalized V2 objects; this iteration just makes the contract expressible.
+- **Risk:** Low ✅. Pure type extension; `tsc` proves the 3 call sites still match.
+
+#### Decision 48: V2 Zod schema enforces a `styleGuidelines` per-item AND joined-total cap (200 / 2000)
+
+- **Decision:** `styleGuidelines` is validated as `string[]` with per-item max 200 chars, max 10 items, AND a `.refine` checking `arr.join("\n").length <= 2000` for the total-cap requirement (spec §4.2).
+- **Why:** Spec §4.2 specifies both a per-item and a total cap; relying only on the per-item × max-items product (200 × 10 = 2000 chars) wouldn't catch the edge where 10 short items + newlines exceed 2000.
+- **Note for UI iter 6:** The form will warn at ~90% of the total cap; this back-end check is the floor.
+- **Risk:** Low ✅.
+
+#### Decision 49: `replyToEmail` rejects literal `\n` and `\r` (header-injection guard)
+
+- **Decision:** `brandVoiceSchemaV2.replyToEmail` chains `.refine(v => !v.includes("\n") && !v.includes("\r"), ...)` on top of the standard email format check.
+- **Why:** Spec §7.5 calls this out explicitly. The reply-to email is interpolated into post-processed response text (iter 5); a stored email containing CR/LF would let a malicious user inject lines into every generated response — and if responses are ever published to a platform, into the platform's display.
+- **Risk:** Low ✅. The address column on `BrandVoice` is `varchar(254)`, so even without this check the blast radius is bounded; the check is defense-in-depth.
+
+#### Test coverage delta — Iteration 2
+
+| Type | Before iter 2 (suite total) | After iter 2 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 783 | 871 | **+88** |
+| New unit test files | — | — | 1 (`brand-voice-normalize.test.ts`) |
+| Modified unit test files | — | — | 3 (`validations.test.ts`, `constants.test.ts`, `response-editor.test.tsx`) |
+| Test files fixed for the cap raise | — | — | 2 (`response-edit.test.ts`, `response-editor.test.tsx`) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 871 passed, 0 failed.
+
 ---
 
 ## Decision Log
@@ -1522,6 +1579,12 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 41 | Audit persistence stays in routes via helper; `sanitize.ts` is pure | Brand Voice Redesign / It. 1 | May 20 | Low ✅ | ✅ Implemented |
 | 42 | `INSTRUCTION_REINFORCEMENT` ships with security lines only in iter 1; structural lines added iter 4 | Brand Voice Redesign / It. 1 | May 20 | Low ✅ | ✅ Implemented |
 | 43 | `customRegenerateInstructions` param plumbed but dormant in iter 1; UI lands iter 6 | Brand Voice Redesign / It. 1 | May 20 | Low ✅ | ✅ Implemented |
+| 44 | Tone storage uses lowercase keys + display map, not spec's literal display-string Zod enum | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
+| 45 | `RESPONSE_TEXT_MAX` raised 500→2000; new `RESPONSE_BODY_CHAR_MAX` = 1200 | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
+| 46 | `normalizeBrandVoice` lives in its own pure module `src/lib/ai/brand-voice-normalize.ts`, not in `claude.ts` | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
+| 47 | `BrandVoiceConfig` extended with V2 fields as optional (additive, dormant); call sites unchanged | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
+| 48 | V2 schema enforces both per-item (200) AND joined-total (2000) caps on `styleGuidelines` | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
+| 49 | `replyToEmail` rejects literal `\n` / `\r` (header-injection guard) on top of RFC email check | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 

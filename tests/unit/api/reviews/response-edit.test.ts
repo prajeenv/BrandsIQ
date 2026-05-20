@@ -146,8 +146,10 @@ describe('PUT /api/reviews/[id]/response', () => {
     expect(json.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('returns 400 for responseText exceeding 500 characters', async () => {
-    const longText = 'A'.repeat(501);
+  it('returns 400 for responseText exceeding the max length', async () => {
+    // Brand voice redesign iter 2: cap raised from 500 → 2000 so multi-paragraph
+    // assembled responses (salutation + body + sign-off + optional email) fit.
+    const longText = 'A'.repeat(2001);
     const req = createRequest('/api/reviews/review-1/response', {
       method: 'PUT',
       body: { responseText: longText },
