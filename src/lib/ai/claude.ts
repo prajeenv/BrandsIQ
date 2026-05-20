@@ -10,12 +10,49 @@ import { INSTRUCTION_REINFORCEMENT, wrapUserContent } from "./sanitize";
 // Default model for response generation
 export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
+/**
+ * Brand voice configuration consumed by `generateReviewResponse`.
+ *
+ * Shape note (brand voice redesign):
+ *   - Legacy fields (`formality`, `styleNotes`, `sampleResponses: string[]`)
+ *     remain required this iteration so the three existing inline call sites
+ *     in `generate`/`regenerate`/`brand-voice/test` routes keep type-checking
+ *     without changes. They become optional / are removed in iteration 4 once
+ *     the route caller objects are replaced with the V2 shape from
+ *     `getOrCreateBrandVoice` after the iter-3 schema reset.
+ *   - V2 fields are all optional this iteration — `normalizeBrandVoice` will
+ *     supply defaults for any that are missing. The prompt builder still
+ *     ignores them in iter 2; they're consumed starting iter 4.
+ *
+ * See `src/lib/ai/brand-voice-normalize.ts` for the canonical V2 shape
+ * (`NormalizedBrandVoice`).
+ */
 export interface BrandVoiceConfig {
   tone: string;
   formality: number;
   keyPhrases: string[];
   styleNotes: string | null;
   sampleResponses: string[];
+
+  // ─── V2 fields (iter 2: optional, dormant; iter 4: consumed by buildSystemPrompt) ───
+  styleGuidelines?: string[];
+  /**
+   * V2 sample responses: each entry is a typed object with a rating context
+   * (1–5 or "any") and the response text. Iter 4 will render these as labeled
+   * few-shot examples; iter 2 only locks the type.
+   */
+  sampleResponsesV2?: Array<{
+    ratingContext: 1 | 2 | 3 | 4 | 5 | "any";
+    responseText: string;
+  }>;
+  acknowledgeNamedStaff?: boolean;
+  acknowledgeOccasions?: boolean;
+  salutationPattern?: string;
+  signoffLines?: string;
+  negativeReviewEmailEnabled?: boolean;
+  negativeReviewFraming?: "management_contact" | "investigation" | "open_channel" | "custom";
+  negativeReviewFramingCustom?: string | null;
+  replyToEmail?: string | null;
 }
 
 export type ToneModifier = "professional" | "friendly" | "empathetic";

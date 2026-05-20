@@ -11,6 +11,12 @@ import {
   SIGNUP_INTENTS,
   FOUNDER_INQUIRY_TYPES,
   FOUNDER_INQUIRY_SOURCES,
+  // Brand voice redesign V2
+  BRAND_VOICE_TONES_V2,
+  DEFAULT_BRAND_VOICE_TONE_V2,
+  NEGATIVE_REVIEW_FRAMINGS,
+  DEFAULT_NEGATIVE_REVIEW_FRAMING,
+  BRAND_VOICE_LIMITS_V2,
   type Industry,
 } from "./constants";
 
@@ -188,6 +194,145 @@ export const testBrandVoiceSchema = z.object({
   platform: z.enum(PLATFORMS).optional().default("Google"),
   rating: z.number().min(1).max(5).optional().nullable(),
 });
+
+// ─── Brand voice redesign V2 (iter 2) ──────────────────────────────
+// Spec: docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §9.2.
+//
+// V2 is unit-tested and exported now, but NOT yet wired into the API
+// routes — the brand-voice GET/PUT continue to validate via the legacy
+// `brandVoiceSchema` until iteration 6 swaps them over. This lets us
+// land the schema contract independently of the schema reset (iter 3),
+// the prompt rewrite (iter 4), and the form rewrite (iter 6).
+//
+// Key deviation from spec §9.2: `tone` uses the stable lowercase key set
+// from BRAND_VOICE_TONES_V2 instead of the display strings the spec
+// literally shows. Display labels are looked up via BRAND_VOICE_TONE_INFO_V2.
+// Rationale: DECISIONS row #39+ in DECISIONS.md, plan decision 2.
+
+const sampleResponseV2Schema = z.object({
+  ratingContext: z.union([
+    z.number().int().min(1).max(5),
+    z.literal("any"),
+  ]),
+  responseText: z
+    .string()
+    .min(1, "Sample response cannot be empty")
+    .max(
+      BRAND_VOICE_LIMITS_V2.SAMPLE_RESPONSE_MAX,
+      `Sample response must be under ${BRAND_VOICE_LIMITS_V2.SAMPLE_RESPONSE_MAX} characters`,
+    )
+    .transform((s) => s.trim()),
+});
+
+export const brandVoiceSchemaV2 = z.object({
+  tone: z.enum(BRAND_VOICE_TONES_V2, {
+    message: "Please select a valid tone",
+  }),
+
+  styleGuidelines: z
+    .array(
+      z
+        .string()
+        .min(1, "Style guideline cannot be empty")
+        .max(
+          BRAND_VOICE_LIMITS_V2.STYLE_GUIDELINE_ITEM_MAX,
+          `Each style guideline must be under ${BRAND_VOICE_LIMITS_V2.STYLE_GUIDELINE_ITEM_MAX} characters`,
+        )
+        .transform((s) => s.trim()),
+    )
+    .max(
+      BRAND_VOICE_LIMITS_V2.STYLE_GUIDELINES_MAX_ITEMS,
+      `Maximum ${BRAND_VOICE_LIMITS_V2.STYLE_GUIDELINES_MAX_ITEMS} style guidelines`,
+    )
+    .default([])
+    .refine(
+      (arr) => arr.join("\n").length <= BRAND_VOICE_LIMITS_V2.STYLE_GUIDELINES_TOTAL_MAX,
+      `Style guidelines total must be under ${BRAND_VOICE_LIMITS_V2.STYLE_GUIDELINES_TOTAL_MAX} characters`,
+    ),
+
+  keyPhrases: z
+    .array(
+      z
+        .string()
+        .min(1, "Key phrase cannot be empty")
+        .max(
+          BRAND_VOICE_LIMITS_V2.KEY_PHRASE_MAX,
+          `Each key phrase must be under ${BRAND_VOICE_LIMITS_V2.KEY_PHRASE_MAX} characters`,
+        )
+        .transform((s) => s.trim()),
+    )
+    .max(
+      BRAND_VOICE_LIMITS_V2.KEY_PHRASES_MAX_ITEMS,
+      `Maximum ${BRAND_VOICE_LIMITS_V2.KEY_PHRASES_MAX_ITEMS} key phrases`,
+    )
+    .default([]),
+
+  sampleResponses: z
+    .array(sampleResponseV2Schema)
+    .max(
+      BRAND_VOICE_LIMITS_V2.SAMPLE_RESPONSES_MAX_ITEMS,
+      `Maximum ${BRAND_VOICE_LIMITS_V2.SAMPLE_RESPONSES_MAX_ITEMS} sample responses`,
+    )
+    .default([]),
+
+  acknowledgeNamedStaff: z.boolean().default(true),
+  acknowledgeOccasions: z.boolean().default(true),
+
+  salutationPattern: z
+    .string()
+    .max(
+      BRAND_VOICE_LIMITS_V2.SALUTATION_MAX,
+      `Salutation must be under ${BRAND_VOICE_LIMITS_V2.SALUTATION_MAX} characters`,
+    )
+    .transform((s) => s.trim())
+    .default("Dear {firstName},"),
+
+  signoffLines: z
+    .string()
+    .max(
+      BRAND_VOICE_LIMITS_V2.SIGNOFF_MAX,
+      `Sign-off must be under ${BRAND_VOICE_LIMITS_V2.SIGNOFF_MAX} characters`,
+    )
+    .transform((s) => s.trim())
+    .default("Warmest regards,\nThe Team"),
+
+  negativeReviewEmailEnabled: z.boolean().default(false),
+
+  negativeReviewFraming: z
+    .enum(NEGATIVE_REVIEW_FRAMINGS)
+    .default(DEFAULT_NEGATIVE_REVIEW_FRAMING),
+
+  negativeReviewFramingCustom: z
+    .string()
+    .max(
+      BRAND_VOICE_LIMITS_V2.FRAMING_CUSTOM_MAX,
+      `Custom framing must be under ${BRAND_VOICE_LIMITS_V2.FRAMING_CUSTOM_MAX} characters`,
+    )
+    .transform((s) => s.trim())
+    .optional()
+    .nullable(),
+
+  // RFC-compliant + explicit reject of CR/LF (header-injection hardening
+  // per spec §7.5) + per-RFC max length of 254 chars.
+  replyToEmail: z
+    .string()
+    .email("Please enter a valid email address")
+    .max(
+      BRAND_VOICE_LIMITS_V2.REPLY_TO_EMAIL_MAX,
+      `Email must be under ${BRAND_VOICE_LIMITS_V2.REPLY_TO_EMAIL_MAX} characters`,
+    )
+    .refine((v) => !v.includes("\n") && !v.includes("\r"), {
+      message: "Email cannot contain line breaks",
+    })
+    .optional()
+    .nullable(),
+});
+
+export type BrandVoiceInputV2 = z.infer<typeof brandVoiceSchemaV2>;
+
+// Re-export the default tone key so the schema and downstream consumers
+// agree without a second source of truth.
+export { DEFAULT_BRAND_VOICE_TONE_V2 };
 
 // User profile schemas
 // MVP Phase 1 onboarding wizard: collects org/industry/country/location info

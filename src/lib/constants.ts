@@ -28,6 +28,9 @@ export const RESPONSE_TONES = ["professional", "friendly", "empathetic"] as cons
 export type ResponseTone = (typeof RESPONSE_TONES)[number];
 
 // Brand voice tones (for brand voice configuration)
+//
+// Legacy lowercase set retained until iteration 6 cuts the API over to V2.
+// New set lives in BRAND_VOICE_TONES_V2 below.
 export const BRAND_VOICE_TONES = ["professional", "friendly", "casual", "empathetic"] as const;
 export type BrandVoiceTone = (typeof BRAND_VOICE_TONES)[number];
 
@@ -54,6 +57,120 @@ export const BRAND_VOICE_TONE_INFO: Record<BrandVoiceTone, { label: string; desc
     icon: "heart",
   },
 };
+
+// ─── Brand voice redesign (iter 2) ──────────────────────────────────
+// Spec: docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §4.1.
+//
+// V2 stores stable lowercase keys in the DB and renders the display label
+// via a map (DECISION #2 in the redesign plan). Avoids coupling DB values
+// to UI copy and lets the regenerate tone-modifier share the same key set
+// as the brand voice tone field (spec §8.1).
+
+export const BRAND_VOICE_TONES_V2 = [
+  "warm_casual",
+  "friendly_professional",
+  "polished_formal",
+  "empathetic_attentive",
+] as const;
+export type BrandVoiceToneV2 = (typeof BRAND_VOICE_TONES_V2)[number];
+
+export const DEFAULT_BRAND_VOICE_TONE_V2: BrandVoiceToneV2 = "friendly_professional";
+
+export const BRAND_VOICE_TONE_INFO_V2: Record<
+  BrandVoiceToneV2,
+  { label: string; description: string; icon: string }
+> = {
+  warm_casual: {
+    label: "Warm & casual",
+    description: "Relaxed, like greeting a returning guest at the door",
+    icon: "coffee",
+  },
+  friendly_professional: {
+    label: "Friendly & professional",
+    description: "Warm but composed — the default for most hospitality brands",
+    icon: "smile",
+  },
+  polished_formal: {
+    label: "Polished & formal",
+    description: "Refined and precise, for premium and luxury experiences",
+    icon: "briefcase",
+  },
+  empathetic_attentive: {
+    label: "Empathetic & attentive",
+    description: "For guests whose experience matters most — used heavily on complaints",
+    icon: "heart",
+  },
+};
+
+/**
+ * Legacy → V2 tone key mapping (spec §4.1 / §8.1).
+ *
+ * Used by `normalizeBrandVoice` in claude.ts so existing rows (and the
+ * regenerate tone-modifier values stored on `ReviewResponse.toneUsed`)
+ * stay valid until iteration 6 cuts the API over to V2 keys.
+ *
+ * Note: iteration 3 will TRUNCATE `brand_voices` (test data only), so this
+ * mapping primarily protects in-flight data — defaults, `toneUsed` strings
+ * already persisted on responses, and any code path that still passes the
+ * old key set.
+ */
+export const LEGACY_TONE_TO_V2: Record<string, BrandVoiceToneV2> = {
+  // BrandVoiceTone (legacy stored values)
+  friendly: "friendly_professional",
+  professional: "friendly_professional",
+  casual: "warm_casual",
+  formal: "polished_formal", // never persisted (only "formal" check was in a schema comment), but mapped defensively
+  empathetic: "empathetic_attentive",
+  // ResponseTone / ToneModifier values stored on ReviewResponse.toneUsed —
+  // these become the new key set on read so the regenerate selector aligns.
+  // "default" is also used in production (initial generation toneUsed) so it
+  // resolves to the default key — the model's tone modifier path is unaffected.
+  default: "friendly_professional",
+};
+
+// Spec §7.4 — negative-review email framing options.
+export const NEGATIVE_REVIEW_FRAMINGS = [
+  "management_contact",
+  "investigation",
+  "open_channel",
+  "custom",
+] as const;
+export type NegativeReviewFraming = (typeof NEGATIVE_REVIEW_FRAMINGS)[number];
+
+export const DEFAULT_NEGATIVE_REVIEW_FRAMING: NegativeReviewFraming = "investigation";
+
+/**
+ * Brand voice limits — V2 shape.
+ *
+ * Spec §4.2, §4.3, §5.1, §7.x.
+ *
+ * Per-item / total caps for the new V2 schema. The legacy `BRAND_VOICE_LIMITS`
+ * stays exported until iteration 6 cuts the form payload to V2.
+ */
+export const BRAND_VOICE_LIMITS_V2 = {
+  // Style guidelines
+  STYLE_GUIDELINE_ITEM_MAX: 200,
+  STYLE_GUIDELINES_MAX_ITEMS: 10,
+  STYLE_GUIDELINES_TOTAL_MAX: 2000,
+  // Key phrases
+  KEY_PHRASE_MAX: 100,
+  KEY_PHRASES_MAX_ITEMS: 10,
+  // Sample responses
+  SAMPLE_RESPONSE_MAX: 1000,
+  SAMPLE_RESPONSES_MAX_ITEMS: 5,
+  // Contact & sign-off
+  SALUTATION_MAX: 100,
+  SIGNOFF_MAX: 500,
+  FRAMING_CUSTOM_MAX: 500,
+  REPLY_TO_EMAIL_MAX: 254,
+} as const;
+
+// Spec / decision 3 — the model is told to generate a body of approximately
+// 200 words; this constant is the hard char cap on the model-emitted body
+// (before post-processing prepends salutation + appends sign-off + optional
+// email). VALIDATION_LIMITS.RESPONSE_TEXT_MAX (2000) is the assembled-and-
+// stored cap.
+export const RESPONSE_BODY_CHAR_MAX = 1200;
 
 // Formality level labels
 export const FORMALITY_LABELS = [
@@ -315,10 +432,19 @@ export const CREDIT_COSTS = {
 } as const;
 
 // Validation limits
+//
+// RESPONSE_TEXT_MAX raised from 500 to 2000 in the brand voice redesign
+// (iter 2): the new design assembles salutation + multi-paragraph body +
+// sign-off + optional reply-to email, none of which fit inside 500 chars.
+// The model-emitted body has its own narrower cap (RESPONSE_BODY_CHAR_MAX
+// above ≈ "approximately 200 words"); this constant is the assembled-and-
+// stored cap and also bounds manual edits in updateResponseSchema.
+// ReviewResponse.responseText is @db.Text (no DB cap) so the raise is a
+// pure validation/UI concern.
 export const VALIDATION_LIMITS = {
   REVIEW_TEXT_MIN: 1,
   REVIEW_TEXT_MAX: 2000,
-  RESPONSE_TEXT_MAX: 500,
+  RESPONSE_TEXT_MAX: 2000,
   PASSWORD_MIN: 8,
   PASSWORD_MAX: 100,
   NAME_MAX: 100,
