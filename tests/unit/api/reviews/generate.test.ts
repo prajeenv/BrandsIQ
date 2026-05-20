@@ -325,6 +325,31 @@ describe('POST /api/reviews/[id]/generate', () => {
     expect(mockPrisma.reviewResponse.create).not.toHaveBeenCalled();
   });
 
+  // ─── Iteration 5: post-processing assembly ─────────────────────────
+  it('iter 5: persists the assembled response (salutation + body + sign-off)', async () => {
+    // The route runs `assembleResponse` on the model body before persisting.
+    // The reviewer is "John" → salutation becomes "Dear John,". The default
+    // brand voice sign-off is "Warmest regards,\nThe Team". Model body is
+    // "Thank you for your feedback!" from the mock.
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithoutResponse);
+    mockPrisma.reviewResponse.create.mockResolvedValueOnce(createdResponse);
+    mockPrisma.creditUsage.updateMany.mockResolvedValueOnce({ count: 1 });
+
+    const req = createRequest('/api/reviews/review-1/generate', { method: 'POST', body: {} });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.reviewResponse.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          responseText: expect.stringMatching(
+            /^Dear John,\n\nThank you for your feedback!\n\nWarmest regards,\nThe Team$/,
+          ),
+        }),
+      }),
+    );
+  });
+
   // ─── Iteration 1: prompt-injection audit logging (spec §10.6) ────
   describe('prompt-injection audit logging', () => {
     it('calls logIfInjectionAttempt with the review text on every successful generation', async () => {

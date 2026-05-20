@@ -409,4 +409,36 @@ describe('POST /api/reviews/[id]/regenerate', () => {
       expect(mockLogIfInjectionAttempt).not.toHaveBeenCalled();
     });
   });
+
+  // ─── Iteration 5: post-processing assembly ─────────────────────────
+  describe('post-processing assembly', () => {
+    it('persists the assembled response (salutation + body + sign-off)', async () => {
+      // reviewer "John" + mock body "We appreciate your feedback!" + default
+      // V2 brand voice salutation + sign-off → expected assembled form.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+      mockPrisma.reviewResponse.update.mockResolvedValueOnce({
+        ...existingResponse,
+        responseText: 'Dear John,\n\nWe appreciate your feedback!\n\nWarmest regards,\nThe Team',
+      });
+      mockPrisma.responseVersion.create.mockResolvedValueOnce({ id: 'ver-1' });
+      mockPrisma.creditUsage.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      const req = createRequest('/api/reviews/review-1/regenerate', {
+        method: 'POST',
+        body: { tone: 'friendly' },
+      });
+      await POST(req, routeParams({ id: 'review-1' }));
+
+      expect(mockPrisma.reviewResponse.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            responseText: expect.stringMatching(
+              /^Dear John,\n\nWe appreciate your feedback!\n\nWarmest regards,\nThe Team$/,
+            ),
+          }),
+        }),
+      );
+    });
+  });
 });
