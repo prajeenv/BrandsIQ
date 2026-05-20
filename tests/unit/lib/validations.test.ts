@@ -10,6 +10,7 @@ import {
   regenerateResponseSchema,
   updateResponseSchema,
   brandVoiceSchema,
+  brandVoiceSchemaV2,
   testBrandVoiceSchema,
   updateProfileSchema,
   paginationSchema,
@@ -461,16 +462,27 @@ describe('updateResponseSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects text > 500 chars', () => {
+  it('rejects text > 2000 chars', () => {
+    // Brand voice redesign iter 2: cap raised from 500 → 2000 so multi-paragraph
+    // assembled responses (salutation + body + sign-off + optional email) fit.
     const result = updateResponseSchema.safeParse({
-      responseText: 'a'.repeat(501),
+      responseText: 'a'.repeat(2001),
     });
     expect(result.success).toBe(false);
   });
 
-  it('accepts text at 500 chars', () => {
+  it('accepts text at 2000 chars', () => {
     const result = updateResponseSchema.safeParse({
-      responseText: 'a'.repeat(500),
+      responseText: 'a'.repeat(2000),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts text well above the old 500-char limit', () => {
+    // Sanity guard: multi-paragraph responses (typical 800–1500 chars) must
+    // round-trip through manual-edit validation.
+    const result = updateResponseSchema.safeParse({
+      responseText: 'a'.repeat(1500),
     });
     expect(result.success).toBe(true);
   });
@@ -635,6 +647,340 @@ describe('testBrandVoiceSchema', () => {
       reviewText: 'a'.repeat(2001),
     });
     expect(result.success).toBe(false);
+  });
+});
+
+// ─── Brand voice redesign V2 (iter 2) ────────────────────────────────
+// Spec: docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §9.2
+
+describe('brandVoiceSchemaV2', () => {
+  const validFull = {
+    tone: 'friendly_professional',
+    styleGuidelines: ['Avoid corporate language', 'Mirror specific details from the review'],
+    keyPhrases: ['Thank you for taking the time'],
+    sampleResponses: [
+      { ratingContext: 5 as const, responseText: 'Thanks so much for the kind words!' },
+      { ratingContext: 'any' as const, responseText: 'We appreciate the feedback.' },
+    ],
+    acknowledgeNamedStaff: true,
+    acknowledgeOccasions: false,
+    salutationPattern: 'Dear {firstName},',
+    signoffLines: 'Warmest regards,\nThe Team',
+    negativeReviewEmailEnabled: true,
+    negativeReviewFraming: 'investigation' as const,
+    negativeReviewFramingCustom: null,
+    replyToEmail: 'hello@example.com',
+  };
+
+  describe('tone', () => {
+    it('accepts every V2 tone key', () => {
+      const tones = ['warm_casual', 'friendly_professional', 'polished_formal', 'empathetic_attentive'];
+      for (const tone of tones) {
+        const result = brandVoiceSchemaV2.safeParse({ ...validFull, tone });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('rejects legacy tone keys (require the V2 set)', () => {
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, tone: 'professional' });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects display-string tones (we store keys, not labels)', () => {
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, tone: 'Friendly & professional' });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('styleGuidelines', () => {
+    it('defaults to empty array when omitted', () => {
+      const { styleGuidelines: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.styleGuidelines).toEqual([]);
+    });
+
+    it('rejects > 10 items', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        styleGuidelines: Array.from({ length: 11 }, (_, i) => `Rule ${i}`),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts exactly 10 items', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        styleGuidelines: Array.from({ length: 10 }, (_, i) => `Rule ${i}`),
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects per-item text > 200 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        styleGuidelines: ['a'.repeat(201)],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects when joined total exceeds 2000 chars', () => {
+      // 10 items × ~205 chars when joined with \n = ~2059 chars total.
+      // Each item must individually pass the 200-char per-item check, so
+      // we pad with 199-char strings (10 × 200 incl. newlines ≈ 2009 > 2000).
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        styleGuidelines: Array.from({ length: 10 }, () => 'a'.repeat(200)),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('trims surrounding whitespace on accepted items', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        styleGuidelines: ['  trim me  '],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.styleGuidelines[0]).toBe('trim me');
+    });
+  });
+
+  describe('keyPhrases', () => {
+    it('defaults to empty array when omitted', () => {
+      const { keyPhrases: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.keyPhrases).toEqual([]);
+    });
+
+    it('rejects > 10 items (V2 lowered from legacy 20)', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        keyPhrases: Array.from({ length: 11 }, (_, i) => `Phrase ${i}`),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects per-item text > 100 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        keyPhrases: ['a'.repeat(101)],
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('sampleResponses', () => {
+    it('defaults to empty array when omitted', () => {
+      const { sampleResponses: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects > 5 items', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        sampleResponses: Array.from({ length: 6 }, (_, i) => ({
+          ratingContext: 'any' as const,
+          responseText: `Sample ${i}`,
+        })),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts ratingContext = 1..5 and "any"', () => {
+      for (const rc of [1, 2, 3, 4, 5, 'any'] as const) {
+        const result = brandVoiceSchemaV2.safeParse({
+          ...validFull,
+          sampleResponses: [{ ratingContext: rc, responseText: 'ok' }],
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('rejects ratingContext outside 1..5', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        sampleResponses: [{ ratingContext: 6, responseText: 'ok' }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects ratingContext other than "any" or 1..5', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        sampleResponses: [{ ratingContext: 'all', responseText: 'ok' }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects empty responseText', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        sampleResponses: [{ ratingContext: 'any', responseText: '' }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects responseText > 1000 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        sampleResponses: [{ ratingContext: 'any', responseText: 'a'.repeat(1001) }],
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('personalization toggles', () => {
+    it('default acknowledgeNamedStaff = true', () => {
+      const { acknowledgeNamedStaff: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.acknowledgeNamedStaff).toBe(true);
+    });
+
+    it('default acknowledgeOccasions = true', () => {
+      const { acknowledgeOccasions: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.acknowledgeOccasions).toBe(true);
+    });
+  });
+
+  describe('contact & sign-off', () => {
+    it('defaults salutationPattern to "Dear {firstName},"', () => {
+      const { salutationPattern: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.salutationPattern).toBe('Dear {firstName},');
+    });
+
+    it('rejects salutation > 100 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        salutationPattern: 'a'.repeat(101),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('defaults signoffLines to "Warmest regards,\\nThe Team"', () => {
+      const { signoffLines: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.signoffLines).toBe('Warmest regards,\nThe Team');
+    });
+
+    it('rejects sign-off > 500 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        signoffLines: 'a'.repeat(501),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('defaults negativeReviewEmailEnabled = false (opt-in per spec §7.3)', () => {
+      const { negativeReviewEmailEnabled: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.negativeReviewEmailEnabled).toBe(false);
+    });
+
+    it('accepts all four negativeReviewFraming values', () => {
+      for (const framing of ['management_contact', 'investigation', 'open_channel', 'custom'] as const) {
+        const result = brandVoiceSchemaV2.safeParse({ ...validFull, negativeReviewFraming: framing });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('rejects unknown negativeReviewFraming', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        negativeReviewFraming: 'apologetic',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('default negativeReviewFraming = "investigation"', () => {
+      const { negativeReviewFraming: _omit, ...rest } = validFull;
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.negativeReviewFraming).toBe('investigation');
+    });
+
+    it('rejects negativeReviewFramingCustom > 500 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        negativeReviewFramingCustom: 'a'.repeat(501),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts a valid RFC-compliant replyToEmail', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        replyToEmail: 'manager@brand.example.com',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects malformed replyToEmail', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        replyToEmail: 'not-an-email',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects replyToEmail containing \\n (header-injection guard)', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        replyToEmail: 'ok@example.com\nBcc: leak@evil.com',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects replyToEmail containing \\r (header-injection guard)', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        replyToEmail: 'ok@example.com\rCc: leak@evil.com',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects replyToEmail > 254 chars', () => {
+      // Build a 255-char email: local part of 248 chars + "@a.com" (6) = 254 — make one over.
+      const local = 'a'.repeat(248);
+      const email = `${local}@a.com`; // 248 + 6 = 254
+      const tooLong = `a${email}`; // 255
+      // Sanity check the construction
+      expect(tooLong.length).toBe(255);
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, replyToEmail: tooLong });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('full payload', () => {
+    it('accepts a minimal valid payload (just tone) and defaults the rest', () => {
+      const result = brandVoiceSchemaV2.safeParse({ tone: 'friendly_professional' });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.tone).toBe('friendly_professional');
+        expect(result.data.styleGuidelines).toEqual([]);
+        expect(result.data.keyPhrases).toEqual([]);
+        expect(result.data.sampleResponses).toEqual([]);
+        expect(result.data.acknowledgeNamedStaff).toBe(true);
+        expect(result.data.acknowledgeOccasions).toBe(true);
+        expect(result.data.salutationPattern).toBe('Dear {firstName},');
+        expect(result.data.signoffLines).toBe('Warmest regards,\nThe Team');
+        expect(result.data.negativeReviewEmailEnabled).toBe(false);
+        expect(result.data.negativeReviewFraming).toBe('investigation');
+      }
+    });
+
+    it('accepts a fully populated payload', () => {
+      const result = brandVoiceSchemaV2.safeParse(validFull);
+      expect(result.success).toBe(true);
+    });
   });
 });
 

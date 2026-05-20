@@ -1,6 +1,11 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { ResponseEditor } from "@/components/reviews/ResponseEditor";
+import { VALIDATION_LIMITS } from "@/lib/constants";
+
+// Importing the live constant keeps these tests immune to future cap changes
+// (e.g. the iter 2 raise from 500 → 2000) — they assert behaviour, not numbers.
+const MAX = VALIDATION_LIMITS.RESPONSE_TEXT_MAX;
 
 describe("ResponseEditor", () => {
   const defaultProps = {
@@ -16,11 +21,11 @@ describe("ResponseEditor", () => {
     expect(textarea).toHaveValue("Hello world");
   });
 
-  it("shows character count", () => {
+  it("shows character count using the current max limit", () => {
     render(<ResponseEditor {...defaultProps} />);
 
     expect(screen.getByText(/11/)).toBeInTheDocument();
-    expect(screen.getByText(/500 characters/)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`${MAX} characters`))).toBeInTheDocument();
   });
 
   it("disables Save button when text is unchanged", () => {
@@ -44,7 +49,7 @@ describe("ResponseEditor", () => {
     render(<ResponseEditor {...defaultProps} />);
 
     const textarea = screen.getByPlaceholderText("Edit your response...");
-    fireEvent.change(textarea, { target: { value: "A".repeat(501) } });
+    fireEvent.change(textarea, { target: { value: "A".repeat(MAX + 1) } });
 
     const saveBtn = screen.getByRole("button", { name: /save changes/i });
     expect(saveBtn).toBeDisabled();
@@ -71,7 +76,7 @@ describe("ResponseEditor", () => {
     render(<ResponseEditor {...defaultProps} />);
 
     const textarea = screen.getByPlaceholderText("Edit your response...");
-    fireEvent.change(textarea, { target: { value: "A".repeat(510) } });
+    fireEvent.change(textarea, { target: { value: "A".repeat(MAX + 10) } });
 
     expect(screen.getByText(/10 over limit/)).toBeInTheDocument();
   });
