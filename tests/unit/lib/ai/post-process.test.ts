@@ -1,0 +1,435 @@
+import { describe, it, expect } from "vitest";
+
+import {
+  assembleResponse,
+  buildSalutation,
+  extractFirstName,
+  substituteReplyToEmail,
+} from "@/lib/ai/post-process";
+
+// Default V2 brand voice — fields we override per-test, defaults from
+// `normalizeBrandVoice` fill in the rest at runtime.
+const baseBrandVoice = {
+  tone: "friendly_professional",
+  keyPhrases: [],
+  styleGuidelines: [],
+  sampleResponses: [],
+  acknowledgeNamedStaff: true,
+  acknowledgeOccasions: true,
+  salutationPattern: "Dear {firstName},",
+  signoffLines: "Warmest regards,\nThe Team",
+  negativeReviewEmailEnabled: false,
+  negativeReviewFraming: "investigation" as const,
+  negativeReviewFramingCustom: null,
+  replyToEmail: null,
+};
+
+const baseReview = {
+  rating: 5 as number | null,
+  sentiment: null as string | null,
+  reviewerName: "Jane" as string | null,
+};
+
+describe("extractFirstName", () => {
+  it("returns the single token unchanged", () => {
+    expect(extractFirstName("Jane")).toBe("Jane");
+  });
+
+  it("returns the first whitespace-delimited token for a multi-word name", () => {
+    expect(extractFirstName("Jane Smith")).toBe("Jane");
+    expect(extractFirstName("Jane Anne Smith")).toBe("Jane");
+  });
+
+  it("trims surrounding whitespace before extracting", () => {
+    expect(extractFirstName("  Jane Smith  ")).toBe("Jane");
+    expect(extractFirstName("\tJane")).toBe("Jane");
+  });
+
+  it("collapses internal multi-whitespace and still returns the first token", () => {
+    expect(extractFirstName("Jane    Smith")).toBe("Jane");
+  });
+
+  it("returns null for null / undefined / empty / whitespace-only input", () => {
+    expect(extractFirstName(null)).toBeNull();
+    expect(extractFirstName(undefined)).toBeNull();
+    expect(extractFirstName("")).toBeNull();
+    expect(extractFirstName("   ")).toBeNull();
+  });
+});
+
+describe("buildSalutation — with name", () => {
+  it("substitutes {firstName} with the provided name", () => {
+    expect(buildSalutation("Dear {firstName},", "Jane")).toBe("Dear Jane,");
+  });
+
+  it("substitutes in 'Hi {firstName},' too", () => {
+    expect(buildSalutation("Hi {firstName},", "Jane")).toBe("Hi Jane,");
+  });
+
+  it("substitutes multiple occurrences (defensive — unlikely but supported)", () => {
+    expect(buildSalutation("Hi {firstName}, {firstName}!", "Jane")).toBe("Hi Jane, Jane!");
+  });
+
+  it("returns the pattern unchanged when it has no {firstName} placeholder", () => {
+    expect(buildSalutation("Hello,", "Jane")).toBe("Hello,");
+  });
+});
+
+describe("buildSalutation — without name (canonicalisation, spec §13.1)", () => {
+  it("'Dear {firstName},' with no name → 'Hello,'", () => {
+    expect(buildSalutation("Dear {firstName},", null)).toBe("Hello,");
+  });
+
+  it("'Hi {firstName},' with no name → 'Hi,'", () => {
+    expect(buildSalutation("Hi {firstName},", null)).toBe("Hi,");
+  });
+
+  it("'Hello {firstName},' with no name → 'Hello,'", () => {
+    expect(buildSalutation("Hello {firstName},", null)).toBe("Hello,");
+  });
+
+  it("collapses double-space artifacts: 'Dear  {firstName},' with no name → 'Hello,'", () => {
+    // Pattern with a trailing space after Dear before {firstName} produces
+    // "Dear  ," when the variable is dropped — the canonicalisation should
+    // still recover "Hello,".
+    expect(buildSalutation("Dear {firstName} ,", null)).toBe("Hello,");
+  });
+
+  it("returns 'Hello,' as the safe fallback for a salutation that starts with just {firstName},", () => {
+    // Edge case: salutation pattern is just "{firstName}," — drop variable
+    // leaves a dangling leading comma.
+    expect(buildSalutation("{firstName},", null)).toBe("Hello,");
+  });
+
+  it("returns the pattern unchanged when it doesn't reference {firstName}", () => {
+    expect(buildSalutation("Hello,", null)).toBe("Hello,");
+  });
+});
+
+describe("substituteReplyToEmail", () => {
+  it("replaces [your email] with the configured address", () => {
+    expect(
+      substituteReplyToEmail(
+        "Please email [your email] with your booking details.",
+        "hello@brand.example",
+      ),
+    ).toBe("Please email hello@brand.example with your booking details.");
+  });
+
+  it("is case-insensitive (defensive — the model could vary the casing)", () => {
+    expect(substituteReplyToEmail("Email [Your Email] please.", "hello@brand.example"))
+      .toBe("Email hello@brand.example please.");
+    expect(substituteReplyToEmail("Email [YOUR EMAIL] please.", "hello@brand.example"))
+      .toBe("Email hello@brand.example please.");
+  });
+
+  it("replaces all occurrences if the model emits the placeholder twice", () => {
+    expect(
+      substituteReplyToEmail(
+        "Please email [your email] or write to [your email].",
+        "hello@brand.example",
+      ),
+    ).toBe("Please email hello@brand.example or write to hello@brand.example.");
+  });
+
+  it("returns the body unchanged when no placeholder is present", () => {
+    const body = "Thanks for your feedback.";
+    expect(substituteReplyToEmail(body, "hello@brand.example")).toBe(body);
+  });
+
+  it("returns the body unchanged when the email is null/empty", () => {
+    const body = "Please email [your email].";
+    expect(substituteReplyToEmail(body, null)).toBe(body);
+    expect(substituteReplyToEmail(body, "")).toBe(body);
+    expect(substituteReplyToEmail(body, "   ")).toBe(body);
+  });
+});
+
+describe("assembleResponse — salutation + body + sign-off", () => {
+  it("prepends the salutation, body, then sign-off in the right order", () => {
+    const out = assembleResponse({
+      modelBody: "Thanks so much for sharing this.",
+      brandVoice: baseBrandVoice,
+      review: baseReview,
+    });
+
+    expect(out).toBe("Dear Jane,\n\nThanks so much for sharing this.\n\nWarmest regards,\nThe Team");
+  });
+
+  it("falls back to 'Hello,' when reviewerName is null", () => {
+    const out = assembleResponse({
+      modelBody: "Body.",
+      brandVoice: baseBrandVoice,
+      review: { ...baseReview, reviewerName: null },
+    });
+
+    expect(out.startsWith("Hello,\n\n")).toBe(true);
+  });
+
+  it("uses only the first whitespace-delimited token of a multi-word name", () => {
+    const out = assembleResponse({
+      modelBody: "Body.",
+      brandVoice: baseBrandVoice,
+      review: { ...baseReview, reviewerName: "Jane Smith" },
+    });
+
+    expect(out.startsWith("Dear Jane,")).toBe(true);
+    expect(out).not.toContain("Smith");
+  });
+
+  it("converts literal \\n in signoffLines to real newlines", () => {
+    const out = assembleResponse({
+      modelBody: "Body.",
+      brandVoice: { ...baseBrandVoice, signoffLines: "Kind regards,\\nManager Name" },
+      review: baseReview,
+    });
+
+    // The literal `\n` becomes a real newline so the sign-off renders on two lines.
+    expect(out.endsWith("Kind regards,\nManager Name")).toBe(true);
+  });
+
+  it("strips trailing whitespace from the sign-off (no dangling newlines on the assembled output)", () => {
+    const out = assembleResponse({
+      modelBody: "Body.",
+      brandVoice: { ...baseBrandVoice, signoffLines: "Regards,\nThe Team\n\n\n" },
+      review: baseReview,
+    });
+
+    expect(out.endsWith("Regards,\nThe Team")).toBe(true);
+  });
+
+  it("uses a custom salutation pattern verbatim when {firstName} is present", () => {
+    const out = assembleResponse({
+      modelBody: "Body.",
+      brandVoice: { ...baseBrandVoice, salutationPattern: "Hello {firstName}," },
+      review: baseReview,
+    });
+
+    expect(out.startsWith("Hello Jane,")).toBe(true);
+  });
+});
+
+describe("assembleResponse — email substitution (spec §7.5)", () => {
+  it("substitutes [your email] when negative review + toggle ON + replyToEmail set", () => {
+    const out = assembleResponse({
+      modelBody:
+        "We apologise for the experience. Please email [your email] with booking details.",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: "hello@brand.example",
+      },
+      review: { ...baseReview, rating: 1 },
+    });
+
+    expect(out).toContain("hello@brand.example");
+    expect(out).not.toContain("[your email]");
+  });
+
+  it("does NOT substitute on a positive review even when toggle is ON (spec §7.5: positives never get the email in body)", () => {
+    const out = assembleResponse({
+      modelBody: "Thanks! Please email [your email] if you have questions.",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: "hello@brand.example",
+      },
+      review: { ...baseReview, rating: 5 },
+    });
+
+    // Placeholder remains because the routing predicate returned positive.
+    expect(out).toContain("[your email]");
+    expect(out).not.toContain("hello@brand.example");
+  });
+
+  it("does NOT substitute when the toggle is OFF, even on a negative review", () => {
+    const out = assembleResponse({
+      modelBody: "Please email [your email].",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: false,
+        replyToEmail: "hello@brand.example",
+      },
+      review: { ...baseReview, rating: 1 },
+    });
+
+    expect(out).toContain("[your email]");
+    expect(out).not.toContain("hello@brand.example");
+  });
+
+  it("does NOT substitute when replyToEmail is null, even with toggle on + negative review", () => {
+    const out = assembleResponse({
+      modelBody: "Please email [your email].",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: null,
+      },
+      review: { ...baseReview, rating: 1 },
+    });
+
+    expect(out).toContain("[your email]");
+  });
+
+  it("fires substitution on the Kiran case (4-star with negative sentiment)", () => {
+    const out = assembleResponse({
+      modelBody: "Please email [your email] with details.",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: "hello@brand.example",
+      },
+      review: { ...baseReview, rating: 4, sentiment: "negative" },
+    });
+
+    expect(out).toContain("hello@brand.example");
+    expect(out).not.toContain("[your email]");
+  });
+
+  it("fires on a 2-star review regardless of sentiment", () => {
+    const out = assembleResponse({
+      modelBody: "Please email [your email].",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: "hello@brand.example",
+      },
+      review: { ...baseReview, rating: 2 },
+    });
+
+    expect(out).toContain("hello@brand.example");
+  });
+
+  it("does NOT fire on a 3-star review (mixed routing, not negative)", () => {
+    const out = assembleResponse({
+      modelBody: "Please email [your email].",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: "hello@brand.example",
+      },
+      review: { ...baseReview, rating: 3 },
+    });
+
+    expect(out).toContain("[your email]");
+  });
+});
+
+describe("assembleResponse — body truncation", () => {
+  it("does not truncate when body length is within RESPONSE_BODY_CHAR_MAX", () => {
+    const body = "a".repeat(500);
+    const out = assembleResponse({
+      modelBody: body,
+      brandVoice: baseBrandVoice,
+      review: baseReview,
+    });
+
+    // Body appears in full between the salutation and sign-off.
+    expect(out).toContain(body);
+  });
+
+  it("truncates the body to RESPONSE_BODY_CHAR_MAX when it exceeds the cap", () => {
+    const body = "a".repeat(2000);
+    const out = assembleResponse({
+      modelBody: body,
+      brandVoice: baseBrandVoice,
+      review: baseReview,
+    });
+
+    // The full 2000-char body must not appear unchanged.
+    expect(out).not.toContain(body);
+    // The sign-off still appears intact at the end — it was NOT truncated.
+    expect(out.endsWith("Warmest regards,\nThe Team")).toBe(true);
+  });
+
+  it("prefers a sentence boundary when one is available in the last 100 chars of the cap", () => {
+    // Build a body that ends with a sentence close just inside the cap, then
+    // long filler that pushes past it.
+    const head = "a".repeat(1150) + ". ";
+    const tail = "b".repeat(500);
+    const body = head + tail;
+    const out = assembleResponse({
+      modelBody: body,
+      brandVoice: baseBrandVoice,
+      review: baseReview,
+    });
+
+    // The body inside the assembled output should end at "." (the closest
+    // sentence boundary within the last 100 chars before the cap).
+    const salutation = "Dear Jane,\n\n";
+    const signoffStart = "\n\nWarmest regards,";
+    const startIdx = out.indexOf(salutation) + salutation.length;
+    const endIdx = out.lastIndexOf(signoffStart);
+    const assembledBody = out.slice(startIdx, endIdx);
+    expect(assembledBody.endsWith(".")).toBe(true);
+    // None of the 'b' filler should make it in.
+    expect(assembledBody).not.toContain("b");
+  });
+
+  it("never truncates the sign-off, even with an aggressively long body", () => {
+    const out = assembleResponse({
+      modelBody: "x".repeat(5000),
+      brandVoice: baseBrandVoice,
+      review: baseReview,
+    });
+
+    expect(out.endsWith("Warmest regards,\nThe Team")).toBe(true);
+  });
+});
+
+describe("assembleResponse — defensive normalisation", () => {
+  it("handles a brand voice missing optional fields (normalize fills defaults)", () => {
+    const out = assembleResponse({
+      modelBody: "Body.",
+      brandVoice: { tone: "friendly_professional", keyPhrases: [] },
+      review: baseReview,
+    });
+
+    // The DEFAULTS in normalizeBrandVoice supply "Dear {firstName},"
+    // and "Warmest regards,\nThe Team".
+    expect(out.startsWith("Dear Jane,\n\n")).toBe(true);
+    expect(out.endsWith("Warmest regards,\nThe Team")).toBe(true);
+  });
+
+  it("handles a null brand voice (entirely defaults)", () => {
+    const out = assembleResponse({
+      modelBody: "Body.",
+      brandVoice: null,
+      review: baseReview,
+    });
+
+    expect(out.startsWith("Dear Jane,\n\n")).toBe(true);
+  });
+
+  it("trims surrounding whitespace from the model body before assembly", () => {
+    const out = assembleResponse({
+      modelBody: "   \n\nBody.\n\n  ",
+      brandVoice: baseBrandVoice,
+      review: baseReview,
+    });
+
+    // The body region between the salutation block and the sign-off block
+    // should be just "Body." — no extra leading/trailing whitespace.
+    expect(out).toBe("Dear Jane,\n\nBody.\n\nWarmest regards,\nThe Team");
+  });
+});
+
+describe("assembleResponse — full output order (spec §9.5)", () => {
+  it("produces salutation → blank line → body → blank line → sign-off, in that order", () => {
+    const out = assembleResponse({
+      modelBody: "First paragraph.\n\nSecond paragraph.",
+      brandVoice: baseBrandVoice,
+      review: baseReview,
+    });
+
+    const lines = out.split("\n");
+    expect(lines[0]).toBe("Dear Jane,");
+    expect(lines[1]).toBe("");
+    expect(lines[2]).toBe("First paragraph.");
+    expect(lines[3]).toBe("");
+    expect(lines[4]).toBe("Second paragraph.");
+    expect(lines[5]).toBe("");
+    expect(lines[6]).toBe("Warmest regards,");
+    expect(lines[7]).toBe("The Team");
+  });
+});

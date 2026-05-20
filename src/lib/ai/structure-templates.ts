@@ -141,14 +141,21 @@ export type NegativeReviewFraming =
  * Spec §7.4 framing strings. The `custom` option is handled separately by
  * the caller (it wraps the user-supplied `negativeReviewFramingCustom` via
  * the sanitize helper).
+ *
+ * Each framing instructs the model to include the literal placeholder
+ * `[your email]` wherever the customer is invited to make contact. Iter
+ * 5's post-processing layer substitutes that placeholder with the
+ * brand voice's configured `replyToEmail`. The placeholder is the
+ * coordination point between this prompt and `post-process.ts:
+ * substituteReplyToEmail` — change it in both places together.
  */
 const FRAMING_FRAGMENTS: Record<Exclude<NegativeReviewFraming, "custom">, string> = {
   management_contact:
-    "Include a clear promise that a member of management will reach out via the contact email, and request the customer's booking details so the team can follow up properly.",
+    "Include a clear promise that a member of management will reach out via the contact email. Use the literal placeholder `[your email]` for the email address. Request the customer's booking details so the team can follow up properly.",
   investigation:
-    "Invite the customer to email their concerns and booking details, framing it as something the team would like to look into.",
+    "Invite the customer to email their concerns and booking details, framing it as something the team would like to look into. Use the literal placeholder `[your email]` for the email address.",
   open_channel:
-    "Offer the email as a channel for further conversation, without promising specific follow-up actions.",
+    "Offer the email as a channel for further conversation, without promising specific follow-up actions. Use the literal placeholder `[your email]` for the email address.",
 };
 
 /** Get the preset framing fragment. Returns null for the `custom` option. */

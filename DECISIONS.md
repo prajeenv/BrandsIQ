@@ -1654,6 +1654,66 @@ Branch: `fix/e2e-mock-header-gate`. Single small fix landing between iter 4 and 
 
 Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 969 passed, 0 failed across 63 files (+6 from iter 4's 963).
 
+### Iteration 5 — Post-processing module + route wiring
+
+Branch: `feat/brand-voice-redesign-iter-5`. Deterministically assembles every AI response: prepends the configured salutation (with `{firstName}` substitution + no-name canonicalisation), appends the sign-off block, and on negative reviews substitutes the `[your email]` placeholder the model was instructed to emit with the brand's configured reply-to email. Wired identically into the three routes that call `generateReviewResponse` so preview (`/api/brand-voice/test`) matches prod (`generate`/`regenerate`).
+
+#### Decision 62: Email substitution is INLINE in the model body, not appended after sign-off
+
+- **Decision:** When `negativeReviewEmailEnabled && isNegativeReview && replyToEmail`, post-processing replaces the literal placeholder `[your email]` (case-insensitive, all occurrences) in the model-emitted body with the brand's configured email. The framing fragments in `structure-templates.ts` are updated to explicitly instruct the model to use this placeholder. The reply-to email does NOT appear as a separate line after the sign-off.
+- **Why:** Spec §7.4 example outputs literally show the email inline ("Please email [your email] with your booking details"). A bolted-on line after the sign-off would either duplicate the email (body says "email us" and then it appears again) or read awkwardly when the body already references it by name. The inline substitution matches what a careful human would write.
+- **Risk:** Low ✅. If the model fails to emit the placeholder, the email simply doesn't appear in that response — the structural prompt instruction is strong enough that this should be rare. If beta feedback shows it happening, the follow-up is to add an appended fallback line (open question in the spec).
+- **Required coordination:** The placeholder string is hardcoded in two places that must stay in sync — `structure-templates.ts` `FRAMING_FRAGMENTS` (where the model is told to emit it) and `post-process.ts` `EMAIL_PLACEHOLDER_PATTERN` (where it's substituted). Comments in both files call this out.
+
+#### Decision 63: `post-process.ts` is pure and accepts `unknown` for `brandVoice` (defensive normalisation)
+
+- **Decision:** `assembleResponse` accepts the brand voice as `unknown` and runs `normalizeBrandVoice` internally before reading any field. This mirrors iter 4's approach in `generateReviewResponse` — the route can pass the raw Prisma row, and the function tolerates legacy shapes, partial objects, or even `null`.
+- **Why:** Consistency with iter 4. Pushes coercion to a single well-tested module (`normalizeBrandVoice` already has 25 dedicated tests). Routes stay simple: same call shape as `generateReviewResponse`.
+- **Risk:** Low ✅. No new code paths in the normalize module; this is reuse.
+
+#### Decision 64: Canonicalisation table is an ordered `[regex, replacement][]` list, most-specific first
+
+- **Decision:** When `review.reviewerName` is null/empty, `{firstName}` is replaced with `""` first, then an ordered list of regex-replacement pairs runs over the salutation. The order matters: `Dear  ,` (double-space) is matched and rewritten BEFORE `Dear ,` (single-space) would have matched it. Spec §13.1.
+- **Why:** Concatenation of substitutions in the wrong order produces the wrong output. Most-specific-first ordering is the standard and easiest pattern to reason about. Each entry is commented inline.
+- **Risk:** Low ✅. Exhaustive unit tests cover every variant from the spec table (`Dear ,`, `Hi ,`, `Hello ,`, double-space variants, leading-comma edge case).
+
+#### Decision 65: Body truncation lives in `post-process.ts`, not in the routes
+
+- **Decision:** The route-side truncation (which used to live in `generate`/`regenerate` and was switched to `RESPONSE_BODY_CHAR_MAX` in iter 4) is now gone. Truncation happens inside `assembleResponse` and only affects the body region — salutation and sign-off are appended afterwards and are never truncated.
+- **Why:** Single source of truth. Routes used to duplicate ~8 lines of truncation logic each; that's now in one place with explicit tests proving the closing block survives. Spec §9.4 / §13.2.
+- **Side effect:** `RESPONSE_BODY_CHAR_MAX` is no longer imported by the routes — `assembleResponse` is.
+- **Risk:** Low ✅.
+
+#### Decision 66: Test panel runs the same post-processing as prod (preview == prod parity)
+
+- **Decision:** `POST /api/brand-voice/test` calls `assembleResponse` with `reviewerName: null`, `sentiment: null`, and the rating the panel provides. The test panel returns the assembled text so users see exactly what they'd see on a real review.
+- **Why:** Open Decision D7 (plan): "keep the test panel and have it match prod." Otherwise the panel teaches users a false expectation — "this is what my brand voice produces" — that diverges from the live behaviour.
+- **Risk:** Low ✅. New unit test (`brand-voice-test.test.ts:iter 5: returned responseText is the assembled form`) covers the parity.
+
+#### Decision 67: Sign-off line-break normalisation accepts both literal `\n` and real newlines
+
+- **Decision:** Sign-off text from the DB may contain literal `\n` (escape sequences) OR real newlines depending on how it was serialised. `normaliseSignoffLines` replaces literal `\n` with real newlines and collapses CR-LF/CR to LF for consistency. Spec §13.2.
+- **Why:** The DB column is `@db.Text` — Prisma doesn't enforce either form. Future form changes might switch between them; the post-processor accepting both is cheap and prevents regressions.
+- **Risk:** Low ✅.
+
+#### Decision 68: Framing fragments updated to explicitly tell the model to emit `[your email]`
+
+- **Decision:** All three preset framing fragments in `structure-templates.ts` now include "Use the literal placeholder `[your email]` for the email address." (`management_contact` / `investigation` / `open_channel`).
+- **Why:** Without this, the model invents its own placeholder — sometimes `<email>`, sometimes `[contact]`, sometimes just hard-coding a guessed address. The placeholder is the coordination point with `post-process.ts:substituteReplyToEmail`, so it must be stable. Comments in both files cross-reference the other.
+- **Risk:** Low ✅. The change is purely a clarifying instruction, no spec deviation.
+
+#### Test coverage delta — Iteration 5
+
+| Type | Before iter 5 (suite total) | After iter 5 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 969 | 1013 | **+44** |
+| New unit test files | — | — | 1 (`tests/unit/lib/ai/post-process.test.ts`, 41 cases) |
+| Modified unit test files | — | — | 3 (`generate.test.ts` +1, `regenerate.test.ts` +1, `brand-voice-test.test.ts` fixture + 1) |
+| Integration tests | — | — | 0 (route tests cover the persisted-shape assertion) |
+| E2E specs | — | — | 0 |
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 1013 passed, 0 failed across 64 files.
+
 ---
 
 ## Decision Log
@@ -1723,6 +1783,13 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 59 | `ToneModifier` type retains the legacy 3-key set this iteration; iter 6 swaps to V2 4-key set | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
 | 60 | V2 tone rendered in prompt as the human display label, not the snake_case key | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
 | 61 | E2E mock canned response gated on env var AND `x-e2e-mock` header (follow-up to #15) so manual users on Preview/staging hit real Claude | Brand Voice Redesign / fix between It. 4 + It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 62 | Email substitution is INLINE in the model body (`[your email]` placeholder), not appended after sign-off | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 63 | `post-process.ts` accepts `unknown` for brandVoice and runs `normalizeBrandVoice` internally (matches iter 4 pattern) | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 64 | Canonicalisation table is an ordered `[regex, replacement][]` list, most-specific patterns first | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 65 | Body truncation lives in `post-process.ts` only — single source of truth; salutation/sign-off never truncated | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 66 | Test panel (`/api/brand-voice/test`) runs the same `assembleResponse` as prod (preview == prod parity) | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 67 | Sign-off line-break normalisation accepts both literal `\n` and real newlines from the DB column | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 68 | Framing fragments explicitly tell the model to emit `[your email]` placeholder (coordination with post-process) | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 

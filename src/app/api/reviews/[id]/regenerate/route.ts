@@ -3,8 +3,9 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateReviewResponse, DEFAULT_MODEL, ToneModifier } from "@/lib/ai/claude";
+import { assembleResponse } from "@/lib/ai/post-process";
 import { deductCreditsAtomic, getOrCreateBrandVoice } from "@/lib/db-utils";
-import { CREDIT_COSTS, RESPONSE_BODY_CHAR_MAX } from "@/lib/constants";
+import { CREDIT_COSTS } from "@/lib/constants";
 import { logIfInjectionAttempt } from "@/lib/security-log";
 import { CreditActionValues } from "@/types/database";
 
@@ -186,17 +187,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Iter 4: truncate the model body to RESPONSE_BODY_CHAR_MAX. Iter 5's
-    // `assembleResponse` will replace this with closing-block-aware
-    // truncation so salutation/sign-off are never chopped.
-    let responseText = generatedResponse.responseText;
-    if (responseText.length > RESPONSE_BODY_CHAR_MAX) {
-      responseText = responseText.substring(0, RESPONSE_BODY_CHAR_MAX);
-      const lastPeriod = responseText.lastIndexOf(".");
-      if (lastPeriod > RESPONSE_BODY_CHAR_MAX - 100) {
-        responseText = responseText.substring(0, lastPeriod + 1);
-      }
-    }
+    // Iter 5: assemble the final response (salutation + body + sign-off
+    // + conditional email substitution). Body is internally truncated to
+    // RESPONSE_BODY_CHAR_MAX; salutation and sign-off are appended after
+    // and never truncated. See post-process.ts and spec §7 / §9.4 /
+    // §13.1 / §13.2.
+    const responseText = assembleResponse({
+      modelBody: generatedResponse.responseText,
+      brandVoice,
+      review: {
+        rating: review.rating,
+        sentiment: review.sentiment,
+        reviewerName: review.reviewerName,
+      },
+    });
 
     // Deduct credits atomically
     const creditResult = await deductCreditsAtomic(

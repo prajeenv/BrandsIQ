@@ -60,14 +60,24 @@ function createRequest(
   });
 }
 
+// V2 brand voice fixture (iter 3 column shape, iter 5 post-processing
+// fields). The test panel uses this to drive the assembled-output assertion
+// below.
 const defaultBrandVoice = {
   id: 'bv1',
   userId: 'clu1234567890abcdef',
-  tone: 'professional',
-  formality: 3,
+  tone: 'friendly_professional',
   keyPhrases: ['Thank you', 'We appreciate your feedback'],
-  styleNotes: 'Be genuine and empathetic',
+  styleGuidelines: ['Be genuine and empathetic'],
   sampleResponses: [],
+  acknowledgeNamedStaff: true,
+  acknowledgeOccasions: true,
+  salutationPattern: 'Dear {firstName},',
+  signoffLines: 'Warmest regards,\nThe Team',
+  negativeReviewEmailEnabled: false,
+  negativeReviewFraming: 'investigation',
+  negativeReviewFramingCustom: null,
+  replyToEmail: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -133,6 +143,28 @@ describe('POST /api/brand-voice/test', () => {
     expect(json.data.response.isTestMode).toBe(true);
     expect(json.data.response.creditsUsed).toBe(0);
     expect(json.data.response.responseText).toBeDefined();
+  });
+
+  // Iter 5: post-processing assembly runs in the test panel too, so the
+  // preview matches what a real generate would produce (preview == prod).
+  it('iter 5: returned responseText is the assembled form (salutation + body + sign-off)', async () => {
+    mockPrisma.brandVoice.findUnique.mockResolvedValue(defaultBrandVoice);
+
+    const req = createRequest('/api/brand-voice/test', {
+      method: 'POST',
+      body: { reviewText: 'Amazing service! Will come back again.' },
+    });
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    // The test panel doesn't pass a reviewer name, so the salutation
+    // canonicalises to "Hello,".
+    expect(json.data.response.responseText.startsWith('Hello,\n\n')).toBe(true);
+    // The configured sign-off appears at the end, on its own block.
+    expect(json.data.response.responseText.endsWith('Warmest regards,\nThe Team')).toBe(true);
+    // The model body sits between the two.
+    expect(json.data.response.responseText).toContain('Thank you for your wonderful feedback');
   });
 
   it('creates default brand voice if none exists', async () => {

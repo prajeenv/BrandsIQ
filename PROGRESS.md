@@ -1108,8 +1108,8 @@ A four-section restructure of the brand voice settings screen (Voice / Examples 
 | 1 | Sanitize helper + review-text retrofit + SecurityLog | ✅ Done (May 20, merged via PR #120) |
 | 2 | Validation schema + constants + normalize adapter | ✅ Done (May 20, merged via PR #121) |
 | 3 | Clean-reset schema migration + route cutover + legacy form bridge | ✅ Done (May 20, merged via PR #122) |
-| 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ✅ Done (May 20) |
-| 5 | Post-processing module + route wiring | ⏳ Not started |
+| 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ✅ Done (May 20, merged via PR #123) |
+| 5 | Post-processing module + route wiring | ✅ Done (May 21) |
 | 6 | Frontend restructure + API Zod cutover + regenerate dialog | ⏳ Not started |
 
 ### ✅ Iteration 1 — Sanitize helper + review-text retrofit + SecurityLog table
@@ -1289,7 +1289,46 @@ Manual response generation on staging after iter 4 returned the canned Playwrigh
 
 **Decisions** (cross-reference DECISIONS.md "Follow-up fix: E2E mock header-gate"): #61 mock requires env AND header (follow-up to #15).
 
+### ✅ Iteration 5 — Post-processing module + route wiring
+
+**Branch:** `feat/brand-voice-redesign-iter-5`
+**Status:** Locally verified (lint:strict / type-check / 1013 unit tests passing). PR pending.
+
+Deterministically assembles every AI response. The model body coming back from Claude is just the prose paragraphs (iter 4's prompt explicitly tells the model NOT to generate a salutation or sign-off). Iter 5 prepends the configured salutation (with `{firstName}` substitution from `review.reviewerName` and canonicalisation when no name is available), appends the configured sign-off block, and on negative reviews substitutes the `[your email]` placeholder the model was instructed to emit with the brand's configured reply-to email. Wired identically into all three routes that call `generateReviewResponse`, so the test panel (`/api/brand-voice/test`) produces the same shape as prod (preview == prod parity).
+
+**What changes externally when this merges:** every generated response now reads like a complete email — salutation at the top, paragraphs in the middle, sign-off at the bottom, optional reply-to email inline for negative reviews. The model body itself is the same as iter 4; iter 5 is the wrapper around it.
+
+**What shipped:**
+
+- **`src/lib/ai/post-process.ts` (NEW, pure module — DECISION 63)** — `assembleResponse({ modelBody, brandVoice, review })` produces the final assembled string. Exports `extractFirstName`, `buildSalutation`, `substituteReplyToEmail` for unit testing. Body truncation lives inside this function (DECISION 65) — salutation and sign-off are appended afterwards and never truncated. Accepts `unknown` for `brandVoice` and runs `normalizeBrandVoice` internally (mirrors iter 4's defensive pattern).
+- **Canonicalisation table (DECISION 64)** — ordered `[regex, replacement][]` list inside `post-process.ts`. Most-specific patterns first so `Dear  ,` (double-space) is matched before `Dear ,` (single-space). Covers every variant from spec §13.1.
+- **`src/lib/ai/structure-templates.ts`** — framing fragments updated (DECISION 68) to explicitly instruct the model to emit the literal `[your email]` placeholder, with cross-reference comments to `post-process.ts:substituteReplyToEmail`.
+- **`src/app/api/reviews/[id]/generate/route.ts`** — replaces the iter-4 inline truncation with a single call to `assembleResponse`. Persists the assembled text.
+- **`src/app/api/reviews/[id]/regenerate/route.ts`** — same replacement; persists the assembled text into `ReviewResponse.responseText` via `update`.
+- **`src/app/api/brand-voice/test/route.ts`** — runs `assembleResponse` too (DECISION 66 / preview == prod). The test panel has no reviewer name or sentiment, so the salutation canonicalises to `Hello,` and the email substitution fires only when the panel passes a 1- or 2-star rating AND the brand voice has the toggle on with a reply-to email.
+
+**Test coverage delta:**
+
+| Type | Before iter 5 (suite total) | After iter 5 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 969 | 1013 | **+44** |
+| New unit test files | — | — | 1 (`tests/unit/lib/ai/post-process.test.ts`, 41 cases — the centrepiece) |
+| Modified unit test files | — | — | 3 (`generate.test.ts` +1 iter-5 case; `regenerate.test.ts` +1 iter-5 case; `brand-voice-test.test.ts` fixture rewritten + 1 iter-5 case) |
+| Integration tests | — | — | 0 (route assertions cover the persisted-shape check) |
+| E2E specs | — | — | 0 |
+
+The 41 post-process unit tests cover: `extractFirstName` (5 cases including null/whitespace), `buildSalutation` with name (4 cases) and without name (full canonicalisation table — 6 cases), `substituteReplyToEmail` (5 cases incl. case-insensitivity and multiple-occurrence), `assembleResponse` salutation+body+sign-off (6 cases incl. literal `\n` conversion), email substitution (8 cases covering every routing path — positive/negative/3-star/Kiran case/toggle off/email null), body truncation (4 cases incl. sentence-boundary preference and sign-off never truncated), defensive normalisation (3 cases incl. null brand voice), and full output order (1 case).
+
+**Verification status:**
+
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` 1013 passed, 0 failed (64 test files)
+- ⏳ Manual smoke after merge: generate a response, confirm it now opens with the configured salutation and closes with the configured sign-off; on a 1-star review with the email toggle on + a reply-to email set, confirm the `[your email]` placeholder is substituted with the configured address.
+
+**Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 5" subsection): #62 inline email substitution (not appended); #63 `unknown` brandVoice param + internal normalize; #64 ordered canonicalisation table; #65 body truncation centralised in post-process.ts; #66 test panel runs same assembly as prod; #67 sign-off accepts literal `\n` AND real newlines; #68 framing fragments tell the model to emit `[your email]`.
+
 ---
 
 **Last Updated:** May 21, 2026
-**Status:** Brand voice redesign iteration 4 merged via PR #123. E2E mock header-gate fix complete on branch (PR pending). Iter 5 (post-processing) next.
+**Status:** Brand voice redesign iteration 5 complete on branch (PR pending). Iterations 1 + 2 + 3 + 4 + E2E fix merged to main. Iter 6 (frontend rebuild + Zod cutover + regenerate dialog) next and last.
