@@ -160,6 +160,15 @@ export const updateReviewSchema = z.object({
 });
 
 // Response schemas
+//
+// Iter 6 note: these two schemas reference the legacy `RESPONSE_TONES` enum
+// for historical compatibility. The actual generate/regenerate route
+// handlers use their own inline Zod schemas at the route layer
+// (`src/app/api/reviews/[id]/{generate,regenerate}/route.ts`), and the
+// regenerate route's inline schema now validates the V2 4-key set per
+// spec §8.1. These exports remain as type fixtures for tests and
+// downstream consumers that depend on the legacy shape; flip to the V2
+// key set in a follow-up if/when call sites move over.
 export const generateResponseSchema = z.object({
   reviewId: z.string().cuid("Invalid review ID"),
   tone: z.enum(RESPONSE_TONES).optional().default("professional"),
