@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateReviewResponse, DEFAULT_MODEL, ToneModifier } from "@/lib/ai/claude";
 import { deductCreditsAtomic, getOrCreateBrandVoice } from "@/lib/db-utils";
-import { CREDIT_COSTS, VALIDATION_LIMITS } from "@/lib/constants";
+import { CREDIT_COSTS, RESPONSE_BODY_CHAR_MAX } from "@/lib/constants";
 import { logIfInjectionAttempt } from "@/lib/security-log";
 import { CreditActionValues } from "@/types/database";
 
@@ -137,42 +137,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get or create brand voice
     const brandVoice = await getOrCreateBrandVoice(session.user.id);
 
-    // Generate response using Claude API
+    // Generate response using Claude API. Iter 4: pass the V2 brand voice
+    // row directly. `generateReviewResponse` runs it through
+    // `normalizeBrandVoice` defensively, then `buildSystemPrompt` consumes
+    // the V2 fields (styleGuidelines as bullets, sample-responses as
+    // labeled few-shot examples, Personalization toggles + negative-review
+    // framing as conditional fragments). The iter-3 inline V2→legacy
+    // projection is gone — that's spec §9.3 / DECISION 55.
     let generatedResponse;
     try {
-      // Iter 3: project the V2 brand_voices row back to the
-      // BrandVoiceConfig shape the current prompt builder consumes. The
-      // headline `styleNotes` JSON-render bug is intentionally NOT fixed
-      // here — that's iter 4's prompt rewrite. This block bridges only:
-      //   - styleGuidelines (JSONB array) → newline-joined styleNotes
-      //     string (so the prompt at least mentions the user's rules
-      //     until iter 4 renders them as bullets);
-      //   - sampleResponses (JSONB array of objects) → string[] of just
-      //     the responseText (the legacy prompt only consumed strings).
-      const styleGuidelines = Array.isArray(brandVoice.styleGuidelines)
-        ? (brandVoice.styleGuidelines as unknown[]).filter((s): s is string => typeof s === "string")
-        : [];
-      const sampleResponses = Array.isArray(brandVoice.sampleResponses)
-        ? (brandVoice.sampleResponses as unknown[])
-            .map((s) =>
-              s && typeof s === "object" && "responseText" in s
-                ? (s as { responseText: unknown }).responseText
-                : undefined,
-            )
-            .filter((t): t is string => typeof t === "string" && t.length > 0)
-        : [];
-
       generatedResponse = await generateReviewResponse({
         reviewText: review.reviewText,
         platform: review.platform,
         rating: review.rating,
+        sentiment: review.sentiment,
         detectedLanguage: review.detectedLanguage,
-        brandVoice: {
-          tone: brandVoice.tone,
-          keyPhrases: brandVoice.keyPhrases,
-          styleNotes: styleGuidelines.length > 0 ? styleGuidelines.join("\n") : null,
-          sampleResponses,
-        },
+        brandVoice,
         toneModifier: tone,
       });
     } catch (error) {
@@ -190,13 +170,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Truncate response if too long (max 500 chars)
+    // Iter 4: truncate the model body to RESPONSE_BODY_CHAR_MAX (≈ "200
+    // words"). The assembled response — salutation + body + sign-off +
+    // optional reply-to email — stays well within
+    // VALIDATION_LIMITS.RESPONSE_TEXT_MAX (= 2000). Iter 5's
+    // `assembleResponse` will replace this with closing-block-aware
+    // truncation so salutation/sign-off are never chopped.
     let responseText = generatedResponse.responseText;
-    if (responseText.length > VALIDATION_LIMITS.RESPONSE_TEXT_MAX) {
-      responseText = responseText.substring(0, VALIDATION_LIMITS.RESPONSE_TEXT_MAX);
-      // Try to end at a complete sentence
+    if (responseText.length > RESPONSE_BODY_CHAR_MAX) {
+      responseText = responseText.substring(0, RESPONSE_BODY_CHAR_MAX);
       const lastPeriod = responseText.lastIndexOf(".");
-      if (lastPeriod > VALIDATION_LIMITS.RESPONSE_TEXT_MAX - 100) {
+      if (lastPeriod > RESPONSE_BODY_CHAR_MAX - 100) {
         responseText = responseText.substring(0, lastPeriod + 1);
       }
     }

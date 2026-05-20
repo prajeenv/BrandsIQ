@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateReviewResponse, DEFAULT_MODEL, ToneModifier } from "@/lib/ai/claude";
 import { deductCreditsAtomic, getOrCreateBrandVoice } from "@/lib/db-utils";
-import { CREDIT_COSTS, VALIDATION_LIMITS } from "@/lib/constants";
+import { CREDIT_COSTS, RESPONSE_BODY_CHAR_MAX } from "@/lib/constants";
 import { logIfInjectionAttempt } from "@/lib/security-log";
 import { CreditActionValues } from "@/types/database";
 
@@ -152,37 +152,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const brandVoice = await getOrCreateBrandVoice(session.user.id);
 
     // Generate new response with tone modifier
+    // Iter 4: pass the V2 brand voice row directly; the iter-3 V2→legacy
+    // projection is gone (DECISION 55). Sentiment is forwarded so the
+    // rating-conditional structure router can pick the right template
+    // (sentiment overrides rating — see spec §9.5).
     let generatedResponse;
     try {
-      // Iter 3: project the V2 brand_voices row to the legacy
-      // BrandVoiceConfig shape the current prompt builder consumes.
-      // Same bridge as generate/route.ts — see the comment there.
-      // Iter 4 deletes both projections by rewriting buildSystemPrompt
-      // to consume the V2 fields directly.
-      const styleGuidelines = Array.isArray(brandVoice.styleGuidelines)
-        ? (brandVoice.styleGuidelines as unknown[]).filter((s): s is string => typeof s === "string")
-        : [];
-      const sampleResponses = Array.isArray(brandVoice.sampleResponses)
-        ? (brandVoice.sampleResponses as unknown[])
-            .map((s) =>
-              s && typeof s === "object" && "responseText" in s
-                ? (s as { responseText: unknown }).responseText
-                : undefined,
-            )
-            .filter((t): t is string => typeof t === "string" && t.length > 0)
-        : [];
-
       generatedResponse = await generateReviewResponse({
         reviewText: review.reviewText,
         platform: review.platform,
         rating: review.rating,
+        sentiment: review.sentiment,
         detectedLanguage: review.detectedLanguage,
-        brandVoice: {
-          tone: brandVoice.tone,
-          keyPhrases: brandVoice.keyPhrases,
-          styleNotes: styleGuidelines.length > 0 ? styleGuidelines.join("\n") : null,
-          sampleResponses,
-        },
+        brandVoice,
         toneModifier: tone as ToneModifier,
       });
     } catch (error) {
@@ -200,12 +182,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Truncate response if too long
+    // Iter 4: truncate the model body to RESPONSE_BODY_CHAR_MAX. Iter 5's
+    // `assembleResponse` will replace this with closing-block-aware
+    // truncation so salutation/sign-off are never chopped.
     let responseText = generatedResponse.responseText;
-    if (responseText.length > VALIDATION_LIMITS.RESPONSE_TEXT_MAX) {
-      responseText = responseText.substring(0, VALIDATION_LIMITS.RESPONSE_TEXT_MAX);
+    if (responseText.length > RESPONSE_BODY_CHAR_MAX) {
+      responseText = responseText.substring(0, RESPONSE_BODY_CHAR_MAX);
       const lastPeriod = responseText.lastIndexOf(".");
-      if (lastPeriod > VALIDATION_LIMITS.RESPONSE_TEXT_MAX - 100) {
+      if (lastPeriod > RESPONSE_BODY_CHAR_MAX - 100) {
         responseText = responseText.substring(0, lastPeriod + 1);
       }
     }
