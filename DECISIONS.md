@@ -1583,6 +1583,56 @@ Branch: `feat/brand-voice-redesign-iter-3`. Drops the `formality` column, replac
 
 Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 902 passed, 0 failed across 62 files. Migration applies cleanly via Prisma generate; integration tests run in CI's PostgreSQL container.
 
+### Iteration 4 — Prompt-building rewrite
+
+Branch: `feat/brand-voice-redesign-iter-4`. Fixes the headline `styleNotes` JSON-render bug, rebuilds `buildSystemPrompt` against the V2 fields, adds rating-conditional structure templates with sentiment-overrides-rating routing, injects Personalization + negative-review-email-framing fragments, and un-gates the full reinforcement tail (structural rules + em-dash prohibition + key-phrases precedence). Deletes the three iter-3 inline V2→legacy projections in the routes (DECISION 55).
+
+The model now sees the user's style guidelines as a proper bulleted list instead of raw JSON, the sample responses as labeled few-shot examples with their rating context, the configured framing fragment when the negative-email toggle is on AND the review is negative, and a different paragraph-structure template per review sentiment/rating. The reinforcement tail at the END of the prompt repeats the most critical rules (paragraph count, em-dash prohibition, "do NOT generate a salutation or sign-off") so they survive any attempted override from user-configured text.
+
+#### Decision 56: Structure-template module is separate from `claude.ts`
+
+- **Decision:** Templates + routing + conditional fragments live in `src/lib/ai/structure-templates.ts`. `claude.ts` only orchestrates: imports the module, calls `getStructureTemplate({rating, sentiment})` + `getFramingFragment(...)` etc., and assembles them into the system prompt.
+- **Why:** Same rationale as iter 2's `normalizeBrandVoice` separation. Keeps `claude.ts` orchestration-only; lets templates be unit-tested without spinning up the Anthropic SDK mock. Iter 5's post-processing imports `isNegativeReview` from this same module so the negative-review predicate has exactly one source of truth (instead of the prompt builder and the assembler each having their own copy).
+- **Risk:** Low ✅.
+
+#### Decision 57: `BrandVoiceConfig.styleGuidelines` + `sampleResponses` typed as `unknown` rather than precise types
+
+- **Decision:** Both fields on `BrandVoiceConfig` are typed as `unknown` instead of the precise `string[]` / `Array<{ratingContext, responseText}>`. `normalizeBrandVoice` inside `generateReviewResponse` does the runtime coercion.
+- **Why:** These flow straight out of Prisma JSONB columns where the type is `Prisma.JsonValue` (an `unknown`-equivalent union). The route callers pass the Prisma row directly. Typing the interface as precise types would force every route caller to cast — making the interface match the storage shape that the normalize adapter already handles defensively keeps the routes clean and pushes coercion into a single, well-tested module.
+- **Alternative considered:** Strict typed interface with route-layer casts. Rejected — five route callers casting JSON is worse than one normalize call.
+- **Risk:** Low ✅. The normalize module has 25 dedicated unit tests covering legacy shapes, V2 shapes, malformed JSONB, and non-object inputs.
+
+#### Decision 58: `max_tokens` bumped 500 → 1000 (headroom over `RESPONSE_BODY_CHAR_MAX`)
+
+- **Decision:** Claude `max_tokens` raised from 500 to 1000. Body char cap stays at `RESPONSE_BODY_CHAR_MAX = 1200` (DECISION 45 / iter 2). Route-side truncation switched from `RESPONSE_TEXT_MAX` (2000) to `RESPONSE_BODY_CHAR_MAX`.
+- **Why:** ~200 words of English ≈ 250–300 tokens; multi-language responses (e.g. German) can be ~30% longer in tokens. 500 max_tokens was forcing the model to hard-truncate mid-sentence on longer hospitality responses. 1000 lets the model finish a paragraph naturally, and our route truncation enforces the hard char limit afterwards. Iter 5's post-processing will replace the route truncation with closing-block-aware truncation that never chops salutation/sign-off.
+- **Cost impact:** Output tokens cost ~$15/million on Sonnet, so each response is now allowed up to ~$0.015 instead of ~$0.0075. Acceptable for the quality improvement.
+- **Risk:** Low ✅.
+
+#### Decision 59: `ToneModifier` type retains the legacy 3-key set this iteration
+
+- **Decision:** `type ToneModifier = "professional" | "friendly" | "empathetic"` (the legacy 3 keys) stays unchanged in `claude.ts` and `regenerateResponseSchema` continues to validate against these values. Iter 6 will swap both to the four V2 presets per the corrected spec §8.1.
+- **Why:** Touching the regenerate Zod schema and the `ToneModifier` UI component now would force iter 6's UI work into iter 4 — coupling the prompt rewrite with the regenerate dialog rewrite. Keeping the 3-key set means the existing regenerate dialog continues to work, and iter 6 swaps everything to the V2 4-key set in one coherent PR.
+- **Risk:** Low ✅. The 3 legacy keys remain valid V2 inputs (they happen to align with the iter-1-2 `getToneModifierDescription` and don't conflict with the V2 brand-voice tone set).
+
+#### Decision 60: V2 tone displayed in prompt as the human label, not the key
+
+- **Decision:** `buildSystemPrompt` renders `BRAND_VOICE_TONE_INFO_V2[key].label` ("Friendly & professional") instead of the raw lowercase key ("friendly_professional"). Falls back to the raw value if the key is unknown.
+- **Why:** The model writes better prose when it sees a human label than when it sees a snake_case key. "Friendly & professional" is also closer to how a brand voice guideline would actually be phrased.
+- **Risk:** Low ✅.
+
+#### Test coverage delta — Iteration 4
+
+| Type | Before iter 4 (suite total) | After iter 4 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 902 | 963 | **+61** |
+| New unit test files | — | — | 1 (`tests/unit/lib/ai/structure-templates.test.ts`, 26 cases) |
+| Modified unit test files | — | — | 1 (`tests/unit/lib/ai/claude.test.ts` — V2 prompt block, +35 cases) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 963 passed, 0 failed across 63 files.
+
 ---
 
 ## Decision Log
@@ -1646,6 +1696,11 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 53 | `formality` / `styleNotes` / legacy `sampleResponses` become OPTIONAL on `BrandVoiceConfig`; removed in iter 4 | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
 | 54 | CHECK constraints on `tone` + `negative_review_framing` columns (defense-in-depth on top of Zod) | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
 | 55 | Iter 3 inline projection bridges V2 row → legacy `BrandVoiceConfig` in generate/regenerate/test routes (deleted in iter 4) | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
+| 56 | Structure-template module is separate from `claude.ts` (single source of `isNegativeReview` for prompt + iter-5 post-processing) | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
+| 57 | `BrandVoiceConfig.styleGuidelines` + `sampleResponses` typed as `unknown`; `normalizeBrandVoice` does runtime coercion | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
+| 58 | `max_tokens` bumped 500 → 1000 to give room for multi-paragraph + multi-language responses | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
+| 59 | `ToneModifier` type retains the legacy 3-key set this iteration; iter 6 swaps to V2 4-key set | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
+| 60 | V2 tone rendered in prompt as the human display label, not the snake_case key | Brand Voice Redesign / It. 4 | May 20 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
