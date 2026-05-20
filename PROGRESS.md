@@ -1109,8 +1109,8 @@ A four-section restructure of the brand voice settings screen (Voice / Examples 
 | 2 | Validation schema + constants + normalize adapter | ✅ Done (May 20, merged via PR #121) |
 | 3 | Clean-reset schema migration + route cutover + legacy form bridge | ✅ Done (May 20, merged via PR #122) |
 | 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ✅ Done (May 20, merged via PR #123) |
-| 5 | Post-processing module + route wiring | ✅ Done (May 21) |
-| 6 | Frontend restructure + API Zod cutover + regenerate dialog | ⏳ Not started |
+| 5 | Post-processing module + route wiring | ✅ Done (May 21, merged via PR #125) |
+| 6 | Frontend restructure + API Zod cutover + regenerate dialog | ✅ Done (May 21) — final iteration |
 
 ### ✅ Iteration 1 — Sanitize helper + review-text retrofit + SecurityLog table
 
@@ -1328,7 +1328,67 @@ The 41 post-process unit tests cover: `extractFirstName` (5 cases including null
 
 **Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 5" subsection): #62 inline email substitution (not appended); #63 `unknown` brandVoice param + internal normalize; #64 ordered canonicalisation table; #65 body truncation centralised in post-process.ts; #66 test panel runs same assembly as prod; #67 sign-off accepts literal `\n` AND real newlines; #68 framing fragments tell the model to emit `[your email]`.
 
+### ✅ Iteration 6 — Frontend rewrite + API Zod cutover + regenerate dialog (final)
+
+**Branch:** `feat/brand-voice-redesign-iter-6`
+**Status:** Locally verified (lint:strict / type-check / 996 unit tests passing). PR pending.
+
+The final iteration of the brand voice redesign. Replaces the legacy 5-field form with the V2 four-section layout per spec §3 (Voice / Examples / Personalization / Contact & sign-off), deletes the iter-3 legacy bridge that connected the two shapes, cuts the API to `brandVoiceSchemaV2`, swaps the regenerate dialog to the 4 V2 tone presets (drops `apologetic` per spec §8.1), and wires the iter-1 `customRegenerateInstructions` slot to a new "Additional instructions" textarea so users can attach a per-regeneration directive like "be more apologetic about the cold food" or "mention our loyalty program".
+
+After this iteration ships, **every user-facing surface of the redesign is live**. Future prompt tuning (the planned iter-7 pass) operates on the V2 shape directly without legacy compatibility concerns.
+
+**What shipped:**
+
+- **`src/components/ui/switch.tsx` (NEW, DECISION 73)** — shadcn-style wrapper around `@radix-ui/react-switch@^1.2.6` (new dependency). Used by the Personalization toggles + the negative-review email invitation toggle.
+- **`src/components/settings/BrandVoiceForm.tsx`** — fully rewritten (DECISION 71). Composes four Card sections + a TestResponsePanel + a Reset button. State management: one `useState` per V2 field, debounced auto-save (1500ms), V2-shape PUT payload, V2 GET projection on load. Empty-string → null normalisation at the boundary for `replyToEmail` and `negativeReviewFramingCustom` (DECISION 76).
+- **`src/components/settings/ToneSelector.tsx`** — rewritten for the V2 4-key set (`warm_casual` / `friendly_professional` / `polished_formal` / `empathetic_attentive`) with display labels and one-line descriptors from `BRAND_VOICE_TONE_INFO_V2`.
+- **`src/components/settings/SampleResponsesInput.tsx`** — rewritten for the V2 object shape (`{ratingContext: 1-5 | 'any', responseText}`). Each sample has a rating-context Select + a CollapsibleTextItem for the response text.
+- **`src/components/settings/KeyPhrasesInput.tsx`** — updated to V2 limits (10 max items, 100 chars per item).
+- **`src/components/settings/PersonalizationSection.tsx` (NEW)** — two `ToggleRow`s for named-staff acknowledgement + occasion acknowledgement (spec §6).
+- **`src/components/settings/ContactSignoffSection.tsx` (NEW)** — salutation input + suggested chips + sign-off textarea + chips + negative-review email toggle + conditional reveal of the framing radio (4 options including custom) + reply-to email input + soft warning when the toggle is on but the email is empty (spec §7).
+- **`src/components/settings/ExampleChips.tsx` (NEW)** — reusable clickable-badge primitive with two behaviours: salutation/sign-off chips REPLACE the field value on click, style-guideline/key-phrase chips APPEND to the list (DECISION 74).
+- **`src/components/settings/FormalitySlider.tsx`** — **deleted** (DECISION 72). DB column was dropped in iter 3, form field gone now.
+- **`src/components/reviews/ToneModifier.tsx`** — rewritten with the V2 4-key tone radio + new "Additional instructions" textarea (500-char cap, single-use, not persisted). `onRegenerate` prop signature changed from `(_tone: string) => Promise<void>` to `(_payload: {tone, additionalInstructions?}) => Promise<void>`.
+- **`src/components/reviews/ResponsePanel.tsx`** — `handleRegenerate` updated to take the new payload object and forward both fields to the API.
+- **`src/app/api/brand-voice/route.ts`** — V2 Zod (DECISION 70). GET projects through `normalizeBrandVoice` and returns the V2 shape directly. PUT validates via `brandVoiceSchemaV2` and writes V2 columns to all 12 V2 fields (was 5 in the legacy bridge era).
+- **`src/app/api/brand-voice/test/route.ts`** — returns V2 brand-voice subset; `toLegacyShape` import removed.
+- **`src/app/api/brand-voice/_legacy-bridge.ts`** — **deleted** (DECISION 70). 200 lines of bridge code + its 18-case test file gone.
+- **`src/app/api/reviews/[id]/regenerate/route.ts`** — inline Zod accepts V2 4-key set + optional `additionalInstructions` (max 500); forwards `additionalInstructions` to `claude.ts` as `customRegenerateInstructions` (the iter-1 plumbed slot).
+- **`src/lib/ai/claude.ts`** — `ToneModifier` type realigned to `BRAND_VOICE_TONES_V2`; `getToneModifierDescription` updated with V2-key descriptions; `apologetic` removed (DECISION 69).
+- **`src/lib/validations.ts`** — legacy `RESPONSE_TONES`-based exports left as-is (DECISION 75) with a comment documenting the divergence from the route's V2 inline schema.
+
+**Test coverage delta:**
+
+| Type | Before iter 6 | After iter 6 | Net |
+|---|---|---|---|
+| Unit tests | 1013 | 996 | **−17** |
+| Unit test files | 64 | 63 | −1 |
+| New unit test cases | — | — | ~32 (V2 form sections, V2 tones, additionalInstructions plumbing, V2 GET/PUT) |
+| Deleted unit test cases | — | — | ~49 (legacy bridge — 18 cases; legacy form expectations; legacy regenerate tone literals) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+Net drop is from deleting the iter-3 legacy bridge surface (`tests/unit/api/brand-voice/legacy-bridge.test.ts`, 18 cases) and the legacy-form expectations in the existing brand-voice / regenerate / form tests. New iter-6 V2 coverage replaces the deleted legacy coverage at the same conceptual surface area — the redesign is now testing the same things in the V2 shape rather than two shapes via a bridge.
+
+**Verification status:**
+
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` 996 passed, 0 failed (63 test files)
+- ⏳ Manual smoke after merge:
+   1. Open the brand voice page on staging — confirm the new four-section layout, the four V2 tone presets ("Warm & casual", "Friendly & professional", "Polished & formal", "Empathetic & attentive"), and the Personalization + Contact & sign-off sections.
+   2. Toggle the negative-review email invitation ON, set a reply-to email, save — confirm the framing radio + email input appear.
+   3. Generate a response on a 1-star review — confirm the assembled response uses the new salutation + sign-off + the configured email is substituted into the body inline.
+   4. Open the regenerate dialog on any response — confirm the 4 V2 tone presets appear (no "Apologetic"), and the Additional Instructions textarea is visible.
+   5. Regenerate with a custom directive like "be more apologetic about the dessert" — confirm the new response reflects the instruction.
+
+**Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 6" subsection): #69 apologetic dropped; #70 legacy bridge deleted; #71 four-card form layout; #72 FormalitySlider deleted; #73 `@radix-ui/react-switch` dep added; #74 chip click behaviour (replace vs append); #75 legacy `RESPONSE_TONES` schemas left untouched in validations.ts; #76 empty-string → null normalisation.
+
+---
+
+**Brand voice redesign — complete.** All 6 iterations + the E2E mock fix have shipped. The redesign comprises 76 numbered decisions, ~3500 lines of new production code, ~1000 unit tests covering it, and 11 spec sections worth of structural and prompt-engineering work. Iter-7 (prompt tuning) is queued as a separate dedicated pass once the founder has staging time to compare real outputs.
+
 ---
 
 **Last Updated:** May 21, 2026
-**Status:** Brand voice redesign iteration 5 complete on branch (PR pending). Iterations 1 + 2 + 3 + 4 + E2E fix merged to main. Iter 6 (frontend rebuild + Zod cutover + regenerate dialog) next and last.
+**Status:** Brand voice redesign iteration 6 complete on branch (PR pending). Iterations 1 + 2 + 3 + 4 + 5 + E2E fix merged to main. After iter 6 merges the brand voice redesign is fully live. Next: iter-7 prompt tuning pass (using the founder's queued example).

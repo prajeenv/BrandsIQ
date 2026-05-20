@@ -1714,6 +1714,75 @@ Branch: `feat/brand-voice-redesign-iter-5`. Deterministically assembles every AI
 
 Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 1013 passed, 0 failed across 64 files.
 
+### Iteration 6 — Frontend rewrite + API Zod cutover + regenerate dialog (final)
+
+Branch: `feat/brand-voice-redesign-iter-6`. The final iteration of the brand voice redesign. Replaces the legacy form with the V2 four-section layout, deletes the iter-3 legacy bridge that connected the two, cuts the API to `brandVoiceSchemaV2`, swaps the regenerate dialog to the 4 V2 tone presets, and wires the iter-1 `customRegenerateInstructions` slot to a new Additional Instructions textarea.
+
+#### Decision 69: Apologetic dropped from the regenerate dialog (DECISION 8.1 from the spec, finalized in iter 6)
+
+- **Decision:** The regenerate dialog's tone presets are exactly `BRAND_VOICE_TONES_V2` (4 keys). The legacy `apologetic` option is removed from `ToneModifier`, `regenerateSchema`, and the `getToneModifierDescription` map in `claude.ts`.
+- **Why:** Apology is a content/situation decision (the rating-conditional structure templates from iter 4 already make 1-2 star and Kiran-case responses lead with an apology). It is not a register — a Warm & casual apology and a Polished & formal apology are both legitimate. Adding "Apologetic" as a tone duplicated something the prompt structure already handles, and users who want a one-off apology emphasis can now use the new Additional instructions field ("be more apologetic about the cold food").
+- **Risk:** Low ✅. The legacy 3-key set was an iter-4 stop-gap (DECISION 59 explicitly anticipated this swap in iter 6).
+
+#### Decision 70: `_legacy-bridge.ts` deleted entirely; `/api/brand-voice` returns V2 shape directly
+
+- **Decision:** `src/app/api/brand-voice/_legacy-bridge.ts` and its accompanying test file are gone. `/api/brand-voice` GET projects the DB row through `normalizeBrandVoice` and returns V2 shape; PUT validates the V2 payload via `brandVoiceSchemaV2` and writes V2 columns directly. The `/api/brand-voice/test` route also returns the V2-shaped subset the panel reads (no more legacy `formality` stub).
+- **Why:** Iter 6 lands the V2 form; the bridge served only as a transition mechanism for the iter-3 → iter-6 window. Keeping it would mean two parallel shapes in the wire format with no caller.
+- **Risk:** Low ✅. Backwards-incompatible from the staging-form perspective, but the form is being rewritten in the same PR — no caller of the legacy shape remains.
+
+#### Decision 71: Form composes four `Card` sections (Voice / Examples / Personalization / Contact & sign-off)
+
+- **Decision:** `BrandVoiceForm.tsx` renders a header card + four section cards per spec §3. Sub-components: `ToneSelector` (V2 4-key card grid), `StyleGuidelinesInput` + `KeyPhrasesInput` + `SampleResponsesInput` inside the Voice + Examples sections, new `PersonalizationSection` (two `Switch` rows), new `ContactSignoffSection` (salutation/sign-off inputs + email-toggle + conditionally-revealed framing radio + reply-to email + soft warning), and `ExampleChips` for clickable starter phrases.
+- **Why:** Direct implementation of spec §3 ("Four sections, top-to-bottom"). Each section is self-contained so iter-7+ work (adding fields per section) is localised.
+- **Risk:** Low ✅. The components are pure presentation; auto-save in the parent debounces and posts the full V2 payload.
+
+#### Decision 72: `FormalitySlider` deleted (DB column gone since iter 3, form field gone now)
+
+- **Decision:** `src/components/settings/FormalitySlider.tsx` and its test deleted. The barrel export `src/components/settings/index.ts` no longer exports it.
+- **Why:** The field has been redundant with Tone since the spec ("largely redundant with Tone preset and producing weak effects on output"). The DB column was dropped in iter 3; the form field was retained only because the legacy bridge required it. Iter 6 finishes the deprecation.
+- **Risk:** Low ✅.
+
+#### Decision 73: `@radix-ui/react-switch` added as a dependency
+
+- **Decision:** New dependency `@radix-ui/react-switch@^1.2.6`. Wrapped in `src/components/ui/switch.tsx` (~25 lines) matching the same shadcn pattern as `radio-group.tsx`.
+- **Why needed:** Three toggles in the V2 form (named-staff acknowledgement, occasion acknowledgement, negative-review email invitation) need a Switch UI primitive. The codebase had no toggle/switch component.
+- **Smallest viable alternative considered:** A styled `<button role="switch">` with Tailwind classes — ~30 lines of code, no dependency. Rejected because the codebase already uses Radix as the UI primitive base (`@radix-ui/react-radio-group`, `dialog`, `slot`, etc.), and rolling our own toggle would diverge from that pattern + force us to own ARIA + keyboard handling + focus-ring code.
+- **Maintenance/security risk:** Negligible — Radix is a top-100 npm package, actively maintained, well-audited.
+- **Risk:** Low ✅.
+
+#### Decision 74: Salutation/sign-off inline chips are clickable shortcuts, not a selector
+
+- **Decision:** The chips below the salutation and sign-off inputs (`ExampleChips`) **replace** the field value on click — they're shortcuts, not multi-select. Style guidelines and key phrases chips **append** to the list (with dedup + max-items cap).
+- **Why:** Salutation is single-valued, sign-off is single-valued; chips for these mean "use this preset". Style guidelines / key phrases are collections; chips for these mean "add this starter idea". Different semantics demand different click behavior.
+- **Risk:** Low ✅.
+
+#### Decision 75: `regenerateResponseSchema` in `validations.ts` left untouched
+
+- **Decision:** The exports in `src/lib/validations.ts` (`generateResponseSchema` and `regenerateResponseSchema`) still reference the legacy `RESPONSE_TONES` constant. The actual regenerate route uses its own inline Zod schema (which was updated to the V2 4-key set). The validations.ts exports are now effectively type fixtures for tests.
+- **Why:** "Respect existing code" — touching the exports would force ~10 unrelated test updates and the routes don't use them in production. A code comment in `validations.ts` documents this divergence for future maintainers.
+- **Risk:** Low ✅. Followup if call sites move over.
+
+#### Decision 76: Add an empty-string→null normalisation at the form boundary
+
+- **Decision:** The form sends `negativeReviewFramingCustom` and `replyToEmail` as `null` (not empty string) when the user clears them. The Zod schema accepts both, but the route layer normalises empty/whitespace strings to `null` before writing so the optional/null distinction is consistent at the DB layer.
+- **Why:** Without this, a user who turns the email toggle on, types an email, then deletes it would end up with `replyToEmail = ""` in the DB. The post-processor's `if (replyToEmail && replyToEmail.trim().length > 0)` would handle it correctly, but the DB convention everywhere else in the codebase is `null` for "unset".
+- **Risk:** Low ✅.
+
+#### Test coverage delta — Iteration 6
+
+| Type | Before iter 6 (suite total) | After iter 6 (suite total) | Net change |
+|---|---|---|---|
+| Unit tests | 1013 | 996 | **−17** |
+| Unit test files | 64 | 63 | −1 |
+| New unit test cases | — | — | ~32 (V2 form sections + V2 tone presets + additionalInstructions + V2 GET/PUT) |
+| Deleted unit test cases | — | — | ~49 (legacy bridge — 18 cases; legacy form expectations; legacy regenerate tone literals) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+The net drop reflects deletion of the iter-3 legacy bridge surface and its dedicated test file. New iter-6 V2 coverage replaces the deleted legacy coverage at the same conceptual surface area — the redesign is now testing the same things in the V2 shape rather than two shapes via the bridge.
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 996 passed, 0 failed across 63 files. The brand voice redesign is now complete; iter-7 prompt-tuning will follow as a separate dedicated pass.
+
 ---
 
 ## Decision Log
@@ -1790,6 +1859,14 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 66 | Test panel (`/api/brand-voice/test`) runs the same `assembleResponse` as prod (preview == prod parity) | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
 | 67 | Sign-off line-break normalisation accepts both literal `\n` and real newlines from the DB column | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
 | 68 | Framing fragments explicitly tell the model to emit `[your email]` placeholder (coordination with post-process) | Brand Voice Redesign / It. 5 | May 21 | Low ✅ | ✅ Implemented |
+| 69 | `apologetic` dropped from regenerate dialog; tone presets = `BRAND_VOICE_TONES_V2` (4 keys) per spec §8.1 | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 70 | `_legacy-bridge.ts` deleted; `/api/brand-voice` returns V2 shape directly via `normalizeBrandVoice` | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 71 | Form composes 4 `Card` sections (Voice / Examples / Personalization / Contact & sign-off) per spec §3 | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 72 | `FormalitySlider` component + tests deleted; field has been redundant since the spec, DB column gone since iter 3 | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 73 | New dep `@radix-ui/react-switch@^1.2.6` + shadcn `src/components/ui/switch.tsx` for the Personalization + email toggles | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 74 | Salutation/sign-off chips REPLACE the field value on click; style-guideline/key-phrase chips APPEND to the list | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 75 | `regenerateResponseSchema` in `validations.ts` left referencing legacy `RESPONSE_TONES`; route uses its own V2 inline schema | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 76 | Form normalises empty `negativeReviewFramingCustom` / `replyToEmail` to `null` at the boundary (DB convention) | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 

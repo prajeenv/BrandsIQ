@@ -1,25 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { brandVoiceSchema } from "@/lib/validations";
-import { fromLegacyForm, toLegacyShape } from "./_legacy-bridge";
+import { brandVoiceSchemaV2 } from "@/lib/validations";
+import { normalizeBrandVoice } from "@/lib/ai/brand-voice-normalize";
 
 /**
- * Brand voice redesign iter 3 ⇄ iter 6 bridge.
+ * Brand voice route — V2 cutover (iter 6).
  *
- * The DB columns are now the V2 shape (iter 3 reset migration). The form
- * still sends and consumes the legacy shape until iter 6 rewrites it. This
- * route translates in both directions via `src/app/api/brand-voice/_legacy-
- * bridge.ts` so the form keeps working without modification on staging.
+ * The iter-3 → iter-6 legacy bridge has been removed. The route now:
+ *   - GET: returns the brand voice in V2 shape, projected through
+ *     `normalizeBrandVoice` so the response is always the canonical
+ *     V2 shape (defends against any malformed JSONB column values).
+ *   - PUT: validates incoming payloads via `brandVoiceSchemaV2`, writes
+ *     V2 columns directly, returns V2 shape.
  *
- * Iter 6 deletes `_legacy-bridge.ts`, swaps validation to `brandVoiceSchema
- * V2`, and returns V2 shape directly.
+ * Spec: docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §9.2.
  */
 
 /**
- * GET /api/brand-voice — return the user's brand voice in the legacy shape
- * the existing form expects. Creates a default row via DB column defaults
- * if none exists.
+ * Build the V2-shape response payload from a DB row. Runs the row
+ * through `normalizeBrandVoice` so the JSONB columns are coerced to
+ * their typed shape and any unexpected legacy values are mapped to V2
+ * defaults.
+ */
+function projectToV2(row: {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  [key: string]: unknown;
+}) {
+  const normalized = normalizeBrandVoice(row);
+  return {
+    id: row.id,
+    tone: normalized.tone,
+    keyPhrases: normalized.keyPhrases,
+    styleGuidelines: normalized.styleGuidelines,
+    sampleResponses: normalized.sampleResponses,
+    acknowledgeNamedStaff: normalized.acknowledgeNamedStaff,
+    acknowledgeOccasions: normalized.acknowledgeOccasions,
+    salutationPattern: normalized.salutationPattern,
+    signoffLines: normalized.signoffLines,
+    negativeReviewEmailEnabled: normalized.negativeReviewEmailEnabled,
+    negativeReviewFraming: normalized.negativeReviewFraming,
+    negativeReviewFramingCustom: normalized.negativeReviewFramingCustom,
+    replyToEmail: normalized.replyToEmail,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * GET /api/brand-voice — return the user's brand voice in the V2 shape.
+ * Creates a default row via DB column defaults if none exists.
  */
 export async function GET() {
   try {
@@ -31,19 +63,16 @@ export async function GET() {
           success: false,
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
-    // Try to find existing brand voice
     let brandVoice = await prisma.brandVoice.findUnique({
       where: { userId: session.user.id },
     });
 
     // Create default if doesn't exist — all V2 columns have DB-level
-    // defaults so we only need `userId` and the explicit tone (the column
-    // default is the V2 key string; being explicit makes the intent
-    // obvious at the call site).
+    // defaults so we only need `userId` and the explicit tone.
     if (!brandVoice) {
       brandVoice = await prisma.brandVoice.create({
         data: {
@@ -55,7 +84,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: { brandVoice: toLegacyShape(brandVoice) },
+      data: { brandVoice: projectToV2(brandVoice) },
     });
   } catch (error) {
     console.error("Error fetching brand voice:", error);
@@ -67,15 +96,15 @@ export async function GET() {
           message: "Failed to fetch brand voice",
         },
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 /**
- * PUT /api/brand-voice — accept the legacy form's payload (still validated
- * by the legacy `brandVoiceSchema` until iter 6), translate to the V2
- * column write shape via the bridge, and upsert.
+ * PUT /api/brand-voice — accept the V2 payload (validated by
+ * `brandVoiceSchemaV2`) and upsert the V2 columns directly. Returns the
+ * brand voice in V2 shape.
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -87,13 +116,12 @@ export async function PUT(request: NextRequest) {
           success: false,
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     const body = await request.json();
-
-    const validationResult = brandVoiceSchema.safeParse(body);
+    const validationResult = brandVoiceSchemaV2.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
         {
@@ -104,21 +132,15 @@ export async function PUT(request: NextRequest) {
             details: validationResult.error.issues,
           },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Translate the legacy payload to V2 column values. Untouched V2
-    // columns (the toggles, sign-off, framing, reply-to-email) keep their
-    // existing values on update or take the DB defaults on create.
-    const v2 = fromLegacyForm({
-      tone: validationResult.data.tone,
-      formality: validationResult.data.formality,
-      keyPhrases: validationResult.data.keyPhrases,
-      styleNotes: validationResult.data.styleNotes ?? null,
-      sampleResponses: validationResult.data.sampleResponses,
-    });
+    const v2 = validationResult.data;
 
+    // sampleResponses is a JSONB column; Prisma's type is `Prisma.InputJsonValue`.
+    // The V2 schema validates to `Array<{ratingContext, responseText}>` which
+    // serialises cleanly into JSONB without further coercion.
     const brandVoice = await prisma.brandVoice.upsert({
       where: { userId: session.user.id },
       update: {
@@ -126,6 +148,14 @@ export async function PUT(request: NextRequest) {
         keyPhrases: v2.keyPhrases,
         styleGuidelines: v2.styleGuidelines,
         sampleResponses: v2.sampleResponses,
+        acknowledgeNamedStaff: v2.acknowledgeNamedStaff,
+        acknowledgeOccasions: v2.acknowledgeOccasions,
+        salutationPattern: v2.salutationPattern,
+        signoffLines: v2.signoffLines,
+        negativeReviewEmailEnabled: v2.negativeReviewEmailEnabled,
+        negativeReviewFraming: v2.negativeReviewFraming,
+        negativeReviewFramingCustom: v2.negativeReviewFramingCustom ?? null,
+        replyToEmail: v2.replyToEmail ?? null,
       },
       create: {
         userId: session.user.id,
@@ -133,12 +163,20 @@ export async function PUT(request: NextRequest) {
         keyPhrases: v2.keyPhrases,
         styleGuidelines: v2.styleGuidelines,
         sampleResponses: v2.sampleResponses,
+        acknowledgeNamedStaff: v2.acknowledgeNamedStaff,
+        acknowledgeOccasions: v2.acknowledgeOccasions,
+        salutationPattern: v2.salutationPattern,
+        signoffLines: v2.signoffLines,
+        negativeReviewEmailEnabled: v2.negativeReviewEmailEnabled,
+        negativeReviewFraming: v2.negativeReviewFraming,
+        negativeReviewFramingCustom: v2.negativeReviewFramingCustom ?? null,
+        replyToEmail: v2.replyToEmail ?? null,
       },
     });
 
     return NextResponse.json({
       success: true,
-      data: { brandVoice: toLegacyShape(brandVoice) },
+      data: { brandVoice: projectToV2(brandVoice) },
     });
   } catch (error) {
     console.error("Error updating brand voice:", error);
@@ -150,7 +188,7 @@ export async function PUT(request: NextRequest) {
           message: "Failed to update brand voice",
         },
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generateReviewResponse, DEFAULT_MODEL, ToneModifier } from "@/lib/ai/claude";
+import { generateReviewResponse, DEFAULT_MODEL } from "@/lib/ai/claude";
 import { assembleResponse } from "@/lib/ai/post-process";
 import { deductCreditsAtomic, getOrCreateBrandVoice } from "@/lib/db-utils";
 import { CREDIT_COSTS } from "@/lib/constants";
@@ -13,8 +13,20 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+// Iter 6 cutover: tone accepts the V2 4-key set (matches the brand-voice
+// form's tone selector exactly, per spec §8.1). `additionalInstructions`
+// is the new free-text per-regeneration directive — not persisted, capped
+// at 500 chars. The route forwards it as `customRegenerateInstructions`
+// to claude.ts where the iter-1 sanitize helper wraps it before injecting
+// into the user prompt.
 const regenerateSchema = z.object({
-  tone: z.enum(["professional", "friendly", "empathetic"]),
+  tone: z.enum([
+    "warm_casual",
+    "friendly_professional",
+    "polished_formal",
+    "empathetic_attentive",
+  ]),
+  additionalInstructions: z.string().max(500).optional(),
 });
 
 /**
@@ -63,7 +75,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { tone } = validationResult.data;
+    const { tone, additionalInstructions } = validationResult.data;
 
     // Get user with credits
     const user = await prisma.user.findUnique({
@@ -169,7 +181,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         sentiment: review.sentiment,
         detectedLanguage: review.detectedLanguage,
         brandVoice,
-        toneModifier: tone as ToneModifier,
+        toneModifier: tone,
+        // Iter 6: forward the per-regeneration free-text directive to the
+        // iter-1 sanitize-wrapped slot in claude.ts. Single-use, not
+        // persisted; ZOD-capped at 500 chars upstream.
+        customRegenerateInstructions: additionalInstructions,
         e2eMockOptIn,
       });
     } catch (error) {

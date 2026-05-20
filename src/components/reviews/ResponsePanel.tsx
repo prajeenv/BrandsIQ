@@ -172,13 +172,16 @@ export function ResponsePanel({
     }
   };
 
-  const handleRegenerate = async (tone: "professional" | "friendly" | "empathetic") => {
+  const handleRegenerate = async (payload: {
+    tone: "warm_casual" | "friendly_professional" | "polished_formal" | "empathetic_attentive";
+    additionalInstructions?: string;
+  }) => {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/reviews/${reviewId}/regenerate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tone }),
+        body: JSON.stringify(payload),
       });
 
       const result = await res.json();
@@ -196,10 +199,11 @@ export function ResponsePanel({
               }
             : null
         );
-        toast.success(`Response regenerated with ${tone} tone!`);
-        // PostHog: response_regenerated. tone is always one of the three
-        // explicit modifier values here (the function signature enforces).
-        trackResponseRegenerated({ tone });
+        toast.success(`Response regenerated!`);
+        // PostHog: response_regenerated. Tone is one of the V2 4-key set
+        // (post-iter-6); additionalInstructions presence is the only other
+        // signal we currently surface as an event property.
+        trackResponseRegenerated({ tone: payload.tone });
         refreshCredits();
         onResponseUpdate?.(); // This will fetch fresh data including the new version
       } else {

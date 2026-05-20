@@ -66,12 +66,16 @@ export interface BrandVoiceConfig {
 /**
  * Tone modifier values accepted by `POST /api/reviews/[id]/regenerate`.
  *
- * Kept as the legacy 3-key set until iter 6 swaps the regenerate dialog
- * to the four V2 presets — touching it now would break the regenerate
- * route's Zod validation and the existing `ToneModifier` UI. Iter 6 will
- * realign this with `BRAND_VOICE_TONES_V2` per the corrected spec §8.1.
+ * Iter 6 realigned this with `BRAND_VOICE_TONES_V2` (spec §8.1): the four
+ * brand-voice presets are the only options. The legacy 3-key set was
+ * retired together with the legacy `apologetic` value (DECISION 69 — apology
+ * is content-routed via structure templates, not a register).
  */
-export type ToneModifier = "professional" | "friendly" | "empathetic";
+export type ToneModifier =
+  | "warm_casual"
+  | "friendly_professional"
+  | "polished_formal"
+  | "empathetic_attentive";
 
 export interface GenerateResponseParams {
   reviewText: string;
@@ -126,13 +130,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Get tone modifier description for prompt.
+ * Get tone modifier description for prompt. Iter 6 keys align with
+ * `BRAND_VOICE_TONES_V2`; the description tells the model what register
+ * to lean into for this single regeneration only.
  */
 function getToneModifierDescription(toneModifier: ToneModifier): string {
   const descriptions: Record<ToneModifier, string> = {
-    professional: "professional and courteous, maintaining a business-appropriate tone",
-    friendly: "warm and personable, like helping a friend",
-    empathetic: "understanding and compassionate, showing genuine care for the customer's experience",
+    warm_casual: "relaxed and conversational, like greeting a returning guest at the door",
+    friendly_professional: "warm but composed, with the steady cadence of someone behind a hotel front desk",
+    polished_formal: "refined and precise, the register of a premium or luxury experience",
+    empathetic_attentive: "understanding and attentive, leaning into care for the customer's experience",
   };
   return descriptions[toneModifier];
 }

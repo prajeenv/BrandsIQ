@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { testBrandVoiceSchema } from "@/lib/validations";
 import { generateReviewResponse } from "@/lib/ai/claude";
 import { assembleResponse } from "@/lib/ai/post-process";
+import { normalizeBrandVoice } from "@/lib/ai/brand-voice-normalize";
 import { detectLanguage } from "@/lib/language-detection";
-import { toLegacyShape } from "../_legacy-bridge";
 
 /**
  * POST /api/brand-voice/test - Test brand voice with a sample review
@@ -101,11 +101,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // The test panel UI still consumes the legacy brand-voice shape on
-    // the response (iter 6 rewrites the panel). Reuse the brand-voice
-    // bridge's `toLegacyShape` so the projection has one source of
-    // truth, then strip down to the subset the panel actually reads.
-    const legacy = toLegacyShape(brandVoice);
+    // Iter 6: legacy bridge deleted. The test panel UI now consumes the
+    // V2 shape directly. Strip the V2 projection down to the small subset
+    // the panel actually reads (tone label + key phrases + style guidelines).
+    const v2 = normalizeBrandVoice(brandVoice);
     return NextResponse.json({
       success: true,
       data: {
@@ -122,10 +121,9 @@ export async function POST(request: NextRequest) {
           detectedLanguage: languageResult.language,
         },
         brandVoice: {
-          tone: legacy.tone,
-          formality: legacy.formality,
-          keyPhrases: legacy.keyPhrases,
-          styleNotes: legacy.styleNotes,
+          tone: v2.tone,
+          keyPhrases: v2.keyPhrases,
+          styleGuidelines: v2.styleGuidelines,
         },
       },
     });
