@@ -76,9 +76,9 @@ async function main() {
         email: `test-relations-${Date.now()}@example.com`,
         name: "Relations Test User",
         brandVoice: {
+          // V2 shape (iter 3 clean-reset). Other columns take DB defaults.
           create: {
-            tone: "friendly",
-            formality: 4,
+            tone: "friendly_professional",
             keyPhrases: ["Thank you", "We appreciate"],
           },
         },

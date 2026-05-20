@@ -143,14 +143,19 @@ export async function POST(request: Request) {
         },
       });
 
-      // Default brand voice
+      // Default brand voice. After iter 3 (clean-reset migration to V2
+      // shape) the BrandVoice columns are: tone (V2 key), keyPhrases,
+      // styleGuidelines (JSONB), sampleResponses (JSONB), the
+      // Personalization + Contact/sign-off columns — all with DB-level
+      // defaults. We pass `userId` plus a couple of explicit values for
+      // self-documenting intent; everything else falls through to the
+      // column defaults defined in prisma/schema.prisma.
       await tx.brandVoice.create({
         data: {
           userId: created.id,
-          tone: "professional",
-          formality: 3,
+          tone: "friendly_professional",
           keyPhrases: ["Thank you", "We appreciate your feedback"],
-          styleNotes: "Be genuine and empathetic",
+          styleGuidelines: ["Be genuine and empathetic"],
         },
       });
 

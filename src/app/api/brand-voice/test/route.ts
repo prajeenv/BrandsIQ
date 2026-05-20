@@ -50,21 +50,37 @@ export async function POST(request: NextRequest) {
     });
 
     if (!brandVoice) {
-      // Create default brand voice if doesn't exist
+      // V2 shape (iter 3 clean-reset). All omitted columns take their
+      // DB-level defaults from prisma/schema.prisma.
       brandVoice = await prisma.brandVoice.create({
         data: {
           userId: session.user.id,
-          tone: "professional",
-          formality: 3,
+          tone: "friendly_professional",
           keyPhrases: ["Thank you", "We appreciate your feedback"],
-          styleNotes: "Be genuine and empathetic",
-          sampleResponses: [],
+          styleGuidelines: ["Be genuine and empathetic"],
         },
       });
     }
 
     // Detect language of the review
     const languageResult = detectLanguage(reviewText);
+
+    // Iter 3: project the V2 brand_voices row to the legacy
+    // BrandVoiceConfig shape the current prompt builder consumes.
+    // Same bridge as in generate/regenerate; deleted in iter 4 by the
+    // prompt rewrite that consumes the V2 fields directly.
+    const styleGuidelines = Array.isArray(brandVoice.styleGuidelines)
+      ? (brandVoice.styleGuidelines as unknown[]).filter((s): s is string => typeof s === "string")
+      : [];
+    const sampleResponses = Array.isArray(brandVoice.sampleResponses)
+      ? (brandVoice.sampleResponses as unknown[])
+          .map((s) =>
+            s && typeof s === "object" && "responseText" in s
+              ? (s as { responseText: unknown }).responseText
+              : undefined,
+          )
+          .filter((t): t is string => typeof t === "string" && t.length > 0)
+      : [];
 
     // Generate test response using Claude
     const generatedResponse = await generateReviewResponse({
@@ -74,14 +90,18 @@ export async function POST(request: NextRequest) {
       detectedLanguage: languageResult.language,
       brandVoice: {
         tone: brandVoice.tone,
-        formality: brandVoice.formality,
         keyPhrases: brandVoice.keyPhrases,
-        styleNotes: brandVoice.styleNotes,
-        sampleResponses: brandVoice.sampleResponses,
+        styleNotes: styleGuidelines.length > 0 ? styleGuidelines.join("\n") : null,
+        sampleResponses,
       },
       isTestMode: true,
     });
 
+    // Project the V2 row back to the legacy brand-voice shape the test
+    // panel UI currently consumes. The panel reads `tone`, `formality`
+    // (gone but stubbed at 3 here so the UI doesn't blow up), and
+    // `styleNotes` as a plain string — same surface as the brand-voice
+    // GET response. Iter 6 deletes this projection along with the form.
     return NextResponse.json({
       success: true,
       data: {
@@ -99,9 +119,9 @@ export async function POST(request: NextRequest) {
         },
         brandVoice: {
           tone: brandVoice.tone,
-          formality: brandVoice.formality,
+          formality: 3,
           keyPhrases: brandVoice.keyPhrases,
-          styleNotes: brandVoice.styleNotes,
+          styleNotes: styleGuidelines.length > 0 ? styleGuidelines.join("\n") : null,
         },
       },
     });

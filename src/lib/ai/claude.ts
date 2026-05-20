@@ -14,25 +14,25 @@ export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
  * Brand voice configuration consumed by `generateReviewResponse`.
  *
  * Shape note (brand voice redesign):
- *   - Legacy fields (`formality`, `styleNotes`, `sampleResponses: string[]`)
- *     remain required this iteration so the three existing inline call sites
- *     in `generate`/`regenerate`/`brand-voice/test` routes keep type-checking
- *     without changes. They become optional / are removed in iteration 4 once
- *     the route caller objects are replaced with the V2 shape from
- *     `getOrCreateBrandVoice` after the iter-3 schema reset.
- *   - V2 fields are all optional this iteration — `normalizeBrandVoice` will
- *     supply defaults for any that are missing. The prompt builder still
- *     ignores them in iter 2; they're consumed starting iter 4.
+ *   - All legacy fields (`formality`, `styleNotes`, `sampleResponses:
+ *     string[]`) became OPTIONAL in iter 3 once the clean-reset migration
+ *     dropped the underlying columns. The prompt builder ignores any that
+ *     are missing. Iter 4 will remove them entirely from this interface
+ *     and rewrite `buildSystemPrompt` to consume the V2 fields below.
+ *   - V2 fields stay optional this iteration; `normalizeBrandVoice` will
+ *     supply defaults. They're consumed by the rewritten prompt in iter 4.
  *
  * See `src/lib/ai/brand-voice-normalize.ts` for the canonical V2 shape
  * (`NormalizedBrandVoice`).
  */
 export interface BrandVoiceConfig {
   tone: string;
-  formality: number;
   keyPhrases: string[];
-  styleNotes: string | null;
-  sampleResponses: string[];
+
+  // ─── Legacy fields (iter 3: optional, deprecated; iter 4: removed) ─
+  formality?: number;
+  styleNotes?: string | null;
+  sampleResponses?: string[];
 
   // ─── V2 fields (iter 2: optional, dormant; iter 4: consumed by buildSystemPrompt) ───
   styleGuidelines?: string[];
@@ -221,8 +221,18 @@ function buildSystemPrompt(
   language: string,
   toneModifier?: ToneModifier
 ): string {
-  const { tone, formality, keyPhrases, styleNotes, sampleResponses } =
-    brandVoice;
+  // Iter 3: `formality`, `styleNotes`, and `sampleResponses` (the legacy
+  // string-array form) are now optional on BrandVoiceConfig because the
+  // underlying columns were dropped by the clean-reset migration. The
+  // route callers no longer populate them. We guard each below so the
+  // current prompt keeps working unchanged for clean inputs. Iter 4 will
+  // delete this whole block and rebuild buildSystemPrompt against the V2
+  // shape (styleGuidelines / sampleResponsesV2 / the Personalization +
+  // Contact/sign-off fields).
+  const { tone, keyPhrases } = brandVoice;
+  const formality = brandVoice.formality;
+  const styleNotes = brandVoice.styleNotes;
+  const sampleResponses = brandVoice.sampleResponses;
 
   let prompt = `You are a customer service representative writing responses to customer reviews.
 
@@ -234,8 +244,11 @@ IMPORTANT INSTRUCTIONS:
 5. Never be defensive or argumentative, even for negative reviews
 
 BRAND VOICE CONFIGURATION:
-- Tone: ${tone}
-- Formality Level: ${getFormalityDescription(formality)}`;
+- Tone: ${tone}`;
+
+  if (typeof formality === "number") {
+    prompt += `\n- Formality Level: ${getFormalityDescription(formality)}`;
+  }
 
   // Add tone modifier if specified (for regeneration with different tone)
   if (toneModifier) {
@@ -250,7 +263,7 @@ BRAND VOICE CONFIGURATION:
     prompt += `\n- Style Guidelines: ${styleNotes}`;
   }
 
-  if (sampleResponses.length > 0) {
+  if (sampleResponses && sampleResponses.length > 0) {
     prompt += `\n\nSAMPLE RESPONSES FOR REFERENCE (match this style):`;
     sampleResponses.forEach((sample, index) => {
       prompt += `\n${index + 1}. "${sample}"`;

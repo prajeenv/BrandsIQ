@@ -140,6 +140,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Generate response using Claude API
     let generatedResponse;
     try {
+      // Iter 3: project the V2 brand_voices row back to the
+      // BrandVoiceConfig shape the current prompt builder consumes. The
+      // headline `styleNotes` JSON-render bug is intentionally NOT fixed
+      // here — that's iter 4's prompt rewrite. This block bridges only:
+      //   - styleGuidelines (JSONB array) → newline-joined styleNotes
+      //     string (so the prompt at least mentions the user's rules
+      //     until iter 4 renders them as bullets);
+      //   - sampleResponses (JSONB array of objects) → string[] of just
+      //     the responseText (the legacy prompt only consumed strings).
+      const styleGuidelines = Array.isArray(brandVoice.styleGuidelines)
+        ? (brandVoice.styleGuidelines as unknown[]).filter((s): s is string => typeof s === "string")
+        : [];
+      const sampleResponses = Array.isArray(brandVoice.sampleResponses)
+        ? (brandVoice.sampleResponses as unknown[])
+            .map((s) =>
+              s && typeof s === "object" && "responseText" in s
+                ? (s as { responseText: unknown }).responseText
+                : undefined,
+            )
+            .filter((t): t is string => typeof t === "string" && t.length > 0)
+        : [];
+
       generatedResponse = await generateReviewResponse({
         reviewText: review.reviewText,
         platform: review.platform,
@@ -147,10 +169,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         detectedLanguage: review.detectedLanguage,
         brandVoice: {
           tone: brandVoice.tone,
-          formality: brandVoice.formality,
           keyPhrases: brandVoice.keyPhrases,
-          styleNotes: brandVoice.styleNotes,
-          sampleResponses: brandVoice.sampleResponses,
+          styleNotes: styleGuidelines.length > 0 ? styleGuidelines.join("\n") : null,
+          sampleResponses,
         },
         toneModifier: tone,
       });
