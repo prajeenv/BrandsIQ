@@ -323,6 +323,88 @@ describe('claude.ts', () => {
     });
   });
 
+  // ─── Fix (post-iter-4): E2E mock double-gate ─────────────────────────
+  // The mock canned response must fire ONLY when BOTH the env var
+  // (`E2E_MOCK_AI=true`) is set on the runtime AND the inbound request
+  // carries the `x-e2e-mock: 1` header (forwarded by routes as
+  // `e2eMockOptIn`). The env var alone is not sufficient — manual users
+  // hitting a Preview deployment where the env var is set must still get
+  // a real Claude response. See DECISIONS.md #61.
+  describe('E2E mock double-gate', () => {
+    it('returns the canned mock when env=true AND e2eMockOptIn=true', async () => {
+      process.env.E2E_MOCK_AI = 'true';
+
+      const result = await generateReviewResponse({
+        ...defaultParams,
+        e2eMockOptIn: true,
+      });
+
+      expect(result.model).toBe('mock-e2e');
+      expect(result.responseText).toContain('Thank you for your feedback');
+      // The real Claude client must NOT have been invoked.
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('calls Claude (no mock) when env=true but e2eMockOptIn is omitted (manual user case)', async () => {
+      process.env.E2E_MOCK_AI = 'true';
+
+      const result = await generateReviewResponse(defaultParams);
+
+      // Real path: Claude was hit and the canned mock did NOT fire.
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(result.model).toBe('claude-sonnet-4-20250514');
+      expect(result.responseText).not.toBe(
+        'Thank you for your feedback! We truly appreciate you taking the time to share your experience with us. Your input helps us continue to improve our service.',
+      );
+    });
+
+    it('calls Claude (no mock) when env=true but e2eMockOptIn=false explicitly', async () => {
+      process.env.E2E_MOCK_AI = 'true';
+
+      await generateReviewResponse({
+        ...defaultParams,
+        e2eMockOptIn: false,
+      });
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls Claude (no mock) when env=false but e2eMockOptIn=true (header without prod env)', async () => {
+      // E2E_MOCK_AI unset (or any non-"true" value) blocks the mock even
+      // if the header is present. This protects production, where the env
+      // var is never set, against any accidental or malicious header.
+      delete process.env.E2E_MOCK_AI;
+
+      await generateReviewResponse({
+        ...defaultParams,
+        e2eMockOptIn: true,
+      });
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls Claude (no mock) when env is unset AND e2eMockOptIn is omitted (production / local default)', async () => {
+      delete process.env.E2E_MOCK_AI;
+
+      await generateReviewResponse(defaultParams);
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a non-"true" env value as off, even with the header set', async () => {
+      // Belt-and-braces: only the literal string "true" enables. Any other
+      // truthy-looking value ("1", "yes", "TRUE") should not.
+      process.env.E2E_MOCK_AI = '1';
+
+      await generateReviewResponse({
+        ...defaultParams,
+        e2eMockOptIn: true,
+      });
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // ─── Iteration 4: V2 prompt rewrite ─────────────────────────────────
   // Spec: docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §4–§9.
   describe('V2 prompt rendering', () => {

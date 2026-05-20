@@ -66,6 +66,9 @@ export async function POST(request: NextRequest) {
     // Detect language of the review
     const languageResult = detectLanguage(reviewText);
 
+    // E2E mock opt-in (header gate — see DECISIONS.md #61).
+    const e2eMockOptIn = request.headers.get("x-e2e-mock") === "1";
+
     // Iter 4: pass the V2 brand voice row directly. The iter-3 inline
     // V2→legacy projection is gone — `generateReviewResponse` now
     // `normalizeBrandVoice`s the input and `buildSystemPrompt` consumes
@@ -77,6 +80,7 @@ export async function POST(request: NextRequest) {
       detectedLanguage: languageResult.language,
       brandVoice,
       isTestMode: true,
+      e2eMockOptIn,
     });
 
     // The test panel UI still consumes the legacy brand-voice shape on

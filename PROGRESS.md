@@ -1270,7 +1270,26 @@ After this iteration ships to staging you'll see the AI's output change: multi-p
 
 **Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 4" subsection): #56 structure-template module separate from `claude.ts`; #57 JSONB fields typed as `unknown` with `normalizeBrandVoice` doing coercion; #58 `max_tokens` 500 → 1000; #59 `ToneModifier` type retains legacy 3-key set (iter 6 swaps to V2 4-key set); #60 V2 tone rendered as human display label.
 
+### 🔧 Follow-up fix between iter 4 and iter 5 — E2E mock header-gate
+
+**Branch:** `fix/e2e-mock-header-gate`
+**Status:** Locally verified (lint:strict / type-check / 969 unit tests passing). PR pending.
+
+Manual response generation on staging after iter 4 returned the canned Playwright mock string instead of a real Claude response. Root cause: the iter-1 `E2E_MOCK_AI` env-var gate (added April 17, 2026) is single-condition — when set on Vercel Preview, every call to `generateReviewResponse` short-circuits to the canned response regardless of caller. The original assumption that "Preview" and "staging-for-manual-testing" were distinct environments doesn't hold for this project; pushes to `main` build a Preview deployment that serves as the staging URL.
+
+**Fix:** Add a per-request header opt-in. The mock now requires BOTH `E2E_MOCK_AI=true` (env, scopes mocking to Preview) AND `x-e2e-mock: 1` (header, identifies the caller as Playwright). Routes read the header and forward it as a new `e2eMockOptIn` param on `generateReviewResponse`. `playwright.config.ts` adds the header to its `extraHTTPHeaders` so every test carries it. Manual users on the same Preview deployment hit real Claude.
+
+**Files:**
+- `src/lib/ai/claude.ts` — `GenerateResponseParams` gains `e2eMockOptIn?: boolean`; guard changes from `if (env === "true")` to `if (env === "true" && e2eMockOptIn)`.
+- `src/app/api/reviews/[id]/generate/route.ts` + `regenerate/route.ts` + `src/app/api/brand-voice/test/route.ts` — each reads `request.headers.get("x-e2e-mock") === "1"` and forwards as `e2eMockOptIn`.
+- `playwright.config.ts` — `extraHTTPHeaders` restructured so `x-e2e-mock: 1` is always sent and the existing Vercel bypass header remains conditional on the secret.
+- `tests/unit/lib/ai/claude.test.ts` — new "E2E mock double-gate" describe block with 6 truth-table cases.
+
+**Test delta:** 963 → 969 unit tests (+6). No integration or E2E changes (E2E already runs against staging with the header now configured).
+
+**Decisions** (cross-reference DECISIONS.md "Follow-up fix: E2E mock header-gate"): #61 mock requires env AND header (follow-up to #15).
+
 ---
 
-**Last Updated:** May 20, 2026
-**Status:** Brand voice redesign iteration 4 complete on branch (PR pending). Iterations 1 + 2 + 3 merged to main. MVP Phase 1 (Closed Beta) remains the most recent production deploy.
+**Last Updated:** May 21, 2026
+**Status:** Brand voice redesign iteration 4 merged via PR #123. E2E mock header-gate fix complete on branch (PR pending). Iter 5 (post-processing) next.
