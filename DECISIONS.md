@@ -1528,6 +1528,61 @@ Branch: `feat/brand-voice-redesign-iter-2`. Pure type/validation/constant change
 
 Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 871 passed, 0 failed.
 
+### Iteration 3 — Clean-reset schema migration + V2 column cutover + legacy form bridge
+
+Branch: `feat/brand-voice-redesign-iter-3`. Drops the `formality` column, replaces `styleNotes` (text storing `JSON.stringify(array)` — the headline bug) with a JSONB `style_guidelines` column, replaces `sampleResponses (String[])` with a JSONB `sample_responses` column of `{ratingContext, responseText}` objects, adds the 8 new Personalization + Contact/sign-off columns + the V2 tone and framing CHECK constraints. Truncates `brand_voices` + `reviews` + `review_responses` + `response_versions` (all throwaway pre-launch test data per user). Reshapes every call site that read the dropped columns. Adds a small adapter so the legacy form keeps working without modification until iter 6 rewrites it.
+
+#### Decision 50: Clean-reset migration (TRUNCATE in the migration SQL) — not a non-destructive data migration
+
+- **Decision:** The migration `20260520120000_brand_voice_redesign_reset` truncates `brand_voices`, `reviews`, `review_responses`, and `response_versions` (RESTART IDENTITY CASCADE) before dropping columns, switching JSON shapes, and adding the new V2 columns. No parse-or-default backfill. After the migration `getOrCreateBrandVoice()` lazily recreates a default brand voice on next read for each user.
+- **Why:** The system is pre-launch. The user explicitly confirmed all rows in those four tables are throwaway test data. A non-destructive data migration would require parsing `JSON.stringify`-or-newline-separated text columns into JSONB arrays, mapping legacy → V2 tone keys, wrapping `String[]` sample responses as `{ratingContext, responseText}` objects, and a per-row dry-run/fix-list — substantial work for data that has no value. The clean reset is significantly safer (single atomic transaction, no parse-failure paths) and significantly simpler.
+- **Risk:** Low ✅. Destructive, but the user confirmed acceptance in the plan-decision discussion. The post-condition `DO $$` block raises an exception if any of the four tables still has rows after the truncate, so the migration fails loudly rather than half-applied.
+
+#### Decision 51: Legacy form bridge in `/api/brand-voice/_legacy-bridge.ts` instead of leaving the form broken between iter 3 and iter 6
+
+- **Decision:** A new pure module `src/app/api/brand-voice/_legacy-bridge.ts` exports `fromLegacyForm` (legacy payload → V2 column write), `toLegacyShape` (V2 row → legacy form-friendly response), plus `legacyToneToV2` / `v2ToneToLegacy` mapping helpers. The `/api/brand-voice` GET and PUT routes route through these so the unchanged brand voice form continues to load, save, and round-trip on staging between the iter 3 deploy and the iter 6 form rewrite. Iter 6 deletes `_legacy-bridge.ts` entirely.
+- **Why:** Without the bridge, the form would 500 on every load (`bv.formality` undefined, `bv.styleNotes` undefined, `bv.sampleResponses` is now JSONB objects not strings) and every save (legacy field names rejected as unknown columns). Even though there are no real customers today, leaving a broken settings screen on staging for 1–2 days between iter 3 and iter 6 is bad hygiene and would noisily fail Sentry. The bridge is ~200 lines of pure code that gets deleted in one PR.
+- **Alternative considered:** Skip the bridge and accept the broken-form window. Rejected — the bridge cost is small relative to the noise it prevents.
+- **Risk:** Low ✅. Round-trip is unit-tested (18 bridge tests in `tests/unit/api/brand-voice/legacy-bridge.test.ts` plus the round-trip-through-the-bridge test in `brand-voice.test.ts`).
+
+#### Decision 52: API field-name cutover happens in iter 3, but the Zod schema cutover stays in iter 6
+
+- **Decision:** Iter 3 changes the columns Prisma reads/writes, but the API route's input validation (`PUT /api/brand-voice`) still uses the legacy `brandVoiceSchema` because the form still sends the legacy payload. The bridge translates the *validated* legacy payload into V2 column writes. The `brandVoiceSchemaV2` (added iter 2) waits for iter 6.
+- **Why:** Migrations apply before code on deploy (GitHub Actions `prisma migrate deploy` runs before Vercel ships). If iter 3 also swapped the Zod schema, the form (still sending legacy shape) would 400 on every save in the gap between the migration completing and the iter 6 deploy. Keeping the legacy Zod + bridge keeps the form working.
+- **Risk:** Low ✅. Iter 6's PR will delete the bridge AND the legacy Zod AND swap the form payload AND switch validation to `brandVoiceSchemaV2` in one coherent PR.
+
+#### Decision 53: `formality`, `styleNotes`, and `sampleResponses` (string-array) become OPTIONAL on `BrandVoiceConfig`, not removed
+
+- **Decision:** Iter 3 marks all three legacy fields as `?:` optional on the `BrandVoiceConfig` interface in `src/lib/ai/claude.ts`. The current `buildSystemPrompt` adds inline guards (`if (typeof formality === "number")`, `if (sampleResponses && sampleResponses.length > 0)`) so the prompt still renders when the V2 routes don't populate them. Iter 4 will remove these fields and rewrite `buildSystemPrompt` against the V2 fields directly.
+- **Why:** A two-step interface change (iter 3: optional; iter 4: remove) is cheaper than collapsing both into a single PR that also rewrites the prompt builder, the conditional fragments, the structure templates, and the sentiment-overrides-rating routing. Each iteration's diff stays focused and reviewable.
+- **Risk:** Low ✅. The guards are temporary and obvious; `tsc` proved the optional change didn't break any call site.
+
+#### Decision 54: CHECK constraints on `tone` and `negative_review_framing` columns (defense-in-depth)
+
+- **Decision:** The migration adds two named CHECK constraints: `brand_voices_tone_check` enforces `tone IN ('warm_casual','friendly_professional','polished_formal','empathetic_attentive')`; `brand_voices_negative_review_framing_check` enforces `negative_review_framing IN ('management_contact','investigation','open_channel','custom')`.
+- **Why:** Zod enforces these at the API boundary but the DB column is `String`/`varchar(32)`, so any future raw SQL or direct DB write could introduce a bad value. The CHECK is defense-in-depth and makes the column self-documenting.
+- **Trade-off:** Adding a new V2 tone or framing value will require a migration (drop CHECK, add new value, re-add CHECK). Acceptable because adding tone presets is a significant product decision, not a routine change.
+- **Risk:** Low ✅. Integration-tested.
+
+#### Decision 55: Iter 3 also bridges the **prompt-side** legacy fields via inline projection in the routes (interim)
+
+- **Decision:** `POST /api/reviews/[id]/generate`, `POST /api/reviews/[id]/regenerate`, and `POST /api/brand-voice/test` each include a small inline projection that maps the V2 `brand_voices` row to the legacy `BrandVoiceConfig` shape the existing `buildSystemPrompt` consumes — `styleGuidelines` (JSONB string array) → newline-joined `styleNotes` text, `sampleResponses` (JSONB object array) → string array of `responseText` values. This is a temporary bridge, deleted in iter 4 when the prompt builder consumes the V2 fields natively.
+- **Why:** Keeps the prompt rendering at least *something* between the iter 3 and iter 4 deploys (the prompt still references the user's style guidelines and sample responses, just via the lossy legacy rendering). Avoids a stretch where the prompt loses all brand-voice context after iter 3.
+- **Risk:** Low ✅. Three copies of an 8-line projection; iter 4 deletes all three when it rewrites `buildSystemPrompt`.
+
+#### Test coverage delta — Iteration 3
+
+| Type | Before iter 3 (suite total) | After iter 3 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 871 | 902 | **+31** |
+| New unit test files | — | — | 1 (`tests/unit/api/brand-voice/legacy-bridge.test.ts`, 18 cases) |
+| Modified unit test files | — | — | 3 (`brand-voice.test.ts`, `db-utils.test.ts`, `signup.test.ts`) |
+| New integration test files | — | — | 1 (`tests/integration/brand-voice-schema.test.ts`, 5 scenarios) |
+| Modified integration test files | — | — | 2 (`beta-flow.test.ts`, `review-lifecycle.test.ts` — fixture shape) |
+| E2E specs | — | — | 0 |
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 902 passed, 0 failed across 62 files. Migration applies cleanly via Prisma generate; integration tests run in CI's PostgreSQL container.
+
 ---
 
 ## Decision Log
@@ -1585,6 +1640,12 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 47 | `BrandVoiceConfig` extended with V2 fields as optional (additive, dormant); call sites unchanged | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
 | 48 | V2 schema enforces both per-item (200) AND joined-total (2000) caps on `styleGuidelines` | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
 | 49 | `replyToEmail` rejects literal `\n` / `\r` (header-injection guard) on top of RFC email check | Brand Voice Redesign / It. 2 | May 20 | Low ✅ | ✅ Implemented |
+| 50 | Clean-reset migration (TRUNCATE in migration SQL) instead of non-destructive data migration | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
+| 51 | Legacy form bridge in `/api/brand-voice/_legacy-bridge.ts` (deleted in iter 6) keeps form working between iter 3 and iter 6 deploys | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
+| 52 | API field-name cutover happens iter 3; Zod schema cutover stays iter 6 (legacy schema + bridge translates) | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
+| 53 | `formality` / `styleNotes` / legacy `sampleResponses` become OPTIONAL on `BrandVoiceConfig`; removed in iter 4 | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
+| 54 | CHECK constraints on `tone` + `negative_review_framing` columns (defense-in-depth on top of Zod) | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
+| 55 | Iter 3 inline projection bridges V2 row → legacy `BrandVoiceConfig` in generate/regenerate/test routes (deleted in iter 4) | Brand Voice Redesign / It. 3 | May 20 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
