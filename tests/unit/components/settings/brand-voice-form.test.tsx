@@ -19,16 +19,25 @@ vi.mock("sonner", () => ({
 
 import { BrandVoiceForm } from "@/components/settings/BrandVoiceForm";
 
+// V2 brand voice shape (iter 6). The form now sends/consumes this directly —
+// no more legacy bridge.
 const mockBrandVoice = {
   id: "bv_1",
-  tone: "professional",
-  formality: 3,
+  tone: "friendly_professional",
   keyPhrases: ["Thank you", "We appreciate your feedback"],
-  styleNotes: '["Be genuine and empathetic"]',
+  styleGuidelines: ["Be genuine and empathetic"],
   sampleResponses: [],
+  acknowledgeNamedStaff: true,
+  acknowledgeOccasions: true,
+  salutationPattern: "Dear {firstName},",
+  signoffLines: "Warmest regards,\nThe Team",
+  negativeReviewEmailEnabled: false,
+  negativeReviewFraming: "investigation",
+  negativeReviewFramingCustom: null,
+  replyToEmail: null,
 };
 
-describe("BrandVoiceForm", () => {
+describe("BrandVoiceForm (V2)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
@@ -39,40 +48,132 @@ describe("BrandVoiceForm", () => {
 
     render(<BrandVoiceForm />);
 
-    // Loading spinner should be visible (the animate-spin class is on the spinner)
     const spinner = document.querySelector(".animate-spin");
     expect(spinner).toBeTruthy();
   });
 
-  it("renders form sections after loading", async () => {
+  it("renders all four V2 sections after loading", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    // The four V2 section titles from spec §3.
+    expect(screen.getByText("Voice")).toBeInTheDocument();
+    expect(screen.getByText("Examples")).toBeInTheDocument();
+    expect(screen.getByText("Personalization")).toBeInTheDocument();
+    // CardTitle uses an HTML entity for the &amp; — match the visible glyph.
+    expect(screen.getByText(/Contact .* sign-off/i)).toBeInTheDocument();
+  });
+
+  it("does NOT render a Formality slider (iter 6 dropped the field)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/formality/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the four V2 tone preset labels", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Warm & casual")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Friendly & professional")).toBeInTheDocument();
+    expect(screen.getByText("Polished & formal")).toBeInTheDocument();
+    expect(screen.getByText("Empathetic & attentive")).toBeInTheDocument();
+  });
+
+  it("renders the Personalization toggles", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/acknowledge staff named in the review/i),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/acknowledge special occasions/i)).toBeInTheDocument();
+  });
+
+  it("renders the Contact & sign-off salutation and sign-off fields", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/salutation/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/^sign-off$/i)).toBeInTheDocument();
+  });
+
+  it("renders the negative-review email invitation toggle (off by default)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/invite customers to contact you via email/i),
+      ).toBeInTheDocument();
+    });
+
+    // The framing radio + reply-to email block are gated behind the toggle.
+    // With the default-off state, they should not appear.
+    expect(screen.queryByText(/how should our ai frame the invitation/i)).not.toBeInTheDocument();
+  });
+
+  it("reveals the framing radio + reply-to email when the toggle is on", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
       json: () =>
         Promise.resolve({
-          data: { brandVoice: mockBrandVoice },
+          data: { brandVoice: { ...mockBrandVoice, negativeReviewEmailEnabled: true } },
         }),
     });
 
     render(<BrandVoiceForm />);
 
     await waitFor(() => {
-      expect(screen.getByText("Brand Voice Configuration")).toBeInTheDocument();
+      expect(screen.getByText(/how should our ai frame the invitation/i)).toBeInTheDocument();
     });
-
-    expect(screen.getByText("Response Tone")).toBeInTheDocument();
-    expect(screen.getByText("Formality Level")).toBeInTheDocument();
-    expect(screen.getByText("Key Phrases")).toBeInTheDocument();
-    expect(screen.getByText("Style Guidelines")).toBeInTheDocument();
-    expect(screen.getByText("Sample Responses")).toBeInTheDocument();
+    expect(screen.getByLabelText(/reply-to email/i)).toBeInTheDocument();
   });
 
-  it("shows auto-save status indicator", async () => {
+  it("shows auto-save status indicator (Saved by default after load)", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { brandVoice: mockBrandVoice },
-        }),
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
     });
 
     render(<BrandVoiceForm />);
@@ -82,63 +183,35 @@ describe("BrandVoiceForm", () => {
     });
   });
 
-  it("renders Reset to Defaults button", async () => {
+  it("renders Reset to defaults button", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { brandVoice: mockBrandVoice },
-        }),
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
     });
 
     render(<BrandVoiceForm />);
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /reset to defaults/i })
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows auto-save enabled indicator", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { brandVoice: mockBrandVoice },
-        }),
-    });
-
-    render(<BrandVoiceForm />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Auto-save enabled")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /reset to defaults/i })).toBeInTheDocument();
     });
   });
 
   it("shows error toast on fetch failure", async () => {
     const { toast } = await import("sonner");
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-      new Error("Network error")
-    );
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Network error"));
 
     render(<BrandVoiceForm />);
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(
-        "Failed to load brand voice settings"
-      );
+      expect(toast.error).toHaveBeenCalledWith("Failed to load brand voice settings");
     });
   });
 
   it("fetches brand voice from /api/brand-voice on mount", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { brandVoice: mockBrandVoice },
-        }),
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
     });
 
     render(<BrandVoiceForm />);
@@ -148,20 +221,17 @@ describe("BrandVoiceForm", () => {
     });
   });
 
-  it("renders description text about auto-saving", async () => {
+  it("renders the iter-6 page header copy", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          data: { brandVoice: mockBrandVoice },
-        }),
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
     });
 
     render(<BrandVoiceForm />);
 
     await waitFor(() => {
       expect(
-        screen.getByText(/changes are saved automatically/i)
+        screen.getByText(/teach our ai how to write responses that sound like you/i),
       ).toBeInTheDocument();
     });
   });

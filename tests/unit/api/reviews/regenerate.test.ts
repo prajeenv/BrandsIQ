@@ -171,7 +171,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockAuth.mockResolvedValueOnce(null);
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly' },
+      body: { tone: 'friendly_professional' },
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -215,7 +215,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(noCreditsUser);
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly' },
+      body: { tone: 'friendly_professional' },
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -231,7 +231,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.review.findFirst.mockResolvedValueOnce(null);
     const req = createRequest('/api/reviews/nonexistent/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly' },
+      body: { tone: 'friendly_professional' },
     });
 
     const res = await POST(req, routeParams({ id: 'nonexistent' }));
@@ -247,7 +247,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithoutResponse);
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly' },
+      body: { tone: 'friendly_professional' },
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -265,7 +265,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.reviewResponse.update.mockResolvedValueOnce({
       ...existingResponse,
       responseText: 'We appreciate your feedback!',
-      toneUsed: 'friendly',
+      toneUsed: 'friendly_professional',
       isEdited: false,
       editedAt: null,
       updatedAt: new Date(),
@@ -273,7 +273,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly' },
+      body: { tone: 'friendly_professional' },
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -292,12 +292,12 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.reviewResponse.update.mockResolvedValueOnce({
       ...existingResponse,
       responseText: 'We appreciate your feedback!',
-      toneUsed: 'friendly',
+      toneUsed: 'friendly_professional',
     });
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly' },
+      body: { tone: 'friendly_professional' },
     });
 
     await POST(req, routeParams({ id: 'review-1' }));
@@ -326,7 +326,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'empathetic' },
+      body: { tone: 'empathetic_attentive' },
     });
 
     await POST(req, routeParams({ id: 'review-1' }));
@@ -342,7 +342,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
         reviewId: 'review-1',
         platform: 'Google',
         previousTone: 'professional',
-        newTone: 'empathetic',
+        newTone: 'empathetic_attentive',
       }),
     );
   });
@@ -354,7 +354,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly' },
+      body: { tone: 'friendly_professional' },
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -376,14 +376,14 @@ describe('POST /api/reviews/[id]/regenerate', () => {
       mockPrisma.reviewResponse.update.mockResolvedValueOnce({
         ...reviewWithResponse.response,
         responseText: 'Updated response',
-        toneUsed: 'friendly',
+        toneUsed: 'friendly_professional',
       });
       mockPrisma.responseVersion.create.mockResolvedValueOnce({ id: 'ver-1' });
       mockPrisma.creditUsage.updateMany.mockResolvedValueOnce({ count: 1 });
 
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
-        body: { tone: 'friendly' },
+        body: { tone: 'friendly_professional' },
       });
 
       await POST(req, routeParams({ id: 'review-1' }));
@@ -401,7 +401,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
-        body: { tone: 'friendly' },
+        body: { tone: 'friendly_professional' },
       });
 
       await POST(req, routeParams({ id: 'review-1' }));
@@ -426,7 +426,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
-        body: { tone: 'friendly' },
+        body: { tone: 'friendly_professional' },
       });
       await POST(req, routeParams({ id: 'review-1' }));
 
@@ -439,6 +439,67 @@ describe('POST /api/reviews/[id]/regenerate', () => {
           }),
         }),
       );
+    });
+  });
+
+  // ─── Iteration 6: additionalInstructions plumbing ─────────────────
+  describe('additionalInstructions (iter 6)', () => {
+    it('forwards additionalInstructions to generateReviewResponse as customRegenerateInstructions', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+      mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+      mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+      const req = createRequest('/api/reviews/review-1/regenerate', {
+        method: 'POST',
+        body: {
+          tone: 'friendly_professional',
+          additionalInstructions: 'Mention our loyalty program once.',
+        },
+      });
+      await POST(req, routeParams({ id: 'review-1' }));
+
+      expect(mockGenerateReviewResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toneModifier: 'friendly_professional',
+          customRegenerateInstructions: 'Mention our loyalty program once.',
+        }),
+      );
+    });
+
+    it('does not pass customRegenerateInstructions when additionalInstructions is absent', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+      mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+      mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+      mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+      const req = createRequest('/api/reviews/review-1/regenerate', {
+        method: 'POST',
+        body: { tone: 'friendly_professional' },
+      });
+      await POST(req, routeParams({ id: 'review-1' }));
+
+      expect(mockGenerateReviewResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toneModifier: 'friendly_professional',
+          customRegenerateInstructions: undefined,
+        }),
+      );
+    });
+
+    it('rejects additionalInstructions over 500 chars', async () => {
+      const req = createRequest('/api/reviews/review-1/regenerate', {
+        method: 'POST',
+        body: {
+          tone: 'friendly_professional',
+          additionalInstructions: 'a'.repeat(501),
+        },
+      });
+      const res = await POST(req, routeParams({ id: 'review-1' }));
+
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe('VALIDATION_ERROR');
     });
   });
 });

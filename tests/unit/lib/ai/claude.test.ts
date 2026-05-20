@@ -151,9 +151,10 @@ describe('claude.ts', () => {
     });
 
     it('should include tone modifier when provided', async () => {
+      // Iter 6: ToneModifier values now align with BRAND_VOICE_TONES_V2.
       await generateReviewResponse({
         ...defaultParams,
-        toneModifier: 'empathetic' as const,
+        toneModifier: 'empathetic_attentive' as const,
       });
 
       const callArgs = mockCreate.mock.calls[0][0];
