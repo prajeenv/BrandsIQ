@@ -49,7 +49,8 @@ describe.skipIf(!canRunIntegration)('Beta Flow (Integration)', () => {
         },
       });
       await tx.brandVoice.create({
-        data: { userId: created.id, tone: 'professional', formality: 3 },
+        // V2 shape (iter 3 clean-reset). Other columns take DB defaults.
+        data: { userId: created.id, tone: 'friendly_professional' },
       });
       await tx.betaInviteLink.update({
         where: { code: invite.code },

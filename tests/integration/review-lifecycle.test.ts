@@ -191,31 +191,33 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
     const db = getTestPrisma();
     const user = await createTestUser();
 
-    // Create brand voice
+    // Create brand voice — V2 shape (iter 3 clean-reset).
     const bv = await db.brandVoice.create({
       data: {
         userId: user.id,
-        tone: 'friendly',
-        formality: 2,
+        tone: 'warm_casual',
         keyPhrases: ['Thank you', 'We value'],
-        styleNotes: 'Keep it casual',
-        sampleResponses: ['Thanks for the review!'],
+        styleGuidelines: ['Keep it casual', 'Avoid corporate jargon'],
+        sampleResponses: [
+          { ratingContext: 'any', responseText: 'Thanks for the review!' },
+        ],
       },
     });
 
-    expect(bv.tone).toBe('friendly');
+    expect(bv.tone).toBe('warm_casual');
     expect(bv.keyPhrases).toEqual(['Thank you', 'We value']);
+    expect(bv.styleGuidelines).toEqual(['Keep it casual', 'Avoid corporate jargon']);
 
     // Update brand voice
     const updated = await db.brandVoice.update({
       where: { userId: user.id },
       data: {
-        tone: 'professional',
-        formality: 4,
+        tone: 'friendly_professional',
+        acknowledgeNamedStaff: false,
       },
     });
-    expect(updated.tone).toBe('professional');
-    expect(updated.formality).toBe(4);
+    expect(updated.tone).toBe('friendly_professional');
+    expect(updated.acknowledgeNamedStaff).toBe(false);
     // Unchanged fields preserved
     expect(updated.keyPhrases).toEqual(['Thank you', 'We value']);
   });
