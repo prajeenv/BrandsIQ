@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { testBrandVoiceSchema } from "@/lib/validations";
 import { generateReviewResponse } from "@/lib/ai/claude";
 import { detectLanguage } from "@/lib/language-detection";
+import { toLegacyShape } from "../_legacy-bridge";
 
 /**
  * POST /api/brand-voice/test - Test brand voice with a sample review
@@ -65,43 +66,24 @@ export async function POST(request: NextRequest) {
     // Detect language of the review
     const languageResult = detectLanguage(reviewText);
 
-    // Iter 3: project the V2 brand_voices row to the legacy
-    // BrandVoiceConfig shape the current prompt builder consumes.
-    // Same bridge as in generate/regenerate; deleted in iter 4 by the
-    // prompt rewrite that consumes the V2 fields directly.
-    const styleGuidelines = Array.isArray(brandVoice.styleGuidelines)
-      ? (brandVoice.styleGuidelines as unknown[]).filter((s): s is string => typeof s === "string")
-      : [];
-    const sampleResponses = Array.isArray(brandVoice.sampleResponses)
-      ? (brandVoice.sampleResponses as unknown[])
-          .map((s) =>
-            s && typeof s === "object" && "responseText" in s
-              ? (s as { responseText: unknown }).responseText
-              : undefined,
-          )
-          .filter((t): t is string => typeof t === "string" && t.length > 0)
-      : [];
-
-    // Generate test response using Claude
+    // Iter 4: pass the V2 brand voice row directly. The iter-3 inline
+    // V2→legacy projection is gone — `generateReviewResponse` now
+    // `normalizeBrandVoice`s the input and `buildSystemPrompt` consumes
+    // the V2 fields natively.
     const generatedResponse = await generateReviewResponse({
       reviewText,
       platform: platform || "Google",
       rating,
       detectedLanguage: languageResult.language,
-      brandVoice: {
-        tone: brandVoice.tone,
-        keyPhrases: brandVoice.keyPhrases,
-        styleNotes: styleGuidelines.length > 0 ? styleGuidelines.join("\n") : null,
-        sampleResponses,
-      },
+      brandVoice,
       isTestMode: true,
     });
 
-    // Project the V2 row back to the legacy brand-voice shape the test
-    // panel UI currently consumes. The panel reads `tone`, `formality`
-    // (gone but stubbed at 3 here so the UI doesn't blow up), and
-    // `styleNotes` as a plain string — same surface as the brand-voice
-    // GET response. Iter 6 deletes this projection along with the form.
+    // The test panel UI still consumes the legacy brand-voice shape on
+    // the response (iter 6 rewrites the panel). Reuse the brand-voice
+    // bridge's `toLegacyShape` so the projection has one source of
+    // truth, then strip down to the subset the panel actually reads.
+    const legacy = toLegacyShape(brandVoice);
     return NextResponse.json({
       success: true,
       data: {
@@ -118,10 +100,10 @@ export async function POST(request: NextRequest) {
           detectedLanguage: languageResult.language,
         },
         brandVoice: {
-          tone: brandVoice.tone,
-          formality: 3,
-          keyPhrases: brandVoice.keyPhrases,
-          styleNotes: styleGuidelines.length > 0 ? styleGuidelines.join("\n") : null,
+          tone: legacy.tone,
+          formality: legacy.formality,
+          keyPhrases: legacy.keyPhrases,
+          styleNotes: legacy.styleNotes,
         },
       },
     });

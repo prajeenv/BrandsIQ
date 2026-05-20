@@ -1107,8 +1107,8 @@ A four-section restructure of the brand voice settings screen (Voice / Examples 
 |---|---|---|
 | 1 | Sanitize helper + review-text retrofit + SecurityLog | ✅ Done (May 20, merged via PR #120) |
 | 2 | Validation schema + constants + normalize adapter | ✅ Done (May 20, merged via PR #121) |
-| 3 | Clean-reset schema migration + route cutover + legacy form bridge | ✅ Done (May 20) |
-| 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ⏳ Not started |
+| 3 | Clean-reset schema migration + route cutover + legacy form bridge | ✅ Done (May 20, merged via PR #122) |
+| 4 | Prompt-building rewrite (bug fix, wrap fields, structure, fragments) | ✅ Done (May 20) |
 | 5 | Post-processing module + route wiring | ⏳ Not started |
 | 6 | Frontend restructure + API Zod cutover + regenerate dialog | ⏳ Not started |
 
@@ -1224,7 +1224,53 @@ The brand voice form continues to work between this iteration's deploy and iter 
 
 **Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 3" subsection): #50 clean-reset migration (TRUNCATE in SQL); #51 legacy form bridge; #52 API field-name cutover iter 3, Zod schema cutover iter 6; #53 legacy `BrandVoiceConfig` fields go OPTIONAL (removed iter 4); #54 CHECK constraints on tone + negative_review_framing; #55 inline V2→legacy projection in generate/regenerate/test routes (deleted iter 4).
 
+### ✅ Iteration 4 — Prompt-building rewrite
+
+**Branch:** `feat/brand-voice-redesign-iter-4`
+**Status:** Locally verified (lint:strict / type-check / 963 unit tests passing). PR pending.
+
+**Fixes the headline `styleNotes` JSON-render bug.** Rebuilds `buildSystemPrompt` against the V2 fields. Adds rating-conditional structure templates with the sentiment-overrides-rating routing (the "Kiran case" — 4★ + negative sentiment → mixed/negative template). Injects Personalization toggles (named-staff, occasions) and the negative-review email framing only when relevant. Un-gates the full reinforcement tail (paragraph count + em-dash prohibition + key-phrases precedence + body length + "do NOT generate a salutation or sign-off"). Deletes the three iter-3 inline V2→legacy projections.
+
+After this iteration ships to staging you'll see the AI's output change: multi-paragraph hospitality structure instead of single dense prose, no more em-dashes or banned AI-tell phrases ("delve" / "rest assured" / "we strive to" / "tapestry" / "robust" / "seamless" / "leverage" / "navigate the complexities" / "in the realm of"), no more raw JSON in the prompt (regression-tested), and named-staff + occasion acknowledgement when those toggles are on (which they are by default).
+
+**What shipped:**
+
+- **`src/lib/ai/structure-templates.ts` (NEW, pure module)** — `selectStructureTemplate({rating, sentiment})` + `isNegativeReview` predicate (single source of truth, reused by iter-5 post-processing) + `getStructureTemplate(routing)` returning the positive / mixed / negative template body + `UNIVERSAL_STRUCTURAL_RULES` constant (2–4 paragraph requirement, em-dash prohibition, AI-tell phrase blocklist, Key-phrases precedence rule) + `NAMED_STAFF_FRAGMENT` + `OCCASION_FRAGMENT` + `getFramingFragment(key)` for the three preset framing strings (management_contact, investigation, open_channel — `custom` returns null since the caller handles it specially).
+- **`src/lib/ai/claude.ts`** — `buildSystemPrompt` fully rewritten:
+  - Drops `formality`, `styleNotes`, legacy string-array `sampleResponses` from `BrandVoiceConfig`. `styleGuidelines` + `sampleResponses` typed as `unknown` (DECISION 57); `normalizeBrandVoice` (iter 2) does the runtime coercion.
+  - V2 tone displayed as the human label "Friendly & professional" via `BRAND_VOICE_TONE_INFO_V2[key].label` (DECISION 60).
+  - Style guidelines render as a bulleted list, wrapped via `wrapUserContent('Style guidelines', ...)`. **The headline JSON-render bug is fixed.** Regression-tested.
+  - Key phrases retain the `MUST` enforcement language (corrected spec §4.3 — keep for Phase 1).
+  - Sample responses render as labeled few-shot examples (`for a 5-star review` / `for any review`), each wrapped via `wrapUserContent('Sample response ${i+1}', ...)`.
+  - Named-staff fragment injected iff `acknowledgeNamedStaff`; occasion fragment iff `acknowledgeOccasions`.
+  - Negative-review email framing fragment injected iff `negativeReviewEmailEnabled && isNegativeReview({rating, sentiment})`. `custom` framing wraps the user-supplied text via `wrapUserContent('Custom framing', ...)`.
+  - Universal structural rules + rating-conditional structure template appended.
+  - `INSTRUCTION_REINFORCEMENT` (now with the full structural lines un-gated) appended LAST so it has attention precedence over user content.
+- **`src/lib/ai/sanitize.ts`** — `INSTRUCTION_REINFORCEMENT` constant un-gated: now includes "approximately 200 words" body length, 2–4 paragraph requirement, em-dash prohibition, "do NOT generate a salutation or sign-off", and the key-phrases precedence rule.
+- **`src/lib/ai/claude.ts`** — `BrandVoiceConfig` interface trimmed (legacy fields removed), `GenerateResponseParams` gains `sentiment?: string | null`, `normalizeBrandVoice` runs inside `generateReviewResponse` as a defensive pass, `max_tokens` bumped 500 → 1000 (DECISION 58).
+- **`src/app/api/reviews/[id]/generate/route.ts` + `regenerate/route.ts`** — iter-3 inline V2→legacy projection deleted (DECISION 55); routes now pass the V2 brand voice row directly + `review.sentiment` to `generateReviewResponse`. Route-side truncation switched from `RESPONSE_TEXT_MAX` to `RESPONSE_BODY_CHAR_MAX`.
+- **`src/app/api/brand-voice/test/route.ts`** — iter-3 inline projection deleted; reuses the legacy bridge's `toLegacyShape` for the test panel response.
+
+**Test coverage delta:**
+
+| Type | Before iter 4 (suite total) | After iter 4 (suite total) | New from this iteration |
+|---|---|---|---|
+| Unit tests | 902 | 963 | **+61** |
+| New unit test files | — | — | 1 (`tests/unit/lib/ai/structure-templates.test.ts`, 26 cases) |
+| Modified unit test files | — | — | 1 (`tests/unit/lib/ai/claude.test.ts` — V2 prompt block, +35 cases) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+**Verification status:**
+
+- ✅ `npm run lint:strict` clean
+- ✅ `npm run type-check` clean
+- ✅ `npm run test:unit` 963 passed, 0 failed (63 test files)
+- ⏳ Behaviour will be user-verifiable on staging after merge — generate a response and confirm: multi-paragraph structure, no em-dashes, no banned phrases, named-staff/occasion acknowledgement.
+
+**Decisions** (cross-reference DECISIONS.md "Brand Voice Page Redesign / Iteration 4" subsection): #56 structure-template module separate from `claude.ts`; #57 JSONB fields typed as `unknown` with `normalizeBrandVoice` doing coercion; #58 `max_tokens` 500 → 1000; #59 `ToneModifier` type retains legacy 3-key set (iter 6 swaps to V2 4-key set); #60 V2 tone rendered as human display label.
+
 ---
 
 **Last Updated:** May 20, 2026
-**Status:** Brand voice redesign iteration 3 complete on branch (PR pending). Iterations 1 + 2 merged to main. MVP Phase 1 (Closed Beta) remains the most recent production deploy.
+**Status:** Brand voice redesign iteration 4 complete on branch (PR pending). Iterations 1 + 2 + 3 merged to main. MVP Phase 1 (Closed Beta) remains the most recent production deploy.

@@ -1,76 +1,99 @@
 /**
- * Claude AI service for response generation
- * Uses Anthropic's Claude API for generating brand-aligned review responses
+ * Claude AI service for response generation.
+ * Uses Anthropic's Claude API for generating brand-aligned review responses.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import {
+  BRAND_VOICE_TONE_INFO_V2,
+  RESPONSE_BODY_CHAR_MAX,
+  type BrandVoiceToneV2,
+} from "@/lib/constants";
+import { normalizeBrandVoice } from "./brand-voice-normalize";
 import { INSTRUCTION_REINFORCEMENT, wrapUserContent } from "./sanitize";
+import {
+  getFramingFragment,
+  getStructureTemplate,
+  isNegativeReview,
+  NAMED_STAFF_FRAGMENT,
+  OCCASION_FRAGMENT,
+  UNIVERSAL_STRUCTURAL_RULES,
+} from "./structure-templates";
 
-// Default model for response generation
+// Default model for response generation.
 export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+
+// Headroom over RESPONSE_BODY_CHAR_MAX (≈ "approximately 200 words"). A
+// generous max_tokens lets the model finish a paragraph naturally without
+// hard-truncating mid-sentence; the body cap is enforced afterwards by
+// route truncation (iter 4) and the post-processing assembler (iter 5).
+const MAX_TOKENS_BODY = 1000;
 
 /**
  * Brand voice configuration consumed by `generateReviewResponse`.
  *
- * Shape note (brand voice redesign):
- *   - All legacy fields (`formality`, `styleNotes`, `sampleResponses:
- *     string[]`) became OPTIONAL in iter 3 once the clean-reset migration
- *     dropped the underlying columns. The prompt builder ignores any that
- *     are missing. Iter 4 will remove them entirely from this interface
- *     and rewrite `buildSystemPrompt` to consume the V2 fields below.
- *   - V2 fields stay optional this iteration; `normalizeBrandVoice` will
- *     supply defaults. They're consumed by the rewritten prompt in iter 4.
+ * V2 shape (iter 4 — see docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §4–§7).
+ * The legacy fields (`formality`, `styleNotes`, legacy string-array
+ * `sampleResponses`) were removed this iteration; the route layer no
+ * longer passes them. Anything that may still flow in defensively goes
+ * through `normalizeBrandVoice` at the top of `generateReviewResponse`.
  *
- * See `src/lib/ai/brand-voice-normalize.ts` for the canonical V2 shape
- * (`NormalizedBrandVoice`).
+ * Every V2 field is OPTIONAL on this interface because `normalizeBrandVoice`
+ * supplies defaults; the strict V2 shape (with required defaults applied)
+ * is `NormalizedBrandVoice` in `brand-voice-normalize.ts`.
  */
 export interface BrandVoiceConfig {
   tone: string;
   keyPhrases: string[];
-
-  // ─── Legacy fields (iter 3: optional, deprecated; iter 4: removed) ─
-  formality?: number;
-  styleNotes?: string | null;
-  sampleResponses?: string[];
-
-  // ─── V2 fields (iter 2: optional, dormant; iter 4: consumed by buildSystemPrompt) ───
-  styleGuidelines?: string[];
-  /**
-   * V2 sample responses: each entry is a typed object with a rating context
-   * (1–5 or "any") and the response text. Iter 4 will render these as labeled
-   * few-shot examples; iter 2 only locks the type.
-   */
-  sampleResponsesV2?: Array<{
-    ratingContext: 1 | 2 | 3 | 4 | 5 | "any";
-    responseText: string;
-  }>;
+  // `styleGuidelines` and `sampleResponses` are typed as `unknown` because
+  // they flow straight out of Prisma JSONB columns (`Prisma.JsonValue`).
+  // `normalizeBrandVoice` inside `generateReviewResponse` does the runtime
+  // coercion to the V2 shape (`string[]` and `{ratingContext, responseText}[]`
+  // respectively) so the route layer doesn't need to cast.
+  styleGuidelines?: unknown;
+  sampleResponses?: unknown;
   acknowledgeNamedStaff?: boolean;
   acknowledgeOccasions?: boolean;
   salutationPattern?: string;
   signoffLines?: string;
   negativeReviewEmailEnabled?: boolean;
-  negativeReviewFraming?: "management_contact" | "investigation" | "open_channel" | "custom";
+  negativeReviewFraming?: "management_contact" | "investigation" | "open_channel" | "custom" | string;
   negativeReviewFramingCustom?: string | null;
   replyToEmail?: string | null;
 }
 
+/**
+ * Tone modifier values accepted by `POST /api/reviews/[id]/regenerate`.
+ *
+ * Kept as the legacy 3-key set until iter 6 swaps the regenerate dialog
+ * to the four V2 presets — touching it now would break the regenerate
+ * route's Zod validation and the existing `ToneModifier` UI. Iter 6 will
+ * realign this with `BRAND_VOICE_TONES_V2` per the corrected spec §8.1.
+ */
 export type ToneModifier = "professional" | "friendly" | "empathetic";
 
 export interface GenerateResponseParams {
   reviewText: string;
   platform: string;
   rating?: number | null;
+  /**
+   * Sentiment of the review, when known (DeepSeek classification). Used by
+   * the rating-conditional structure template router so a 4★ review with
+   * negative sentiment uses the mixed/negative template, not the positive
+   * one. Spec §9.5.
+   */
+  sentiment?: string | null;
   detectedLanguage?: string;
   brandVoice: BrandVoiceConfig;
   isTestMode?: boolean;
   toneModifier?: ToneModifier;
   /**
    * Optional free-text instructions for a single regeneration. Plumbed in
-   * iteration 1 but only wired into the UI in iteration 6 of the brand voice
-   * redesign. When provided, the value is wrapped via the sanitize helper and
-   * appended to the user prompt as a binding directive for this generation
-   * only — it is never persisted.
+   * iteration 1 but only wired into the UI in iteration 6 of the brand
+   * voice redesign. When provided, the value is wrapped via the sanitize
+   * helper and appended to the user prompt as a binding directive for this
+   * generation only — it is never persisted.
    */
   customRegenerateInstructions?: string;
 }
@@ -81,28 +104,14 @@ export interface GeneratedResponse {
 }
 
 /**
- * Get formality description based on level (1-5)
- */
-function getFormalityDescription(level: number): string {
-  const descriptions: Record<number, string> = {
-    1: "very casual and conversational, like talking to a friend",
-    2: "casual but still polite and friendly",
-    3: "balanced mix of professional and approachable",
-    4: "formal and professional with proper business language",
-    5: "very formal, polished, and highly professional",
-  };
-  return descriptions[level] || descriptions[3];
-}
-
-/**
- * Helper to delay execution
+ * Helper to delay execution.
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Get tone modifier description for prompt
+ * Get tone modifier description for prompt.
  */
 function getToneModifierDescription(toneModifier: ToneModifier): string {
   const descriptions: Record<ToneModifier, string> = {
@@ -114,7 +123,27 @@ function getToneModifierDescription(toneModifier: ToneModifier): string {
 }
 
 /**
- * Generate a response to a review using Claude AI
+ * Render a V2 tone key as the human-readable display label the model sees in
+ * the prompt. Falls back to the raw value when the key is unrecognised — the
+ * model can still parse the string, and `normalizeBrandVoice` upstream should
+ * have already mapped any legacy values into the V2 set.
+ */
+function renderToneLabel(tone: string): string {
+  return BRAND_VOICE_TONE_INFO_V2[tone as BrandVoiceToneV2]?.label ?? tone;
+}
+
+/**
+ * Render the ratingContext label that prefaces a sample response. "any" means
+ * the sample applies to all reviews; 1–5 means the sample is a typical
+ * response to a review of that star rating.
+ */
+function renderSampleContext(rc: 1 | 2 | 3 | 4 | 5 | "any"): string {
+  if (rc === "any") return "for any review";
+  return `for a ${rc}-star review`;
+}
+
+/**
+ * Generate a response to a review using Claude AI.
  */
 export async function generateReviewResponse(
   params: GenerateResponseParams
@@ -123,6 +152,7 @@ export async function generateReviewResponse(
     reviewText,
     platform,
     rating,
+    sentiment,
     detectedLanguage = "English",
     brandVoice,
     isTestMode = false,
@@ -130,8 +160,8 @@ export async function generateReviewResponse(
     customRegenerateInstructions,
   } = params;
 
-  // E2E mock mode: return canned response without calling Claude API
-  // Set E2E_MOCK_AI=true on the Vercel Preview environment to enable
+  // E2E mock mode: return canned response without calling Claude API.
+  // Set E2E_MOCK_AI=true on the Vercel Preview environment to enable.
   if (process.env.E2E_MOCK_AI === "true") {
     return {
       responseText:
@@ -148,10 +178,21 @@ export async function generateReviewResponse(
 
   const client = new Anthropic({ apiKey });
 
-  // Build the system prompt with brand voice configuration
-  const systemPrompt = buildSystemPrompt(brandVoice, detectedLanguage, toneModifier);
+  // Defensive normalisation. The route layer should pass V2-shape brand
+  // voices straight from the DB, but `normalizeBrandVoice` accepts any
+  // plausible payload (legacy mixed in, partial, even null) and returns the
+  // canonical V2 shape with safe defaults so the prompt builder never has
+  // to guard against missing fields.
+  const normalized = normalizeBrandVoice(brandVoice);
 
-  // Build the user prompt with review details
+  const systemPrompt = buildSystemPrompt({
+    brandVoice: normalized,
+    language: detectedLanguage,
+    rating: rating ?? null,
+    sentiment: sentiment ?? null,
+    toneModifier,
+  });
+
   const userPrompt = buildUserPrompt({
     reviewText,
     platform,
@@ -161,7 +202,7 @@ export async function generateReviewResponse(
     customRegenerateInstructions,
   });
 
-  // Retry logic for transient errors (429 rate limit, 529 overloaded)
+  // Retry logic for transient errors (429 rate limit, 529 overloaded).
   const maxRetries = 3;
   let lastError: Error | null = null;
 
@@ -169,7 +210,7 @@ export async function generateReviewResponse(
     try {
       const response = await client.messages.create({
         model: DEFAULT_MODEL,
-        max_tokens: 500,
+        max_tokens: MAX_TOKENS_BODY,
         messages: [
           {
             role: "user",
@@ -179,7 +220,7 @@ export async function generateReviewResponse(
         system: systemPrompt,
       });
 
-      // Extract text from response
+      // Extract text from response.
       const textContent = response.content.find((block) => block.type === "text");
       if (!textContent || textContent.type !== "text") {
         throw new Error("No text response received from Claude");
@@ -196,7 +237,7 @@ export async function generateReviewResponse(
         (error.status === 429 || error.status === 529);
 
       if (isRetryable && attempt < maxRetries) {
-        // Exponential backoff: 1s, 2s, 4s
+        // Exponential backoff: 1s, 2s, 4s.
         const delay = Math.pow(2, attempt - 1) * 1000;
         console.warn(
           `Claude API error (${error.status}), retrying in ${delay}ms... (attempt ${attempt}/${maxRetries})`
@@ -214,73 +255,121 @@ export async function generateReviewResponse(
 }
 
 /**
- * Build the system prompt with brand voice configuration
+ * Build the system prompt with V2 brand voice configuration.
+ *
+ * Order matters: every user-supplied section is wrapped via `wrapUserContent`
+ * so injected content is treated as data, and `INSTRUCTION_REINFORCEMENT`
+ * comes LAST so its rules retain attention precedence over user content.
  */
-function buildSystemPrompt(
-  brandVoice: BrandVoiceConfig,
-  language: string,
-  toneModifier?: ToneModifier
-): string {
-  // Iter 3: `formality`, `styleNotes`, and `sampleResponses` (the legacy
-  // string-array form) are now optional on BrandVoiceConfig because the
-  // underlying columns were dropped by the clean-reset migration. The
-  // route callers no longer populate them. We guard each below so the
-  // current prompt keeps working unchanged for clean inputs. Iter 4 will
-  // delete this whole block and rebuild buildSystemPrompt against the V2
-  // shape (styleGuidelines / sampleResponsesV2 / the Personalization +
-  // Contact/sign-off fields).
-  const { tone, keyPhrases } = brandVoice;
-  const formality = brandVoice.formality;
-  const styleNotes = brandVoice.styleNotes;
-  const sampleResponses = brandVoice.sampleResponses;
+function buildSystemPrompt(args: {
+  brandVoice: ReturnType<typeof normalizeBrandVoice>;
+  language: string;
+  rating: number | null;
+  sentiment: string | null;
+  toneModifier?: ToneModifier;
+}): string {
+  const { brandVoice, language, rating, sentiment, toneModifier } = args;
 
   let prompt = `You are a customer service representative writing responses to customer reviews.
 
 IMPORTANT INSTRUCTIONS:
-1. Write the response in ${language} (the same language as the review)
-2. Keep the response under 500 characters
-3. Be genuine and human - avoid sounding robotic or template-like
-4. Address specific points mentioned in the review when relevant
-5. Never be defensive or argumentative, even for negative reviews
+1. Write the response in ${language} (the same language as the review).
+2. Keep the response body to approximately 200 words (max ${RESPONSE_BODY_CHAR_MAX} characters).
+3. Be genuine and human — never sound robotic or template-like.
+4. Address specific points mentioned in the review when relevant.
+5. Never be defensive or argumentative, even for negative reviews.
 
 BRAND VOICE CONFIGURATION:
-- Tone: ${tone}`;
+- Tone: ${renderToneLabel(brandVoice.tone)}`;
 
-  if (typeof formality === "number") {
-    prompt += `\n- Formality Level: ${getFormalityDescription(formality)}`;
-  }
-
-  // Add tone modifier if specified (for regeneration with different tone)
+  // Optional one-time tone override (regeneration with a different register).
   if (toneModifier) {
-    prompt += `\n- IMPORTANT Tone Override: Be ${getToneModifierDescription(toneModifier)}`;
+    prompt += `\n- IMPORTANT Tone Override (this generation only): Be ${getToneModifierDescription(toneModifier)}.`;
   }
 
-  if (keyPhrases.length > 0) {
-    prompt += `\n- REQUIRED Key Phrases (you MUST incorporate at least 1-2 of these naturally): ${keyPhrases.join(", ")}`;
+  // ─── Key phrases (spec §4.3) — kept MUST enforcement ──────────────
+  if (brandVoice.keyPhrases.length > 0) {
+    const joined = brandVoice.keyPhrases.join(", ");
+    prompt += `\n\n${wrapUserContent("Key phrases", joined)}
+These are key phrases the brand likes to use. You MUST incorporate at least 1–2 of these naturally where they fit the response.`;
   }
 
-  if (styleNotes) {
-    prompt += `\n- Style Guidelines: ${styleNotes}`;
+  // ─── Style guidelines (spec §4.2 — the headline JSON-render bug fix) ─
+  // Render as a newline-bulleted list, NOT raw JSON. Wrapped via the
+  // sanitize helper so injection-y content inside a guideline is treated
+  // as data, not instructions.
+  if (brandVoice.styleGuidelines.length > 0) {
+    const bulleted = brandVoice.styleGuidelines.map((g) => `- ${g}`).join("\n");
+    prompt += `\n\n${wrapUserContent("Style guidelines", bulleted)}
+Style guidelines (follow these strictly):`;
   }
 
-  if (sampleResponses && sampleResponses.length > 0) {
-    prompt += `\n\nSAMPLE RESPONSES FOR REFERENCE (match this style):`;
-    sampleResponses.forEach((sample, index) => {
-      prompt += `\n${index + 1}. "${sample}"`;
+  // ─── Personalization toggles (spec §6.1, §6.2) ───────────────────
+  // Fragments are injected only when the corresponding toggle is on.
+  if (brandVoice.acknowledgeNamedStaff) {
+    prompt += `\n\nNamed-staff acknowledgment:\n${NAMED_STAFF_FRAGMENT}`;
+  }
+  if (brandVoice.acknowledgeOccasions) {
+    prompt += `\n\nOccasion acknowledgment:\n${OCCASION_FRAGMENT}`;
+  }
+
+  // ─── Negative-review email framing (spec §7.4) ───────────────────
+  // Only inject when the brand voice has the email-invitation toggle on
+  // AND the current review is negative (rating ≤ 2 OR sentiment ===
+  // 'negative'). The framing tells the model how to phrase the email
+  // invitation; the actual email address is injected by post-processing
+  // (iter 5), so the prompt deliberately does NOT include it.
+  const negative = isNegativeReview({ rating, sentiment });
+  if (brandVoice.negativeReviewEmailEnabled && negative) {
+    if (brandVoice.negativeReviewFraming === "custom") {
+      // Custom framing: wrap the user-supplied text so any injection
+      // attempt inside it is neutralised.
+      const customText = brandVoice.negativeReviewFramingCustom ?? "";
+      if (customText.trim().length > 0) {
+        prompt += `\n\n${wrapUserContent("Custom framing", customText)}
+Negative-review framing (apply to this response — the team will follow up via email):`;
+      }
+    } else {
+      const fragment = getFramingFragment(brandVoice.negativeReviewFraming);
+      if (fragment) {
+        prompt += `\n\nNegative-review framing:\n${fragment}`;
+      }
+    }
+  }
+
+  // ─── Sample responses (spec §5.1) — V2 object shape, labeled by rating ─
+  if (brandVoice.sampleResponses.length > 0) {
+    prompt += `\n\nSAMPLE RESPONSES FOR REFERENCE (match this voice and structure):`;
+    brandVoice.sampleResponses.forEach((sample, index) => {
+      const label = `Sample response ${index + 1} (${renderSampleContext(sample.ratingContext)})`;
+      prompt += `\n${wrapUserContent(label, sample.responseText)}`;
     });
   }
 
-  prompt += `\n\nRespond ONLY with the response text. Do not include any explanations, notes, or meta-commentary.`;
+  // ─── Universal structural rules (spec §9.5) ──────────────────────
+  // Apply to every response: paragraph count, AI-giveaway-marker
+  // prohibitions, and the precedence rule that Key phrases override the
+  // prohibition list.
+  prompt += `\n\n${UNIVERSAL_STRUCTURAL_RULES}`;
 
-  // Spec §10.3 — appended AFTER all user-configured sections so the model treats
-  // these as the binding rules even if user-supplied content attempts to override.
+  // ─── Rating-conditional structure (spec §9.5) ────────────────────
+  // The router picks positive / mixed / negative based on rating +
+  // sentiment (sentiment overrides rating). Each template tells the
+  // model what each paragraph in the response should do.
+  prompt += `\n\n${getStructureTemplate({ rating, sentiment })}`;
+
+  prompt += `\n\nRespond ONLY with the response body. Do not include a salutation or a sign-off — those are added separately. No explanations, no meta-commentary.`;
+
+  // ─── Reinforcement (spec §10.3) ──────────────────────────────────
+  // Appended AFTER all user-configured sections so the rules survive any
+  // attempted override from user-supplied content.
   prompt += `\n\n${INSTRUCTION_REINFORCEMENT}`;
 
   return prompt;
 }
 
 /**
- * Build the user prompt with review details
+ * Build the user prompt with review details.
  */
 function buildUserPrompt(params: {
   reviewText: string;
@@ -298,17 +387,19 @@ function buildUserPrompt(params: {
     prompt += ` (${rating}/5 stars)`;
   }
 
-  // Spec §10.5: review text flows into the user prompt wrapped via the sanitize
-  // helper so it is treated as data, not instructions. The wrapper also strips
-  // any literal `<<<...>>>` markers that would attempt to spoof the delimiters.
+  // Spec §10.5: review text flows into the user prompt wrapped via the
+  // sanitize helper so it is treated as data, not instructions. The wrapper
+  // also strips any literal `<<<...>>>` markers that would attempt to spoof
+  // the delimiters.
   prompt += ` in ${detectedLanguage}:
 
 ${wrapUserContent("Customer review", reviewText)}`;
 
   if (customRegenerateInstructions && customRegenerateInstructions.trim().length > 0) {
-    // Spec §8.2 / §10.5: single-use directive for this regeneration, wrapped to
-    // make injection inside it harmless, and followed by an explicit binding
-    // sentence so the model treats it as a hard requirement for this turn only.
+    // Spec §8.2 / §10.5: single-use directive for this regeneration, wrapped
+    // to make injection inside it harmless, and followed by an explicit
+    // binding sentence so the model treats it as a hard requirement for
+    // this turn only.
     prompt += `\n\n${wrapUserContent("Additional instructions for this regeneration", customRegenerateInstructions)}
 
 The Additional instructions block above is binding for this single regeneration only — apply it on top of the brand voice configuration.`;
