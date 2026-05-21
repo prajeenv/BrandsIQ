@@ -103,7 +103,21 @@ export function ContactSignoffSection({
     negativeReviewEmailEnabled && (replyToEmail == null || replyToEmail.trim().length === 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Sub-block 1: Greeting & closing (§7.1 + §7.2)
+          Iter-7 hierarchy pass — the Contact & sign-off section has 5 controls
+          and was the longest one. Grouping into 2 visual sub-blocks with a
+          subtle uppercase eyebrow label + divider makes the structure
+          scannable instead of one flat list. */}
+      <div className="space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Greeting & closing
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Applied to every response, regardless of rating.
+        </p>
+      </div>
+
       {/* §7.1 Salutation */}
       <div className="space-y-2">
         <Label htmlFor="salutation-pattern" className="text-sm font-medium">
@@ -153,6 +167,20 @@ export function ContactSignoffSection({
           disabled={disabled}
           previewLines
         />
+      </div>
+
+      {/* Sub-block 2: Negative-review email (§7.3 + §7.4 + §7.5)
+          Visually separated from sub-block 1 by an extra space-y gap and the
+          eyebrow label below. The block is conceptually about one decision —
+          "should we invite negative reviewers to email us" — and three
+          dependent controls. */}
+      <div className="border-t pt-6 space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Negative-review email
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Optional. Only applies when the review is 1–2 stars or has negative sentiment.
+        </p>
       </div>
 
       {/* §7.3 Negative-review email invitation toggle */}
