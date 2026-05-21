@@ -135,8 +135,14 @@ export function ToneModifier({
         </DialogHeader>
 
         {/* Scrollable body: header + footer stay fixed; this region scrolls
-            internally when content exceeds the viewport-capped dialog height. */}
-        <div className="flex-1 space-y-5 overflow-y-auto py-4 pr-1">
+            internally when content exceeds the viewport-capped dialog height.
+            Padding notes:
+              - `pb-4` (no `pt-`) — the DialogContent's parent `gap-4` already
+                gives breathing room between the header and this region; an
+                extra `pt-4` here doubled the gap.
+              - `px-1` — small horizontal padding so the textarea/grid focus
+                rings don't get clipped by the dialog's outer p-6 edge. */}
+        <div className="flex-1 space-y-5 overflow-y-auto pb-4 px-1">
           {/* Additional instructions — free text. Iter 6 follow-up: hoisted
               above the tone grid because typing instructions is the more
               common path; autofocused on dialog open via onOpenAutoFocus. */}
