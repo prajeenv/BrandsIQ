@@ -315,8 +315,8 @@ export function BrandVoiceForm() {
           numbered sections below. */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Brand voice</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold tracking-tight">Brand voice</h1>
+          <p className="text-sm text-muted-foreground mt-2">
             Teach our AI how to write responses that sound like you.
           </p>
         </div>
@@ -356,6 +356,7 @@ export function BrandVoiceForm() {
               items={STYLE_GUIDELINE_STARTERS}
               onPick={handleStyleGuidelineChipPick}
               disabled={isSaving}
+              mode="append"
             />
           </div>
 
@@ -371,6 +372,7 @@ export function BrandVoiceForm() {
               items={KEY_PHRASE_STARTERS}
               onPick={handleKeyPhraseChipPick}
               disabled={isSaving}
+              mode="append"
             />
           </div>
         </CardContent>
@@ -484,14 +486,14 @@ function SectionHeader({
   return (
     <div className="flex items-baseline gap-3">
       <span
-        className="text-2xl font-semibold text-muted-foreground tabular-nums"
+        className="text-3xl font-semibold text-muted-foreground/70 tabular-nums leading-none"
         aria-hidden="true"
       >
         {number}
       </span>
       <h2 className="text-lg font-semibold tracking-tight">
         {title}
-        <span className="ml-2 text-sm font-normal text-muted-foreground">
+        <span className="ml-2 text-sm font-normal text-muted-foreground/90">
           — {descriptor}
         </span>
       </h2>

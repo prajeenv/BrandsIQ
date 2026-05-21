@@ -31,10 +31,27 @@ interface ExampleChipsProps {
    * line chips collapse to one row with " / " replacing newlines).
    */
   previewLines?: boolean;
+  /**
+   * If `append`, chip click ADDS to the existing list (callers like
+   * style-guideline + key-phrase starter ideas). Renders a leading `+`
+   * glyph so the user can tell at a glance the chip extends rather than
+   * replaces. If `replace` (default), click REPLACES the field value
+   * (callers like salutation + sign-off suggestions).
+   */
+  mode?: "replace" | "append";
 }
 
-export function ExampleChips({ label, items, onPick, disabled, previewLines = false }: ExampleChipsProps) {
+export function ExampleChips({
+  label,
+  items,
+  onPick,
+  disabled,
+  previewLines = false,
+  mode = "replace",
+}: ExampleChipsProps) {
   if (items.length === 0) return null;
+
+  const isAppend = mode === "append";
 
   return (
     <div className="space-y-1">
@@ -49,13 +66,18 @@ export function ExampleChips({ label, items, onPick, disabled, previewLines = fa
               onClick={() => onPick(item)}
               disabled={disabled}
               className={cn(
-                "inline-flex items-center rounded-full border border-input bg-background px-3 py-1 text-xs font-normal text-foreground transition-colors",
-                "hover:bg-accent hover:text-accent-foreground hover:border-accent-foreground/20",
+                "inline-flex items-center gap-1 rounded-full border border-input bg-background px-3 py-1 text-xs font-normal text-foreground transition-colors",
+                "hover:bg-accent hover:text-accent-foreground hover:border-accent-foreground/30",
                 "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
                 disabled && "opacity-50 cursor-not-allowed",
               )}
             >
-              {display}
+              {isAppend && (
+                <span className="text-muted-foreground font-medium" aria-hidden="true">
+                  +
+                </span>
+              )}
+              <span>{display}</span>
             </button>
           );
         })}
