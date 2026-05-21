@@ -9,7 +9,6 @@ describe("ToneModifier", () => {
   const defaultProps = {
     onRegenerate: vi.fn().mockResolvedValue(undefined),
     isLoading: false,
-    currentTone: "friendly_professional",
     creditsNeeded: 1,
   };
 
@@ -112,14 +111,64 @@ describe("ToneModifier", () => {
     });
   });
 
-  it("shows current tone in dialog description", async () => {
-    render(<ToneModifier {...defaultProps} currentTone="warm_casual" />);
+  it("does not render the 'Current tone' line (removed in iter-6 follow-up UX fix)", async () => {
+    render(<ToneModifier {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/current tone:/i)).toBeInTheDocument();
-      expect(screen.getByText("warm_casual")).toBeInTheDocument();
+      expect(screen.getByText("Regenerate response")).toBeInTheDocument();
     });
+
+    // The line was rarely useful, ate vertical space, and could mislead
+    // (it showed the *previous* regeneration's tone, not what the next
+    // regeneration would use). Iter-6 follow-up removed it.
+    expect(screen.queryByText(/current tone:/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the trimmed one-line description", async () => {
+    render(<ToneModifier {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/apply just for this regeneration\.?/i)).toBeInTheDocument();
+    });
+
+    // The pre-iter-6-follow-up wordy description is gone.
+    expect(screen.queryByText(/pick a different tone, add specific instructions/i)).not.toBeInTheDocument();
+  });
+
+  it("renders Additional instructions BEFORE the tone grid (iter-6 follow-up — primary input first)", async () => {
+    render(<ToneModifier {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/additional instructions/i)).toBeInTheDocument();
+    });
+
+    // Both fields render inside the same scrollable body region. The
+    // textarea's label should appear earlier in the DOM than the radio
+    // group's heading, so the user sees instructions first.
+    const dialog = screen.getByRole("dialog");
+    const html = dialog.innerHTML;
+    const instructionsIdx = html.indexOf("Additional instructions");
+    const toneIdx = html.indexOf("Change the tone");
+    expect(instructionsIdx).toBeGreaterThan(-1);
+    expect(toneIdx).toBeGreaterThan(-1);
+    expect(instructionsIdx).toBeLessThan(toneIdx);
+  });
+
+  it("autofocuses the Additional instructions textarea when the dialog opens", async () => {
+    render(<ToneModifier {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/additional instructions/i)).toBeInTheDocument();
+    });
+
+    // Radix's default focus would land on the first focusable element
+    // (Close ×). Iter-6 follow-up overrides onOpenAutoFocus to put focus
+    // in the textarea — the primary input.
+    expect(screen.getByLabelText(/additional instructions/i)).toHaveFocus();
   });
 
   it("calls onRegenerate with the selected V2 tone key in a payload object", async () => {

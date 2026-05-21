@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,7 +55,6 @@ interface ToneModifierProps {
   }) => Promise<void>;
   isLoading?: boolean;
   disabled?: boolean;
-  currentTone?: string;
   creditsNeeded?: number;
 }
 
@@ -63,12 +62,12 @@ export function ToneModifier({
   onRegenerate,
   isLoading = false,
   disabled = false,
-  currentTone,
   creditsNeeded = 1.0,
 }: ToneModifierProps) {
   const [open, setOpen] = useState(false);
   const [selectedTone, setSelectedTone] = useState<BrandVoiceToneV2>("friendly_professional");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
+  const instructionsRef = useRef<HTMLTextAreaElement>(null);
 
   const handleRegenerate = async () => {
     const trimmed = additionalInstructions.trim();
@@ -110,23 +109,61 @@ export function ToneModifier({
             the tone grid + additional-instructions block scroll internally
             when needed.
       */}
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
+      {/*
+        Iter 6 follow-up — the description text was trimmed from a two-line
+        wordy summary to a single short scope note, the "Current tone" line
+        was removed (it was rarely useful and ate vertical space), and the
+        field order was swapped so the more-commonly-used Additional
+        instructions textarea sits above the tone grid and is autofocused
+        when the dialog opens. The tone grid now sits below the textarea
+        but most of it is still above the fold on a typical viewport.
+      */}
+      <DialogContent
+        className="flex max-h-[90vh] flex-col sm:max-w-2xl"
+        onOpenAutoFocus={(event) => {
+          // Default Radix behaviour focuses the first focusable element
+          // (which would be the Close × in the corner). Override to put
+          // the cursor in the Additional instructions textarea — the
+          // primary input for this dialog.
+          event.preventDefault();
+          instructionsRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Regenerate response</DialogTitle>
-          <DialogDescription>
-            Pick a different tone, add specific instructions, or both — they&apos;ll be applied just
-            for this regeneration.
-            {currentTone && currentTone !== "default" && (
-              <span className="block mt-1">
-                Current tone: <strong>{currentTone}</strong>
-              </span>
-            )}
-          </DialogDescription>
+          <DialogDescription>Apply just for this regeneration.</DialogDescription>
         </DialogHeader>
 
         {/* Scrollable body: header + footer stay fixed; this region scrolls
             internally when content exceeds the viewport-capped dialog height. */}
         <div className="flex-1 space-y-5 overflow-y-auto py-4 pr-1">
+          {/* Additional instructions — free text. Iter 6 follow-up: hoisted
+              above the tone grid because typing instructions is the more
+              common path; autofocused on dialog open via onOpenAutoFocus. */}
+          <div className="space-y-2">
+            <Label htmlFor="additional-instructions" className="text-sm font-medium">
+              Additional instructions (optional)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Anything specific you want this response to mention or address.
+            </p>
+            <Textarea
+              id="additional-instructions"
+              ref={instructionsRef}
+              value={additionalInstructions}
+              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              maxLength={ADDITIONAL_INSTRUCTIONS_MAX}
+              rows={3}
+              placeholder='e.g. "mention our loyalty program" or "address the dessert complaint specifically"'
+              className="resize-none"
+            />
+            <p
+              className={`text-xs ${isOverLimit ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {additionalInstructions.length} / {ADDITIONAL_INSTRUCTIONS_MAX} characters
+            </p>
+          </div>
+
           {/* Tone modifier — V2 4-key set, rendered as a 2-col grid at sm+ */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Change the tone for this response (optional)</Label>
@@ -164,30 +201,6 @@ export function ToneModifier({
                 );
               })}
             </RadioGroup>
-          </div>
-
-          {/* Additional instructions — free text */}
-          <div className="space-y-2">
-            <Label htmlFor="additional-instructions" className="text-sm font-medium">
-              Additional instructions (optional)
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Anything specific you want this response to mention or address.
-            </p>
-            <Textarea
-              id="additional-instructions"
-              value={additionalInstructions}
-              onChange={(e) => setAdditionalInstructions(e.target.value)}
-              maxLength={ADDITIONAL_INSTRUCTIONS_MAX}
-              rows={3}
-              placeholder='e.g. "mention our loyalty program" or "address the dessert complaint specifically"'
-              className="resize-none"
-            />
-            <p
-              className={`text-xs ${isOverLimit ? "text-destructive" : "text-muted-foreground"}`}
-            >
-              {additionalInstructions.length} / {ADDITIONAL_INSTRUCTIONS_MAX} characters
-            </p>
           </div>
         </div>
 

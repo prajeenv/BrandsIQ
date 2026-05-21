@@ -478,7 +478,6 @@ export function ResponsePanel({
               <ToneModifier
                 onRegenerate={handleRegenerate}
                 isLoading={isLoading}
-                currentTone={localResponse.toneUsed}
                 creditsNeeded={CREDIT_COSTS.REGENERATE_RESPONSE}
               />
               {!localResponse.isPublished && (
