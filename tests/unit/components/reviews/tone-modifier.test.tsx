@@ -53,6 +53,45 @@ describe("ToneModifier", () => {
     expect(screen.queryByText(/apologetic/i)).not.toBeInTheDocument();
   });
 
+  it("renders the tone options as a 2-col grid at sm+ (1 col on mobile)", async () => {
+    render(<ToneModifier {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Warm & casual")).toBeInTheDocument();
+    });
+
+    const radioGroup = screen.getByRole("radiogroup");
+    // Layout classes are applied to the RadioGroup wrapper. We assert the
+    // CSS classes are present rather than computed styles because jsdom
+    // doesn't run a real layout engine — class presence is the meaningful
+    // signal here.
+    expect(radioGroup.className).toContain("grid");
+    expect(radioGroup.className).toContain("grid-cols-1");
+    expect(radioGroup.className).toContain("sm:grid-cols-2");
+  });
+
+  it("constrains the dialog to 90vh and makes the body scrollable so header/footer stay visible", async () => {
+    render(<ToneModifier {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    const dialog = screen.getByRole("dialog");
+    // The dialog itself is capped at 90vh and laid out as a flex column so
+    // the header + footer stay anchored while the body scrolls.
+    expect(dialog.className).toContain("max-h-[90vh]");
+    expect(dialog.className).toContain("flex");
+    expect(dialog.className).toContain("flex-col");
+
+    // The scrollable body region carries flex-1 + overflow-y-auto.
+    const scrollable = dialog.querySelector(".overflow-y-auto");
+    expect(scrollable).not.toBeNull();
+    expect(scrollable!.className).toContain("flex-1");
+  });
+
   it("renders the new Additional instructions textarea with the 500-char cap", async () => {
     render(<ToneModifier {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
