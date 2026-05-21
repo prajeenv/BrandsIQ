@@ -6,21 +6,17 @@ import { Button } from "@/components/ui/button";
 import { BrandVoiceForm } from "@/components/settings";
 
 export default function BrandVoiceSettingsPage() {
+  // The page title + descriptor + SaveStatusIndicator live inside
+  // `BrandVoiceForm` (iter-7 hierarchy pass). The page surface just owns
+  // the back-arrow chrome.
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/settings">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Brand Voice</h1>
-          <p className="text-muted-foreground mt-2">
-            Configure how AI generates responses to match your brand&apos;s unique voice and style.
-          </p>
-        </div>
-      </div>
+      <Button variant="ghost" size="sm" asChild className="-ml-3">
+        <Link href="/dashboard/settings">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to settings
+        </Link>
+      </Button>
 
       <BrandVoiceForm />
     </div>
