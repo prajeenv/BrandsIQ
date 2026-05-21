@@ -135,6 +135,55 @@ describe("BrandVoiceForm (V2)", () => {
     expect(heading).toBeInTheDocument();
   });
 
+  // Iter-7 hierarchy pass: Contact & sign-off section grouped into 2 sub-blocks.
+  it("renders the Contact & sign-off sub-block eyebrow labels", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    // The section is grouped into two sub-blocks for scannability:
+    // "Greeting & closing" (salutation + sign-off) and "Negative-review
+    // email" (the toggle + framing + reply-to). The eyebrow labels render
+    // as small uppercase text; querying by text is robust against future
+    // CSS tweaks.
+    expect(screen.getByText("Greeting & closing")).toBeInTheDocument();
+    expect(screen.getByText("Negative-review email")).toBeInTheDocument();
+  });
+
+  // Iter-7 hierarchy pass: APPEND chips now render a leading `+` glyph so
+  // users can tell at a glance the chip extends a list rather than
+  // replaces a field value.
+  it("renders the leading `+` glyph on the starter-idea APPEND chips", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    // The style-guideline + key-phrase starter chips each ship with their
+    // own `+` glyph (aria-hidden, inside the button). We can't query by
+    // role because `+` is just decoration — but the visible text is in
+    // the DOM, so we count it. With 5 style-guideline starters + 5 key-
+    // phrase starters there should be 10 `+` glyphs total.
+    const plusGlyphs = document.querySelectorAll('[aria-hidden="true"]');
+    const plusCount = Array.from(plusGlyphs).filter(
+      (el) => el.textContent === "+",
+    ).length;
+    expect(plusCount).toBeGreaterThanOrEqual(10);
+  });
+
   it("does NOT render a Formality slider (iter 6 dropped the field)", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
