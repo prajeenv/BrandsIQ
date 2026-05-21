@@ -98,7 +98,19 @@ export function ToneModifier({
           {isLoading ? "Regenerating..." : "Regenerate"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      {/*
+        Dialog sizing:
+          - `sm:max-w-2xl` widens the dialog at tablet+ so the 2-col tone
+            grid has room to breathe without forcing the descriptions to
+            wrap aggressively.
+          - `max-h-[90vh]` caps the overall height to 90% of the viewport
+            so the dialog never overflows on short screens. Combined with
+            `flex flex-col` on the content and `flex-1 overflow-y-auto`
+            on the body region, the header + footer stay anchored while
+            the tone grid + additional-instructions block scroll internally
+            when needed.
+      */}
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Regenerate response</DialogTitle>
           <DialogDescription>
@@ -112,8 +124,10 @@ export function ToneModifier({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 py-4">
-          {/* Tone modifier — V2 4-key set */}
+        {/* Scrollable body: header + footer stay fixed; this region scrolls
+            internally when content exceeds the viewport-capped dialog height. */}
+        <div className="flex-1 space-y-5 overflow-y-auto py-4 pr-1">
+          {/* Tone modifier — V2 4-key set, rendered as a 2-col grid at sm+ */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Change the tone for this response (optional)</Label>
             <p className="text-xs text-muted-foreground">
@@ -122,7 +136,7 @@ export function ToneModifier({
             <RadioGroup
               value={selectedTone}
               onValueChange={(value) => setSelectedTone(value as BrandVoiceToneV2)}
-              className="space-y-2"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
             >
               {BRAND_VOICE_TONES_V2.map((tone) => {
                 const info = BRAND_VOICE_TONE_INFO_V2[tone];
@@ -177,7 +191,7 @@ export function ToneModifier({
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
           <p className="text-xs text-muted-foreground mr-auto">
             This will use {creditsNeeded} credit{creditsNeeded !== 1 ? "s" : ""}
           </p>
