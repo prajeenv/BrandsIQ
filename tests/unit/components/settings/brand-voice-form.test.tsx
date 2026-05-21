@@ -68,8 +68,71 @@ describe("BrandVoiceForm (V2)", () => {
     expect(screen.getByText("Voice")).toBeInTheDocument();
     expect(screen.getByText("Examples")).toBeInTheDocument();
     expect(screen.getByText("Personalization")).toBeInTheDocument();
-    // CardTitle uses an HTML entity for the &amp; — match the visible glyph.
+    // SectionHeader renders the &-glyph directly (not the HTML entity).
     expect(screen.getByText(/Contact .* sign-off/i)).toBeInTheDocument();
+  });
+
+  // Iter-7 hierarchy pass: numbered + descriptor section headers.
+  it("renders numbered section headers (1, 2, 3, 4) for visual hierarchy", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    // Each section is prefixed with a large numeral. The numerals are
+    // aria-hidden (they're decoration; the title carries the meaning)
+    // so we query the DOM directly rather than via getByText.
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+
+  it("renders the section descriptor inline on the same line as the title", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    // The descriptor lives inside the same h2 as the title, prefixed
+    // with an em-dash. Querying by the descriptor text confirms the
+    // inline-descriptor rendering pattern is in place for all four
+    // sections.
+    expect(screen.getByText(/— how we sound/)).toBeInTheDocument();
+    expect(screen.getByText(/— what good looks like for us/)).toBeInTheDocument();
+    expect(screen.getByText(/— what we acknowledge/)).toBeInTheDocument();
+    expect(screen.getByText(/— how we close/)).toBeInTheDocument();
+  });
+
+  it("renders the page header as a plain heading (not a Card)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    // Iter-7 hierarchy pass: the page title now lives in an h1 directly
+    // on the page surface, not inside a Card. This separates the page-
+    // level header from the section-level cards visually.
+    const heading = screen.getByRole("heading", { level: 1, name: /brand voice/i });
+    expect(heading).toBeInTheDocument();
   });
 
   it("does NOT render a Formality slider (iter 6 dropped the field)", async () => {

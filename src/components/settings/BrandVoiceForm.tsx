@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ToneSelector } from "./ToneSelector";
@@ -309,26 +309,24 @@ export function BrandVoiceForm() {
 
   return (
     <div className="space-y-6">
-      {/* Page header (spec §3) */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <CardTitle>Brand voice</CardTitle>
-              <CardDescription>
-                Teach our AI how to write responses that sound like you.
-              </CardDescription>
-            </div>
-            <SaveStatusIndicator status={saveStatus} />
-          </div>
-        </CardHeader>
-      </Card>
+      {/* Page header (spec §3). Iter-7 hierarchy pass: demoted from a Card to a
+          plain heading block so it visually anchors the page rather than reading
+          as "one of the sections". The Card wrappers are reserved for the four
+          numbered sections below. */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Brand voice</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Teach our AI how to write responses that sound like you.
+          </p>
+        </div>
+        <SaveStatusIndicator status={saveStatus} />
+      </div>
 
       {/* §1 Voice — Tone, Style guidelines, Key phrases */}
-      <Card>
+      <Card className="bg-muted/30">
         <CardHeader>
-          <CardTitle className="text-lg">Voice</CardTitle>
-          <CardDescription>How we sound.</CardDescription>
+          <SectionHeader number={1} title="Voice" descriptor="how we sound" />
         </CardHeader>
         <CardContent className="space-y-8">
           {/* §4.1 Tone */}
@@ -379,10 +377,9 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §2 Examples — Sample responses */}
-      <Card>
+      <Card className="bg-muted/30">
         <CardHeader>
-          <CardTitle className="text-lg">Examples</CardTitle>
-          <CardDescription>What good looks like for us.</CardDescription>
+          <SectionHeader number={2} title="Examples" descriptor="what good looks like for us" />
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -400,10 +397,9 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §3 Personalization — Named-staff + Occasion toggles */}
-      <Card>
+      <Card className="bg-muted/30">
         <CardHeader>
-          <CardTitle className="text-lg">Personalization</CardTitle>
-          <CardDescription>What we acknowledge.</CardDescription>
+          <SectionHeader number={3} title="Personalization" descriptor="what we acknowledge" />
         </CardHeader>
         <CardContent>
           <PersonalizationSection
@@ -417,10 +413,9 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §4 Contact & sign-off — Salutation, sign-off, email invitation */}
-      <Card>
+      <Card className="bg-muted/30">
         <CardHeader>
-          <CardTitle className="text-lg">Contact &amp; sign-off</CardTitle>
-          <CardDescription>How we close.</CardDescription>
+          <SectionHeader number={4} title="Contact & sign-off" descriptor="how we close" />
         </CardHeader>
         <CardContent>
           <ContactSignoffSection
@@ -459,6 +454,47 @@ export function BrandVoiceForm() {
 
       {/* Test Panel */}
       <TestResponsePanel disabled={isSaving} />
+    </div>
+  );
+}
+
+/**
+ * Numbered section header used by all four V2 sections.
+ *
+ * Renders the title on one line with three visual layers:
+ *   - Large muted numeral on the left — gives the reader an at-a-glance
+ *     "section 2 of 4" cue without forcing them to read every title.
+ *   - Bold title in primary text colour.
+ *   - Em-dash + muted descriptor inline on the same line — replaces the
+ *     stacked CardTitle + CardDescription pair so the section header
+ *     reads as one rhythm instead of two paragraphs.
+ *
+ * Inspired by the reference design the user shared during the iter-7
+ * hierarchy pass.
+ */
+function SectionHeader({
+  number,
+  title,
+  descriptor,
+}: {
+  number: number;
+  title: string;
+  descriptor: string;
+}) {
+  return (
+    <div className="flex items-baseline gap-3">
+      <span
+        className="text-2xl font-semibold text-muted-foreground tabular-nums"
+        aria-hidden="true"
+      >
+        {number}
+      </span>
+      <h2 className="text-lg font-semibold tracking-tight">
+        {title}
+        <span className="ml-2 text-sm font-normal text-muted-foreground">
+          — {descriptor}
+        </span>
+      </h2>
     </div>
   );
 }
