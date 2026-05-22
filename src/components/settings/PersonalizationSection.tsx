@@ -66,7 +66,7 @@ interface ToggleRowProps {
 
 function ToggleRow({ id, label, description, checked, onCheckedChange, disabled }: ToggleRowProps) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border bg-card p-4">
+    <div className="flex items-start justify-between gap-4 rounded-md border border-slate-200 bg-slate-50/50 p-4">
       <div className="flex-1 space-y-1">
         <Label htmlFor={id} className="text-sm font-medium cursor-pointer">
           {label}
