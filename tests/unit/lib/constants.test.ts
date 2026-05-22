@@ -134,8 +134,10 @@ describe('CREDIT_COSTS', () => {
 });
 
 describe('VALIDATION_LIMITS', () => {
-  it('REVIEW_TEXT_MAX is 2000', () => {
-    expect(VALIDATION_LIMITS.REVIEW_TEXT_MAX).toBe(2000);
+  it('REVIEW_TEXT_MAX is 4000', () => {
+    // Bumped from 2000 → 4000 after real reviews exceeded the old cap
+    // (~2900 chars observed). DB column is @db.Text (unbounded).
+    expect(VALIDATION_LIMITS.REVIEW_TEXT_MAX).toBe(4000);
   });
 
   it('RESPONSE_TEXT_MAX is 2000', () => {

@@ -104,7 +104,7 @@ describe("ReviewForm", () => {
     it("shows character count starting at 0", () => {
       render(<ReviewForm />);
 
-      expect(screen.getByText("0/2000")).toBeInTheDocument();
+      expect(screen.getByText("0/4000")).toBeInTheDocument();
     });
   });
 

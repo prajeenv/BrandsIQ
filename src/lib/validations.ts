@@ -199,7 +199,10 @@ export const brandVoiceSchema = z.object({
 
 // Test brand voice schema (for testing with sample review)
 export const testBrandVoiceSchema = z.object({
-  reviewText: z.string().min(1, "Review text is required").max(2000, "Review text too long"),
+  reviewText: z
+    .string()
+    .min(VALIDATION_LIMITS.REVIEW_TEXT_MIN, "Review text is required")
+    .max(VALIDATION_LIMITS.REVIEW_TEXT_MAX, "Review text too long"),
   platform: z.enum(PLATFORMS).optional().default("Google"),
   rating: z.number().min(1).max(5).optional().nullable(),
 });

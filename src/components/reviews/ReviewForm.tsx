@@ -154,7 +154,16 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
   };
 
   const characterCount = reviewText?.length || 0;
-  const characterPercentage = (characterCount / VALIDATION_LIMITS.REVIEW_TEXT_MAX) * 100;
+  // Character-count colour: red ONLY means "over the limit, the form will
+  // reject this". Within the cap, yellow is the strongest signal we use
+  // (≤ 500 remaining). Showing red on valid input misled users into
+  // trimming text that would have submitted fine.
+  //
+  // Absolute-chars-remaining instead of %-of-max keeps the warning band
+  // invariant if `REVIEW_TEXT_MAX` ever changes again.
+  const charactersRemaining = VALIDATION_LIMITS.REVIEW_TEXT_MAX - characterCount;
+  const isOverLimit = charactersRemaining < 0;
+  const isInWarningZone = charactersRemaining >= 0 && charactersRemaining <= 500;
 
   return (
     <Card>
@@ -226,9 +235,9 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
               </div>
               <span
                 className={`${
-                  characterPercentage > 90
+                  isOverLimit
                     ? "text-destructive"
-                    : characterPercentage > 75
+                    : isInWarningZone
                     ? "text-yellow-600"
                     : "text-muted-foreground"
                 }`}
