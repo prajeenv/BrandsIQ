@@ -154,7 +154,13 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
   };
 
   const characterCount = reviewText?.length || 0;
-  const characterPercentage = (characterCount / VALIDATION_LIMITS.REVIEW_TEXT_MAX) * 100;
+  // Character-count colour uses absolute-chars-remaining rather than %-of-max
+  // so the warning zones stay invariant if `REVIEW_TEXT_MAX` ever changes
+  // again. Red when within 200 of the cap (or over), yellow when within 500.
+  const charactersRemaining = VALIDATION_LIMITS.REVIEW_TEXT_MAX - characterCount;
+  const isOverLimit = charactersRemaining < 0;
+  const isNearLimit = charactersRemaining >= 0 && charactersRemaining <= 200;
+  const isInWarningZone = charactersRemaining > 200 && charactersRemaining <= 500;
 
   return (
     <Card>
@@ -226,9 +232,9 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
               </div>
               <span
                 className={`${
-                  characterPercentage > 90
+                  isOverLimit || isNearLimit
                     ? "text-destructive"
-                    : characterPercentage > 75
+                    : isInWarningZone
                     ? "text-yellow-600"
                     : "text-muted-foreground"
                 }`}
