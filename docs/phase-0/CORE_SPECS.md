@@ -165,7 +165,7 @@ model Review {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   platform        String                    // "google" | "amazon" | "shopify" | "trustpilot" | "other"
-  reviewText      String    @db.Text        // 1-2000 chars
+  reviewText      String    @db.Text        // 1-4000 chars (Zod cap)
   rating          Int?                      // 1-5 stars, nullable
   reviewerName    String?
   reviewDate      DateTime?
@@ -404,7 +404,7 @@ The signup route (`POST /auth/signup`) and NextAuth's `events.signIn` were modif
 // Request
 {
   "platform": "google",        // Required: "google" | "amazon" | "shopify" | "trustpilot" | "other"
-  "reviewText": string,        // Required, 1-2000 chars
+  "reviewText": string,        // Required, 1-4000 chars
   "rating"?: number,           // Optional, 1-5
   "reviewerName"?: string,
   "reviewDate"?: string,       // ISO 8601
@@ -525,7 +525,7 @@ The signup route (`POST /auth/signup`) and NextAuth's `events.signIn` were modif
 - Credits: 0-1000 (cannot go negative)
 
 ### Review
-- reviewText: 1-2000 chars
+- reviewText: 1-4000 chars
 - rating: 1-5 or null
 - platform: one of allowed values
 - detectedLanguage: auto-detected, user can override
