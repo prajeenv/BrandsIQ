@@ -16,6 +16,7 @@ import {
   paginationSchema,
   reviewFiltersSchema,
 } from '@/lib/validations';
+import { VALIDATION_LIMITS } from '@/lib/constants';
 
 // ─── Auth Schemas ─────────────────────────────────────────
 
@@ -229,10 +230,18 @@ describe('createReviewSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects too-long reviewText (> 2000)', () => {
+  it('accepts reviewText up to REVIEW_TEXT_MAX (4000) chars', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
-      reviewText: 'a'.repeat(2001),
+      reviewText: 'a'.repeat(VALIDATION_LIMITS.REVIEW_TEXT_MAX),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects reviewText exceeding REVIEW_TEXT_MAX (4000)', () => {
+    const result = createReviewSchema.safeParse({
+      platform: 'Google',
+      reviewText: 'a'.repeat(VALIDATION_LIMITS.REVIEW_TEXT_MAX + 1),
     });
     expect(result.success).toBe(false);
   });
@@ -642,9 +651,9 @@ describe('testBrandVoiceSchema', () => {
     }
   });
 
-  it('rejects reviewText > 2000 chars', () => {
+  it('rejects reviewText exceeding REVIEW_TEXT_MAX', () => {
     const result = testBrandVoiceSchema.safeParse({
-      reviewText: 'a'.repeat(2001),
+      reviewText: 'a'.repeat(VALIDATION_LIMITS.REVIEW_TEXT_MAX + 1),
     });
     expect(result.success).toBe(false);
   });
