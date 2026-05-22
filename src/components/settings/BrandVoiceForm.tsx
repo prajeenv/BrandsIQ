@@ -324,7 +324,7 @@ export function BrandVoiceForm() {
       </div>
 
       {/* §1 Voice — Tone, Style guidelines, Key phrases */}
-      <Card className="bg-muted/30">
+      <Card className="bg-card shadow-sm">
         <CardHeader>
           <SectionHeader number={1} title="Voice" descriptor="how we sound" />
         </CardHeader>
@@ -379,7 +379,7 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §2 Examples — Sample responses */}
-      <Card className="bg-muted/30">
+      <Card className="bg-card shadow-sm">
         <CardHeader>
           <SectionHeader number={2} title="Examples" descriptor="what good looks like for us" />
         </CardHeader>
@@ -399,7 +399,7 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §3 Personalization — Named-staff + Occasion toggles */}
-      <Card className="bg-muted/30">
+      <Card className="bg-card shadow-sm">
         <CardHeader>
           <SectionHeader number={3} title="Personalization" descriptor="what we acknowledge" />
         </CardHeader>
@@ -415,7 +415,7 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §4 Contact & sign-off — Salutation, sign-off, email invitation */}
-      <Card className="bg-muted/30">
+      <Card className="bg-card shadow-sm">
         <CardHeader>
           <SectionHeader number={4} title="Contact & sign-off" descriptor="how we close" />
         </CardHeader>
