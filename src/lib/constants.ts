@@ -443,7 +443,11 @@ export const CREDIT_COSTS = {
 // pure validation/UI concern.
 export const VALIDATION_LIMITS = {
   REVIEW_TEXT_MIN: 1,
-  REVIEW_TEXT_MAX: 2000,
+  // Bumped from 2000 → 4000 after seeing real customer reviews exceed 2000
+  // chars (~2900 in one observed hospitality complaint). Postgres column is
+  // `@db.Text` (unbounded) so this is purely a Zod + UI concern; no DB
+  // migration needed.
+  REVIEW_TEXT_MAX: 4000,
   RESPONSE_TEXT_MAX: 2000,
   PASSWORD_MIN: 8,
   PASSWORD_MAX: 100,
