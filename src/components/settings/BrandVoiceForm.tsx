@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ToneSelector } from "./ToneSelector";
 import { KeyPhrasesInput } from "./KeyPhrasesInput";
@@ -323,27 +322,41 @@ export function BrandVoiceForm() {
         <SaveStatusIndicator status={saveStatus} />
       </div>
 
-      {/* §1 Voice — Tone, Style guidelines, Key phrases */}
+      {/* §1 Voice — Tone, Style guidelines, Key phrases.
+          Inner-contrast pass — three sub-blocks (tone / style guidelines /
+          key phrases) each in their own tinted-bordered container, matching
+          the section-4 pattern. Tone is conceptually about "register",
+          style guidelines is "what to write", key phrases is "vocabulary"
+          — three concerns, three blocks. Combining the latter two would be
+          a single big undifferentiated block. */}
       <Card className="bg-card border-slate-200 shadow-sm">
         <CardHeader>
           <SectionHeader number={1} title="Voice" descriptor="how we sound" />
         </CardHeader>
-        <CardContent className="space-y-8">
+        <CardContent className="space-y-6">
           {/* §4.1 Tone */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Tone</Label>
-            <p className="text-xs text-muted-foreground">
-              How responses should sound to your customers.
-            </p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Tone
+              </p>
+              <p className="text-xs text-muted-foreground">
+                How responses should sound to your customers.
+              </p>
+            </div>
             <ToneSelector value={tone} onChange={setTone} disabled={isSaving} />
           </div>
 
           {/* §4.2 Style guidelines */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Style guidelines</Label>
-            <p className="text-xs text-muted-foreground">
-              Specific rules our AI should follow when writing responses.
-            </p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Style guidelines
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Specific rules our AI should follow when writing responses.
+              </p>
+            </div>
             <StyleGuidelinesInput
               value={styleGuidelines}
               onChange={setStyleGuidelines}
@@ -361,11 +374,15 @@ export function BrandVoiceForm() {
           </div>
 
           {/* §4.3 Key phrases */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Key phrases</Label>
-            <p className="text-xs text-muted-foreground">
-              Vocabulary and expressions we like to use.
-            </p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Key phrases
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Vocabulary and expressions we like to use.
+              </p>
+            </div>
             <KeyPhrasesInput value={keyPhrases} onChange={setKeyPhrases} disabled={isSaving} />
             <ExampleChips
               label="Starter ideas (click to add)"
@@ -378,17 +395,24 @@ export function BrandVoiceForm() {
         </CardContent>
       </Card>
 
-      {/* §2 Examples — Sample responses */}
+      {/* §2 Examples — Sample responses.
+          Single sub-block (no nesting needed since there's only one control)
+          but wrapped in the same tinted-bordered container so the page
+          rhythm reads consistently with sections 1 + 4. */}
       <Card className="bg-card border-slate-200 shadow-sm">
         <CardHeader>
           <SectionHeader number={2} title="Examples" descriptor="what good looks like for us" />
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Sample responses</Label>
-            <p className="text-xs text-muted-foreground">
-              Up to 5 of your actual responses. Our AI uses these as reference to match your voice.
-            </p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Sample responses
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Up to 5 of your actual responses. Our AI uses these as reference to match your voice.
+              </p>
+            </div>
             <SampleResponsesInput
               value={sampleResponses}
               onChange={setSampleResponses}

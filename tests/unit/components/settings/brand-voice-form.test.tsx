@@ -157,6 +157,44 @@ describe("BrandVoiceForm (V2)", () => {
     expect(screen.getByText("Negative-review email")).toBeInTheDocument();
   });
 
+  // Inner-contrast pass continued — sections 1 + 2 get the same eyebrow
+  // sub-block treatment that section 4 got earlier.
+  it("renders the section-1 sub-block eyebrow labels (Tone / Style / Key)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    // Three sub-blocks inside section 1 — each carries an uppercase
+    // eyebrow label. The previous flat layout used inline <Label>s with
+    // the same text but no eyebrow styling; we assert presence of the
+    // text and let the visual treatment ride on the CSS.
+    expect(screen.getByText("Tone")).toBeInTheDocument();
+    expect(screen.getByText("Style guidelines")).toBeInTheDocument();
+    expect(screen.getByText("Key phrases")).toBeInTheDocument();
+  });
+
+  it("renders the section-2 sub-block eyebrow label (Sample responses)", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Brand voice")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Sample responses")).toBeInTheDocument();
+  });
+
   // Iter-7 hierarchy pass: APPEND chips now render a leading `+` glyph so
   // users can tell at a glance the chip extends a list rather than
   // replaces a field value.
