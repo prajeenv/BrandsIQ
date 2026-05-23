@@ -99,11 +99,40 @@ export function ContactSignoffSection({
   // Spec §7.5: soft warning — toggle on AND email empty/whitespace-only.
   // Non-blocking; save still proceeds. The form's auto-save flow doesn't
   // change — this just surfaces an inline hint near the email input.
-  const showEmailMissingWarning =
+  //
+  // Incomplete-config feedback: the same condition now drives a section-
+  // level banner at the top of this section and an "Incomplete" pill next
+  // to the Negative-review email sub-block header, in addition to the
+  // existing inline hint near the email field. Three signals at three
+  // distances so the user doesn't forget the feature is dormant.
+  const isEmailConfigIncomplete =
     negativeReviewEmailEnabled && (replyToEmail == null || replyToEmail.trim().length === 0);
+  const showEmailMissingWarning = isEmailConfigIncomplete;
 
   return (
     <div className="space-y-6">
+      {/* Section-level incomplete banner. Appears at the top of the
+          Contact & sign-off section card body when the toggle is on but
+          the email is missing, so the state is unmissable on every
+          visit. The banner duplicates the inline soft-warning text by
+          design — the inline hint stays put (near the field where the
+          fix lives) and this banner adds top-of-section visibility. */}
+      {isEmailConfigIncomplete && (
+        <Alert
+          variant="default"
+          className="border-yellow-500/60 bg-yellow-500/10"
+          role="status"
+        >
+          <AlertCircle className="h-4 w-4 text-yellow-700" />
+          <AlertDescription className="text-xs">
+            <strong className="font-semibold">Negative-review email is incomplete.</strong>{" "}
+            The toggle is on, but no reply-to email is configured. AI responses
+            won&apos;t include the email invitation until you add one below — or
+            turn the toggle off.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Sub-block 1: Greeting & closing (§7.1 + §7.2)
           Inner-contrast pass — each sub-block is now its own bordered
           container with a faint slate tint. Gives the two halves of this
@@ -179,9 +208,17 @@ export function ContactSignoffSection({
           controls within the same conceptual area". */}
       <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Negative-review email
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Negative-review email
+            </p>
+            {isEmailConfigIncomplete && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-yellow-600/40 bg-yellow-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-700">
+                <AlertCircle className="h-3 w-3" />
+                Incomplete
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             Optional. Only applies when the review is 1–2 stars or has negative sentiment.
           </p>
