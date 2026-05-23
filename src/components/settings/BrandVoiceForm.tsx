@@ -329,13 +329,13 @@ export function BrandVoiceForm() {
           style guidelines is "what to write", key phrases is "vocabulary"
           — three concerns, three blocks. Combining the latter two would be
           a single big undifferentiated block. */}
-      <Card className="bg-card border-slate-200 shadow-sm">
+      <Card className="bg-card border-slate-300 shadow-sm">
         <CardHeader>
           <SectionHeader number={1} title="Voice" descriptor="how we sound" />
         </CardHeader>
         <CardContent className="space-y-6">
           {/* §4.1 Tone */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+          <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Tone
@@ -348,7 +348,7 @@ export function BrandVoiceForm() {
           </div>
 
           {/* §4.2 Style guidelines */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+          <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Style guidelines
@@ -374,7 +374,7 @@ export function BrandVoiceForm() {
           </div>
 
           {/* §4.3 Key phrases */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+          <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Key phrases
@@ -399,12 +399,12 @@ export function BrandVoiceForm() {
           Single sub-block (no nesting needed since there's only one control)
           but wrapped in the same tinted-bordered container so the page
           rhythm reads consistently with sections 1 + 4. */}
-      <Card className="bg-card border-slate-200 shadow-sm">
+      <Card className="bg-card border-slate-300 shadow-sm">
         <CardHeader>
           <SectionHeader number={2} title="Examples" descriptor="what good looks like for us" />
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+          <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Sample responses
@@ -423,7 +423,7 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §3 Personalization — Named-staff + Occasion toggles */}
-      <Card className="bg-card border-slate-200 shadow-sm">
+      <Card className="bg-card border-slate-300 shadow-sm">
         <CardHeader>
           <SectionHeader number={3} title="Personalization" descriptor="what we acknowledge" />
         </CardHeader>
@@ -439,7 +439,7 @@ export function BrandVoiceForm() {
       </Card>
 
       {/* §4 Contact & sign-off — Salutation, sign-off, email invitation */}
-      <Card className="bg-card border-slate-200 shadow-sm">
+      <Card className="bg-card border-slate-300 shadow-sm">
         <CardHeader>
           <SectionHeader number={4} title="Contact & sign-off" descriptor="how we close" />
         </CardHeader>
