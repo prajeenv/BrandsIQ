@@ -119,5 +119,87 @@ describe("sanitize.ts", () => {
     it("requires responses in the customer's language", () => {
       expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain("language of the customer review");
     });
+
+    // 5/24 prompt-tuning pass — reviewer-protection guardrails: a quality
+    // contract to the END CONSUMER reading the AI response (independent of
+    // what the business customer configured). These rules cannot be
+    // overridden by samples, brand voice config, regenerate instructions,
+    // or custom framing text.
+    describe("reviewer-protection guardrails", () => {
+      it("bans sarcasm, mockery, and dismissive language toward the reviewer", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "never use sarcasm, mockery, or dismissive language",
+        );
+      });
+
+      it("requires acknowledging the reviewer's stated experience (no denial/argument)", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "never deny or argue against the reviewer",
+        );
+      });
+
+      it("bans insults toward the reviewer, staff, or other customers", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "never insult or demean",
+        );
+      });
+
+      it("bans inventing details beyond what the reviewer wrote", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "never invent details",
+        );
+      });
+
+      it("requires a cooperative response position (not defensive)", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain("cooperative");
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain("never defensive");
+      });
+    });
+
+    // 5/24 prompt-tuning pass — length target tightened to 500–750 chars.
+    it("targets a response body of 500–750 characters", () => {
+      expect(INSTRUCTION_REINFORCEMENT).toContain("between 500 and 750 characters");
+    });
+
+    // 5/24 prompt-tuning pass — paragraph count tightened from 2–4 to 2–3.
+    it("targets 2–3 paragraphs of 2–3 sentences each", () => {
+      expect(INSTRUCTION_REINFORCEMENT).toContain("2–3 short paragraphs");
+      expect(INSTRUCTION_REINFORCEMENT).toContain("2–3 sentences");
+    });
+
+    // 5/24 prompt-tuning pass — anti-self-flagellation blocklist.
+    describe("corporate-apology blocklist (anti-self-flagellation)", () => {
+      const BANNED_PHRASES = [
+        "completely unacceptable",
+        "I take full responsibility",
+        "implement corrective measures",
+        "comprehensive review",
+        "going forward",
+        "rest assured",
+        "we will be personally reviewing",
+      ];
+
+      for (const phrase of BANNED_PHRASES) {
+        it(`names "${phrase}" as a banned corporate-apology phrase`, () => {
+          expect(INSTRUCTION_REINFORCEMENT).toContain(phrase);
+        });
+      }
+
+      it("instructs the model to write as a manager apologising in person", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "write as a manager apologising in person",
+        );
+      });
+    });
+
+    // 5/24 prompt-tuning pass — sample scoping. Samples teach voice, not
+    // structure/length/style. The reinforcement explicitly says so.
+    it("scopes sample responses to voice/register, NOT to length/style overrides", () => {
+      expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain("sample responses");
+      expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain("inform voice and register");
+      expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+        "do not override the style rules",
+      );
+    });
   });
 });

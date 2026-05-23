@@ -75,8 +75,9 @@ export function isNegativeReview(routing: ReviewRouting): boolean {
 // from user-configured text.
 
 export const UNIVERSAL_STRUCTURAL_RULES = `Response structure:
-- Write the response body as 2–4 short paragraphs separated by a single blank line.
-- Each paragraph is 2–4 sentences maximum.
+- Write the response body as 2–3 short paragraphs separated by a single blank line.
+- Each paragraph is 2–3 sentences maximum.
+- Keep the total response body between 500 and 750 characters. Communicate in fewer sentences — do not pad.
 - Use natural prose only — no headers, no bullet points, no lists, no markdown formatting markers.
 - Do NOT include a salutation or sign-off in your generated text. Those are added separately.
 
@@ -99,15 +100,33 @@ const POSITIVE_TEMPLATE = `Structure for this response:
 2. Optional middle paragraph: a moment of appreciation, resonance, or specific commitment (e.g. "we'll pass this on to the team").
 3. Closing paragraph: a forward-looking statement inviting them back.`;
 
+// Mixed template — Kiran-case rebalance: explicit equal-weight instruction
+// so the positives don't bury the negatives. The mixed reviewer raised both
+// good and bad; the response must reflect both proportionally.
 const MIXED_TEMPLATE = `Structure for this response:
-1. Opening paragraph: thank the reviewer and acknowledge the positives they mentioned.
-2. Middle paragraph: address the specific concerns raised; show ownership; state a commitment to improve.
-3. Closing paragraph: a brief forward-looking statement.`;
+1. Opening paragraph: thank the reviewer and acknowledge the positives they mentioned, briefly.
+2. Middle paragraph: address the specific concerns raised; show ownership; state a commitment to improve. Quote or paraphrase one concrete detail from their criticism rather than summarising the category.
+3. Closing paragraph: a brief forward-looking statement.
 
+Balance:
+- Give the positive and negative content roughly equal space — do not bury the criticism inside a wall of praise. If the reviewer asked for something specific (e.g., "please improve the dessert"), engage with that ask explicitly.`;
+
+// Negative template — specificity requirement: must reference one concrete
+// incident from the review (not abstractions like "concerns about
+// cleanliness"). On a multi-issue review with many complaints, pick one
+// salient incident and add a general "and several other concerns"
+// acknowledgment for the rest. This is the trade-off the response builder
+// has to make to stay within the length target.
 const NEGATIVE_TEMPLATE = `Structure for this response:
-1. Opening paragraph: thank the reviewer for taking time to share; offer a sincere apology; acknowledge the occasion if mentioned.
-2. Middle paragraph: take ownership of the experience; state the commitment configured in the brand voice (management contact / investigation / open channel — see the framing instruction above).
-3. Optional final paragraph: any specific ask required by the configured framing (e.g., requesting booking details).`;
+1. Opening paragraph: thank the reviewer briefly for taking time to share; offer a sincere apology; acknowledge the occasion if mentioned.
+2. Middle paragraph: take ownership of the experience; reference one specific incident the reviewer mentioned (using their wording or a close paraphrase — NOT an abstract category summary). If the reviewer raised many issues, acknowledge "and several other concerns" alongside the one specific incident. State the commitment configured in the brand voice (management contact / investigation / open channel — see the framing instruction above).
+3. Optional final paragraph: any specific ask required by the configured framing (e.g., requesting booking details).
+
+Specificity is required, not optional:
+- Engage with one actual incident from the review. Abstractions like "concerns about cleanliness" or "issues with service" are not enough — name something concrete the reviewer wrote.
+
+Register:
+- Write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, invite to discuss. Do not theatrically self-flagellate.`;
 
 const TEMPLATES: Record<StructureTemplateKey, string> = {
   positive: POSITIVE_TEMPLATE,
