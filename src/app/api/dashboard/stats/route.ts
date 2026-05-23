@@ -32,6 +32,15 @@ export async function GET() {
         // Surfaced so FounderInquiryForm can pre-fill businessName for
         // signed-in users — see CreditsProvider + iteration 2 follow-up.
         organizationName: true,
+        // Pulled to derive `brandVoiceWarnings` (incomplete-config feedback
+        // surfaced on the dashboard). Only the two fields we actually
+        // check are selected so we don't grow the payload.
+        brandVoice: {
+          select: {
+            negativeReviewEmailEnabled: true,
+            replyToEmail: true,
+          },
+        },
         reviews: {
           select: {
             id: true,
@@ -172,6 +181,17 @@ export async function GET() {
         // signed-in users so they don't re-type info already captured at
         // /onboarding. null until onboarding is completed.
         organizationName: user.organizationName,
+        // Brand-voice incomplete-config flags. Surfaced on the dashboard
+        // so the user notices dormant features even when they don't
+        // revisit /dashboard/settings/brand-voice. Add new flags here
+        // as the brand voice grows other "must complete to take effect"
+        // fields.
+        brandVoiceWarnings: {
+          negativeEmailToggleOnButReplyToEmailMissing:
+            !!user.brandVoice?.negativeReviewEmailEnabled &&
+            (user.brandVoice?.replyToEmail == null ||
+              user.brandVoice.replyToEmail.trim().length === 0),
+        },
         stats: {
           totalReviews: user._count.reviews,
           totalResponses,

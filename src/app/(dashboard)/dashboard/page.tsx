@@ -18,7 +18,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatsCard, QuotaCard, SentimentDistributionCard, EmptyReviews, LowCreditWarning } from "@/components/dashboard";
+import {
+  StatsCard,
+  QuotaCard,
+  SentimentDistributionCard,
+  EmptyReviews,
+  LowCreditWarning,
+  BrandVoiceIncompleteBanner,
+} from "@/components/dashboard";
 import { useCredits } from "@/components/providers/CreditsProvider";
 
 interface DashboardStats {
@@ -36,6 +43,9 @@ interface DashboardStats {
   };
   tier: string;
   isBetaUser: boolean;
+  brandVoiceWarnings?: {
+    negativeEmailToggleOnButReplyToEmailMissing: boolean;
+  };
   stats: {
     totalReviews: number;
     totalResponses: number;
@@ -158,6 +168,17 @@ export default function DashboardPage() {
           submitterName={session?.user?.name ?? null}
           submitterEmail={session?.user?.email ?? null}
           submitterBusinessName={organizationName}
+        />
+      )}
+
+      {/* Brand-voice incomplete-config feedback. Separate from the
+          low-credit banner so that BOTH can show simultaneously — they're
+          unrelated problems and condensing them would force a priority
+          choice we don't have evidence for. */}
+      {!isLoading && stats?.brandVoiceWarnings?.negativeEmailToggleOnButReplyToEmailMissing && (
+        <BrandVoiceIncompleteBanner
+          userId={session?.user?.id ?? null}
+          warning="negativeEmailToggleOnButReplyToEmailMissing"
         />
       )}
 
