@@ -320,6 +320,82 @@ describe("BrandVoiceForm (V2)", () => {
     expect(screen.getByLabelText(/reply-to email/i)).toBeInTheDocument();
   });
 
+  // Incomplete-config feedback: toggle on + email missing surfaces (a) the
+  // section-level banner at the top of Contact & sign-off and (b) the
+  // "Incomplete" pill next to the Negative-review email sub-block.
+  it("shows section-level incomplete banner when toggle is on but email is missing", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            brandVoice: {
+              ...mockBrandVoice,
+              negativeReviewEmailEnabled: true,
+              replyToEmail: null,
+            },
+          },
+        }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/negative-review email is incomplete/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows the 'Incomplete' pill next to the Negative-review email sub-block when email is missing", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            brandVoice: {
+              ...mockBrandVoice,
+              negativeReviewEmailEnabled: true,
+              replyToEmail: null,
+            },
+          },
+        }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/^incomplete$/i)).toBeInTheDocument();
+    });
+  });
+
+  it("hides the incomplete signals when toggle is on and a valid email is configured", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            brandVoice: {
+              ...mockBrandVoice,
+              negativeReviewEmailEnabled: true,
+              replyToEmail: "hello@brand.example",
+            },
+          },
+        }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/how should our ai frame the invitation/i)).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText(/negative-review email is incomplete/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^incomplete$/i)).not.toBeInTheDocument();
+  });
+
   it("shows auto-save status indicator (Saved by default after load)", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,

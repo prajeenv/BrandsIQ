@@ -241,4 +241,108 @@ describe('GET /api/dashboard/stats', () => {
     expect(json.data.recentReviews[0].hasResponse).toBe(true);
     expect(json.data.recentReviews[1].hasResponse).toBe(false);
   });
+
+  // brandVoiceWarnings is surfaced so the dashboard can show the
+  // incomplete-config banner. Three cases: (a) toggle on + email missing
+  // → true, (b) toggle on + email present → false, (c) toggle off → false.
+  describe('brandVoiceWarnings.negativeEmailToggleOnButReplyToEmailMissing', () => {
+    it('returns true when toggle is ON and replyToEmail is null', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: mockSession.user.id,
+        name: 'Test User',
+        tier: 'FREE',
+        isBetaUser: false,
+        credits: 15,
+        creditsResetDate: new Date(),
+        sentimentCredits: 35,
+        sentimentResetDate: new Date(),
+        brandVoice: { negativeReviewEmailEnabled: true, replyToEmail: null },
+        reviews: [],
+        _count: { reviews: 0 },
+      });
+      mockPrisma.reviewResponse.count.mockResolvedValue(0);
+      mockPrisma.review.groupBy.mockResolvedValue([]);
+
+      const res = await GET();
+      const json = await res.json();
+      expect(
+        json.data.brandVoiceWarnings.negativeEmailToggleOnButReplyToEmailMissing,
+      ).toBe(true);
+    });
+
+    it('returns false when toggle is ON and replyToEmail is configured', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: mockSession.user.id,
+        name: 'Test User',
+        tier: 'FREE',
+        isBetaUser: false,
+        credits: 15,
+        creditsResetDate: new Date(),
+        sentimentCredits: 35,
+        sentimentResetDate: new Date(),
+        brandVoice: {
+          negativeReviewEmailEnabled: true,
+          replyToEmail: 'hello@brand.example',
+        },
+        reviews: [],
+        _count: { reviews: 0 },
+      });
+      mockPrisma.reviewResponse.count.mockResolvedValue(0);
+      mockPrisma.review.groupBy.mockResolvedValue([]);
+
+      const res = await GET();
+      const json = await res.json();
+      expect(
+        json.data.brandVoiceWarnings.negativeEmailToggleOnButReplyToEmailMissing,
+      ).toBe(false);
+    });
+
+    it('returns false when toggle is OFF (regardless of replyToEmail)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: mockSession.user.id,
+        name: 'Test User',
+        tier: 'FREE',
+        isBetaUser: false,
+        credits: 15,
+        creditsResetDate: new Date(),
+        sentimentCredits: 35,
+        sentimentResetDate: new Date(),
+        brandVoice: { negativeReviewEmailEnabled: false, replyToEmail: null },
+        reviews: [],
+        _count: { reviews: 0 },
+      });
+      mockPrisma.reviewResponse.count.mockResolvedValue(0);
+      mockPrisma.review.groupBy.mockResolvedValue([]);
+
+      const res = await GET();
+      const json = await res.json();
+      expect(
+        json.data.brandVoiceWarnings.negativeEmailToggleOnButReplyToEmailMissing,
+      ).toBe(false);
+    });
+
+    it('returns false when brandVoice is null (defaults to safe)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: mockSession.user.id,
+        name: 'Test User',
+        tier: 'FREE',
+        isBetaUser: false,
+        credits: 15,
+        creditsResetDate: new Date(),
+        sentimentCredits: 35,
+        sentimentResetDate: new Date(),
+        brandVoice: null,
+        reviews: [],
+        _count: { reviews: 0 },
+      });
+      mockPrisma.reviewResponse.count.mockResolvedValue(0);
+      mockPrisma.review.groupBy.mockResolvedValue([]);
+
+      const res = await GET();
+      const json = await res.json();
+      expect(
+        json.data.brandVoiceWarnings.negativeEmailToggleOnButReplyToEmailMissing,
+      ).toBe(false);
+    });
+  });
 });

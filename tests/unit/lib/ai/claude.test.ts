@@ -44,7 +44,11 @@ const testBrandVoice = {
   negativeReviewEmailEnabled: false,
   negativeReviewFraming: 'investigation' as const,
   negativeReviewFramingCustom: null,
-  replyToEmail: null,
+  // Default to a real email so framing tests (which flip the toggle on)
+  // don't accidentally trip the incomplete-config guard added in the
+  // negative-email-incomplete-config-feedback work. The dormant-case
+  // tests below explicitly null this field.
+  replyToEmail: 'hello@brand.com',
 };
 
 const defaultParams = {
@@ -635,6 +639,69 @@ describe('claude.ts', () => {
           },
         });
         expect(getSystem()).toContain('team would like to look into');
+      });
+
+      // Incomplete-config guard: toggle on + replyToEmail null/empty/
+      // whitespace should treat the feature as dormant and not inject the
+      // framing at all. Otherwise the model would emit "[your email]" in
+      // the response and post-processing would have no email to swap in.
+      it('treats the feature as dormant when toggle is ON but replyToEmail is null', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          rating: 1,
+          brandVoice: {
+            ...testBrandVoice,
+            negativeReviewEmailEnabled: true,
+            negativeReviewFraming: 'investigation',
+            replyToEmail: null,
+          },
+        });
+        expect(getSystem()).not.toContain('team would like to look into');
+      });
+
+      it('treats the feature as dormant when toggle is ON but replyToEmail is empty string', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          rating: 1,
+          brandVoice: {
+            ...testBrandVoice,
+            negativeReviewEmailEnabled: true,
+            negativeReviewFraming: 'investigation',
+            replyToEmail: '',
+          },
+        });
+        expect(getSystem()).not.toContain('team would like to look into');
+      });
+
+      it('treats the feature as dormant when toggle is ON but replyToEmail is whitespace', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          rating: 1,
+          brandVoice: {
+            ...testBrandVoice,
+            negativeReviewEmailEnabled: true,
+            negativeReviewFraming: 'investigation',
+            replyToEmail: '   ',
+          },
+        });
+        expect(getSystem()).not.toContain('team would like to look into');
+      });
+
+      it('also skips custom framing when toggle is ON but replyToEmail is missing', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          rating: 1,
+          brandVoice: {
+            ...testBrandVoice,
+            negativeReviewEmailEnabled: true,
+            negativeReviewFraming: 'custom',
+            negativeReviewFramingCustom: 'Promise a free dessert on return.',
+            replyToEmail: null,
+          },
+        });
+        const system = getSystem();
+        expect(system).not.toContain('<<<USER_CONTENT_CUSTOM_FRAMING>>>');
+        expect(system).not.toContain('Promise a free dessert on return.');
       });
     });
 
