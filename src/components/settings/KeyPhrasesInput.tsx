@@ -63,6 +63,7 @@ export function KeyPhrasesInput({ value, onChange, disabled }: KeyPhrasesInputPr
           size="icon"
           onClick={addPhrase}
           disabled={disabled || !canAddMore || !inputValue.trim()}
+          className="border-slate-300"
         >
           <Plus className="h-4 w-4" />
         </Button>

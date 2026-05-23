@@ -219,7 +219,7 @@ export function CollapsibleTextItem({
     <>
       <Card
         className={cn(
-          "p-3 transition-all",
+          "p-3 transition-all border-slate-300",
           !disabled && "cursor-pointer hover:bg-accent/50"
         )}
         onClick={needsExpansion ? toggleExpand : handleStartEdit}

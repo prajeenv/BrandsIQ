@@ -55,7 +55,7 @@ export function ToneSelector({ value, onChange, disabled }: ToneSelectorProps) {
               "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
               isSelected
                 ? "border-primary bg-primary/10"
-                : "border-muted bg-background",
+                : "border-slate-300 bg-background",
               disabled && "opacity-50 cursor-not-allowed",
             )}
           >
