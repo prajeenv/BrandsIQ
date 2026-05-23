@@ -88,6 +88,15 @@ describe("getStructureTemplate", () => {
     expect(out).toContain("show ownership");
   });
 
+  // 5/24 prompt-tuning pass — Kiran-case rebalance. Mixed reviews must give
+  // the positive and negative content roughly equal space; the older
+  // template let positives dominate.
+  it("requires the mixed template to give positive + negative content equal weight", () => {
+    const out = getStructureTemplate({ rating: 3, sentiment: null });
+    expect(out.toLowerCase()).toContain("equal space");
+    expect(out.toLowerCase()).toContain("do not bury the criticism");
+  });
+
   it("returns the negative template body for 1-star routing", () => {
     const out = getStructureTemplate({ rating: 1, sentiment: null });
     expect(out).toContain("sincere apology");
@@ -99,11 +108,45 @@ describe("getStructureTemplate", () => {
     const out = getStructureTemplate({ rating: 4, sentiment: "negative" });
     expect(out).toContain("sincere apology");
   });
+
+  // 5/24 prompt-tuning pass — specificity requirement on negative reviews.
+  // The model must engage with one concrete incident, not abstractions.
+  it("requires the negative template to demand one concrete incident reference", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("reference one specific incident");
+    expect(out.toLowerCase()).toContain("specificity is required, not optional");
+    expect(out.toLowerCase()).toContain("abstractions");
+  });
+
+  // Multi-issue trade-off acknowledgment: on a review with many complaints,
+  // the model picks one specific incident + a general "and several other
+  // concerns" acknowledgment for the rest. This is the trade-off needed to
+  // stay within the length target.
+  it("acknowledges the multi-issue trade-off on the negative template", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("several other concerns");
+  });
+
+  // Anti-self-flagellation register on negative reviews — write as a
+  // manager apologising in person, not as a corporate statement.
+  it("requires the negative template's register to be 'manager apologising in person'", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("manager apologising in person");
+    expect(out.toLowerCase()).toContain("not as a corporate statement");
+    expect(out.toLowerCase()).toContain("do not theatrically self-flagellate");
+  });
 });
 
 describe("UNIVERSAL_STRUCTURAL_RULES", () => {
-  it("includes the 2–4 paragraph requirement", () => {
-    expect(UNIVERSAL_STRUCTURAL_RULES).toContain("2–4 short paragraphs");
+  // 5/24 prompt-tuning pass — paragraph count tightened from 2–4 to 2–3,
+  // and an explicit 500–750 char length target was added so the universal
+  // rules carry the floor for length too.
+  it("includes the 2–3 paragraph requirement", () => {
+    expect(UNIVERSAL_STRUCTURAL_RULES).toContain("2–3 short paragraphs");
+  });
+
+  it("targets a response body of 500–750 characters in the universal rules", () => {
+    expect(UNIVERSAL_STRUCTURAL_RULES).toContain("between 500 and 750 characters");
   });
 
   it("forbids em-dashes (the single most reliable AI tell)", () => {

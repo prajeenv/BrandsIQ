@@ -108,9 +108,11 @@ describe('claude.ts', () => {
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           model: DEFAULT_MODEL,
-          // Iter 4: bumped from 500 to 1000 to fit the new 2–4 paragraph
-          // hospitality response body (~200 words) with headroom for the
-          // model to finish a paragraph naturally.
+          // Iter 4: bumped from 500 to 1000 to fit the multi-paragraph
+          // hospitality response body with headroom for the model to
+          // finish a paragraph naturally. 5/24 prompt-tuning pass tightened
+          // the target to 500–750 chars but max_tokens stays generous as a
+          // hard backstop only.
           max_tokens: 1000,
         }),
       );
@@ -326,6 +328,33 @@ describe('claude.ts', () => {
       expect(reviewIdx).toBeGreaterThanOrEqual(0);
       expect(instructionsIdx).toBeGreaterThan(reviewIdx);
     });
+
+    // 5/24 prompt-tuning pass — scoped precedence. The regenerate
+    // instructions can override default length and content emphasis, but
+    // cannot override style rules, reviewer-protection guardrails, or
+    // security rules. Without this scope, a user could write "ignore the
+    // structure rules" and it would land.
+    it('appends a scoped-precedence sentence when customRegenerateInstructions is provided', async () => {
+      await generateReviewResponse({
+        ...defaultParams,
+        customRegenerateInstructions: 'Be longer than usual.',
+      });
+
+      const userMessage = (mockCreate.mock.calls[0][0].messages as Array<{ role: string; content: string }>).find(
+        (m) => m.role === 'user',
+      );
+      const content = userMessage?.content ?? '';
+
+      // Explicit scope — what the instructions CAN override.
+      expect(content.toLowerCase()).toContain('scope of override');
+      expect(content.toLowerCase()).toContain('default length and content emphasis');
+
+      // Explicit scope — what the instructions CANNOT override.
+      expect(content.toLowerCase()).toContain('cannot override');
+      expect(content.toLowerCase()).toContain('universal style rules');
+      expect(content.toLowerCase()).toContain('reviewer-protection guardrails');
+      expect(content.toLowerCase()).toContain('security rules');
+    });
   });
 
   // ─── Fix (post-iter-4): E2E mock double-gate ─────────────────────────
@@ -498,6 +527,30 @@ describe('claude.ts', () => {
         expect(system).toContain('Generic thank you.');
         expect(system).toContain('<<<USER_CONTENT_SAMPLE_RESPONSE_1');
         expect(system).toContain('<<<USER_CONTENT_SAMPLE_RESPONSE_2');
+      });
+
+      // 5/24 prompt-tuning pass — sample scoping. The prompt now explicitly
+      // tells the model that samples teach voice/register, NOT length /
+      // structure / style. Without this scope, samples with em-dashes or
+      // corporate-apology phrasing would leak into responses.
+      it('scopes sample-response injection to voice/register, not template', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          brandVoice: {
+            ...testBrandVoice,
+            sampleResponses: [
+              { ratingContext: 'any', responseText: 'Generic thank you.' },
+            ],
+          },
+        });
+        const system = getSystem();
+        expect(system.toLowerCase()).toContain('learn this brand\'s voice');
+        expect(system.toLowerCase()).toContain(
+          'not as templates for length, structure, or style',
+        );
+        expect(system.toLowerCase()).toContain(
+          'the style rules below apply regardless',
+        );
       });
     });
 
@@ -735,9 +788,9 @@ describe('claude.ts', () => {
     });
 
     describe('universal structural rules + reinforcement tail', () => {
-      it('includes the 2–4 paragraph rule in the prompt body', async () => {
+      it('includes the 2–3 paragraph rule in the prompt body (tightened 5/24)', async () => {
         await generateReviewResponse(defaultParams);
-        expect(getSystem()).toContain('2–4 short paragraphs');
+        expect(getSystem()).toContain('2–3 short paragraphs');
       });
 
       it('forbids em-dashes in the prompt body', async () => {
@@ -769,9 +822,11 @@ describe('claude.ts', () => {
         expect(reinforcementIdx).toBeGreaterThan(0);
 
         // After the reinforcement marker we should see the structural lines
-        // and the salutation/sign-off prohibition.
+        // and the salutation/sign-off prohibition. Length target was
+        // tightened (5/24 prompt-tuning pass) from "approximately 200 words"
+        // to "between 500 and 750 characters" — shorter, more direct.
         const tail = system.slice(reinforcementIdx);
-        expect(tail).toContain('approximately 200 words');
+        expect(tail).toContain('between 500 and 750 characters');
         expect(tail).toContain('Do NOT use em-dashes');
         expect(tail).toContain('Do NOT generate a salutation or sign-off');
       });
@@ -780,6 +835,15 @@ describe('claude.ts', () => {
         await generateReviewResponse(defaultParams);
         const system = getSystem();
         expect(system).toContain('Do not include a salutation or a sign-off');
+      });
+
+      // 5/24 prompt-tuning pass — length target tightened. The header at the
+      // top of the system prompt now says "between 500 and 750 characters"
+      // not "approximately 200 words". The reinforcement tail says it again.
+      it('targets 500–750 character body length in the system prompt header', async () => {
+        await generateReviewResponse(defaultParams);
+        const system = getSystem();
+        expect(system).toContain('between 500 and 750 characters');
       });
     });
 
