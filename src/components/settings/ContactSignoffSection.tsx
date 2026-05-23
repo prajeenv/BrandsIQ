@@ -100,38 +100,16 @@ export function ContactSignoffSection({
   // Non-blocking; save still proceeds. The form's auto-save flow doesn't
   // change — this just surfaces an inline hint near the email input.
   //
-  // Incomplete-config feedback: the same condition now drives a section-
-  // level banner at the top of this section and an "Incomplete" pill next
-  // to the Negative-review email sub-block header, in addition to the
-  // existing inline hint near the email field. Three signals at three
-  // distances so the user doesn't forget the feature is dormant.
+  // Incomplete-config feedback: the same condition drives an "Incomplete"
+  // pill next to the Negative-review email sub-block header in addition
+  // to the existing inline hint near the email field. (The top-of-section
+  // banner was removed in the trim pass — three signals were too many.)
   const isEmailConfigIncomplete =
     negativeReviewEmailEnabled && (replyToEmail == null || replyToEmail.trim().length === 0);
   const showEmailMissingWarning = isEmailConfigIncomplete;
 
   return (
     <div className="space-y-6">
-      {/* Section-level incomplete banner. Appears at the top of the
-          Contact & sign-off section card body when the toggle is on but
-          the email is missing, so the state is unmissable on every
-          visit. The banner duplicates the inline soft-warning text by
-          design — the inline hint stays put (near the field where the
-          fix lives) and this banner adds top-of-section visibility. */}
-      {isEmailConfigIncomplete && (
-        <Alert
-          variant="default"
-          className="border-yellow-500/60 bg-yellow-500/10"
-          role="status"
-        >
-          <AlertCircle className="h-4 w-4 text-yellow-700" />
-          <AlertDescription className="text-xs">
-            <strong className="font-semibold">Negative-review email is incomplete.</strong>{" "}
-            The toggle is on, but no reply-to email is configured. AI responses
-            won&apos;t include the email invitation until you add one below — or
-            turn the toggle off.
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Sub-block 1: Greeting & closing (§7.1 + §7.2)
           Inner-contrast pass — each sub-block is now its own bordered
@@ -205,8 +183,17 @@ export function ContactSignoffSection({
           Own bordered container matching sub-block 1. The conditional
           framing reveal stays nested inside this block (with its own
           tighter border) so the user sees "toggle expanded into more
-          controls within the same conceptual area". */}
-      <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
+          controls within the same conceptual area".
+
+          `id="negative-review-email"` makes this sub-block a deep-link
+          target — the dashboard `BrandVoiceIncompleteBanner` CTA lands
+          here directly so users with the incomplete config don't have
+          to scroll-hunt to the right control. `scroll-mt-24` keeps it
+          clear of the sticky dashboard header on hash navigation. */}
+      <div
+        id="negative-review-email"
+        className="scroll-mt-24 rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4"
+      >
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

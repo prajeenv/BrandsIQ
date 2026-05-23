@@ -46,9 +46,11 @@ describe("BrandVoiceIncompleteBanner", () => {
     expect(
       screen.getByText(/negative-review email invitations are dormant/i),
     ).toBeInTheDocument();
+    // Deep-link to the sub-block anchor so the user lands on the broken
+    // control rather than the top of the brand voice page.
     expect(screen.getByRole("link", { name: /open brand voice/i })).toHaveAttribute(
       "href",
-      "/dashboard/settings/brand-voice",
+      "/dashboard/settings/brand-voice#negative-review-email",
     );
   });
 

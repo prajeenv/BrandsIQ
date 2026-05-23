@@ -101,7 +101,12 @@ export function BrandVoiceIncompleteBanner({
         </p>
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <Button asChild size="sm" variant="outline" className="bg-card">
-            <Link href="/dashboard/settings/brand-voice">Open brand voice</Link>
+            {/* Deep-link to the Negative-review email sub-block anchor in
+                ContactSignoffSection so the user lands on the broken
+                control rather than the top of the brand voice page. */}
+            <Link href="/dashboard/settings/brand-voice#negative-review-email">
+              Open brand voice
+            </Link>
           </Button>
         </div>
       </div>

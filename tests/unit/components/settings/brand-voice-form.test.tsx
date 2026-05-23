@@ -321,9 +321,11 @@ describe("BrandVoiceForm (V2)", () => {
   });
 
   // Incomplete-config feedback: toggle on + email missing surfaces (a) the
-  // section-level banner at the top of Contact & sign-off and (b) the
-  // "Incomplete" pill next to the Negative-review email sub-block.
-  it("shows section-level incomplete banner when toggle is on but email is missing", async () => {
+  // "Incomplete" pill next to the Negative-review email sub-block and
+  // (b) the inline soft-warning at the email field. The earlier
+  // section-level banner at the top of Contact & sign-off was removed in
+  // the trim pass — three warnings on the same page were too many.
+  it("does NOT show a section-level incomplete banner anywhere (trimmed)", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
       json: () =>
@@ -340,11 +342,16 @@ describe("BrandVoiceForm (V2)", () => {
 
     render(<BrandVoiceForm />);
 
+    // The pill still appears, so we wait for that to confirm the
+    // incomplete state is detected before asserting the banner is
+    // absent.
     await waitFor(() => {
-      expect(
-        screen.getByText(/negative-review email is incomplete/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/^incomplete$/i)).toBeInTheDocument();
     });
+
+    expect(
+      screen.queryByText(/negative-review email is incomplete/i),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the 'Incomplete' pill next to the Negative-review email sub-block when email is missing", async () => {
@@ -390,10 +397,26 @@ describe("BrandVoiceForm (V2)", () => {
       expect(screen.getByText(/how should our ai frame the invitation/i)).toBeInTheDocument();
     });
 
-    expect(
-      screen.queryByText(/negative-review email is incomplete/i),
-    ).not.toBeInTheDocument();
     expect(screen.queryByText(/^incomplete$/i)).not.toBeInTheDocument();
+  });
+
+  // Anchor target for the dashboard banner deep-link. Click "Open brand
+  // voice" on the dashboard incomplete-config banner and the user lands
+  // on the sub-block directly — `#negative-review-email` is the id we
+  // attach to sub-block 2 in `ContactSignoffSection`.
+  it("attaches id='negative-review-email' to the Negative-review email sub-block", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ data: { brandVoice: mockBrandVoice } }),
+    });
+
+    render(<BrandVoiceForm />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Negative-review email")).toBeInTheDocument();
+    });
+
+    expect(document.getElementById("negative-review-email")).not.toBeNull();
   });
 
   it("shows auto-save status indicator (Saved by default after load)", async () => {

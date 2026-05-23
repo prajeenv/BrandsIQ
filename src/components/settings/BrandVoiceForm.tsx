@@ -119,6 +119,23 @@ export function BrandVoiceForm() {
     fetchBrandVoice();
   }, []);
 
+  // Honor a URL hash (e.g. `#negative-review-email`) by scrolling the
+  // target sub-block into view once the form has rendered. The browser's
+  // built-in hash navigation fires on initial page load before our async
+  // data fetch resolves, so the target element doesn't exist yet — by
+  // the time `isLoading` flips to false the browser has already given
+  // up. This effect re-runs the scroll itself.
+  useEffect(() => {
+    if (isLoading) return;
+    if (typeof window === "undefined" || !window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [isLoading]);
+
   const performSave = useCallback(async () => {
     if (!brandVoice) return;
 
