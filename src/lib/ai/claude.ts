@@ -346,8 +346,18 @@ Style guidelines (follow these strictly):`;
   // 'negative'). The framing tells the model how to phrase the email
   // invitation; the actual email address is injected by post-processing
   // (iter 5), so the prompt deliberately does NOT include it.
+  //
+  // Incomplete-config guard: if the toggle is on but no `replyToEmail` is
+  // configured, treat the feature as dormant — skip the framing entirely
+  // rather than ship a response containing the literal `[your email]`
+  // placeholder. Market-standard pattern for partial autosave state: the
+  // toggle persists, but the dependent action lies dormant until the
+  // prerequisite is satisfied. Surfaced to the user via the section-level
+  // incomplete pill on the brand voice page + the dashboard banner.
   const negative = isNegativeReview({ rating, sentiment });
-  if (brandVoice.negativeReviewEmailEnabled && negative) {
+  const hasReplyToEmail =
+    typeof brandVoice.replyToEmail === "string" && brandVoice.replyToEmail.trim().length > 0;
+  if (brandVoice.negativeReviewEmailEnabled && negative && hasReplyToEmail) {
     if (brandVoice.negativeReviewFraming === "custom") {
       // Custom framing: wrap the user-supplied text so any injection
       // attempt inside it is neutralised.

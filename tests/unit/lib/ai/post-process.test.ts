@@ -4,6 +4,7 @@ import {
   assembleResponse,
   buildSalutation,
   extractFirstName,
+  stripPlaceholderSentences,
   substituteReplyToEmail,
 } from "@/lib/ai/post-process";
 
@@ -145,6 +146,91 @@ describe("substituteReplyToEmail", () => {
   });
 });
 
+describe("stripPlaceholderSentences (defensive)", () => {
+  it("removes a single sentence containing [your email]", () => {
+    const out = stripPlaceholderSentences(
+      "Thanks for visiting. Please email [your email] with details. We hope to see you again.",
+    );
+    expect(out).toBe("Thanks for visiting. We hope to see you again.");
+  });
+
+  it("returns the body unchanged when no placeholder is present", () => {
+    const body = "Thanks for visiting. We hope to see you again.";
+    expect(stripPlaceholderSentences(body)).toBe(body);
+  });
+
+  it("handles case variants of the placeholder", () => {
+    const out = stripPlaceholderSentences(
+      "Thanks. Email [Your Email] please. Goodbye.",
+    );
+    expect(out).toBe("Thanks. Goodbye.");
+  });
+
+  it("preserves paragraph breaks when stripping mid-paragraph sentence", () => {
+    const out = stripPlaceholderSentences(
+      "Paragraph one.\n\nThanks. Please email [your email] with details. Bye.\n\nParagraph three.",
+    );
+    expect(out).toBe("Paragraph one.\n\nThanks. Bye.\n\nParagraph three.");
+  });
+
+  it("drops the whole paragraph when it was only the placeholder sentence", () => {
+    const out = stripPlaceholderSentences(
+      "Paragraph one.\n\nPlease email [your email].\n\nParagraph three.",
+    );
+    expect(out).toBe("Paragraph one.\n\nParagraph three.");
+  });
+});
+
+describe("assembleResponse — incomplete email config (defensive strip)", () => {
+  it("strips placeholder sentences when toggle is ON but replyToEmail is null", () => {
+    const out = assembleResponse({
+      modelBody:
+        "Thanks for visiting. Please email [your email] with details. We hope to see you again.",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: null,
+      },
+      review: { ...baseReview, rating: 1 },
+    });
+
+    expect(out).not.toContain("[your email]");
+    expect(out).toContain("Thanks for visiting.");
+    expect(out).toContain("We hope to see you again.");
+  });
+
+  it("strips placeholder sentences even when toggle is OFF (sample/hallucination leak)", () => {
+    const out = assembleResponse({
+      modelBody:
+        "Thanks for visiting. Reach us at [your email]. We hope to see you again.",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: false,
+        replyToEmail: null,
+      },
+      review: { ...baseReview, rating: 1 },
+    });
+
+    expect(out).not.toContain("[your email]");
+  });
+
+  it("still substitutes normally when toggle is ON AND email is configured", () => {
+    const out = assembleResponse({
+      modelBody:
+        "Thanks for visiting. Please email [your email] with details.",
+      brandVoice: {
+        ...baseBrandVoice,
+        negativeReviewEmailEnabled: true,
+        replyToEmail: "hello@brand.example",
+      },
+      review: { ...baseReview, rating: 1 },
+    });
+
+    expect(out).toContain("hello@brand.example");
+    expect(out).not.toContain("[your email]");
+  });
+});
+
 describe("assembleResponse — salutation + body + sign-off", () => {
   it("prepends the salutation, body, then sign-off in the right order", () => {
     const out = assembleResponse({
@@ -242,7 +328,14 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
     expect(out).not.toContain("hello@brand.example");
   });
 
-  it("does NOT substitute when the toggle is OFF, even on a negative review", () => {
+  it("does NOT substitute when the toggle is OFF, and strips the placeholder defensively", () => {
+    // Behaviour change from the incomplete-config feedback work:
+    // when there's no `replyToEmail`, the defensive strip removes any
+    // sentence containing `[your email]`. So neither the placeholder
+    // nor the email appears. (The toggle-OFF case usually means the
+    // model wouldn't have emitted the placeholder anyway, but if a
+    // sample response or hallucination leaked it, we don't ship the
+    // bracket text to the customer.)
     const out = assembleResponse({
       modelBody: "Please email [your email].",
       brandVoice: {
@@ -253,11 +346,21 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
       review: { ...baseReview, rating: 1 },
     });
 
+    // Toggle is off, so substitution does not fire. With email present,
+    // the strip's `!hasReplyToEmail` guard also does not fire — the
+    // placeholder is left in place (the toggle was off so the model was
+    // told not to emit it; if it slipped in anyway, that's a model bug,
+    // not a config-incomplete state).
     expect(out).toContain("[your email]");
     expect(out).not.toContain("hello@brand.example");
   });
 
-  it("does NOT substitute when replyToEmail is null, even with toggle on + negative review", () => {
+  it("strips the placeholder defensively when replyToEmail is null + toggle on + negative review", () => {
+    // This is the incomplete-config dormancy path. The prompt builder
+    // (claude.ts) already declines to inject the framing in this case,
+    // but the model could still leak the placeholder from a sample
+    // response. Post-processing strips the sentence so the bracket text
+    // never reaches the customer.
     const out = assembleResponse({
       modelBody: "Please email [your email].",
       brandVoice: {
@@ -268,7 +371,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
       review: { ...baseReview, rating: 1 },
     });
 
-    expect(out).toContain("[your email]");
+    expect(out).not.toContain("[your email]");
   });
 
   it("fires substitution on the Kiran case (4-star with negative sentiment)", () => {
