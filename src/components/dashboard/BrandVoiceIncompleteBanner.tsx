@@ -84,37 +84,37 @@ export function BrandVoiceIncompleteBanner({
 
   if (!warning || !userId || isDismissed) return null;
 
+  // Layout mirrors `LowCreditWarning` — icon left, copy in the middle,
+  // CTA right-aligned next to the dismiss button. Single-row at sm+
+  // screens so the banner is compact; stacks the CTA below on narrow
+  // viewports where the row would overflow.
   return (
     <div
       role="status"
-      className="flex items-start gap-3 rounded-lg border border-yellow-500/60 bg-yellow-500/10 p-4"
+      className="flex items-center gap-3 rounded-lg border border-yellow-500/60 bg-yellow-500/10 p-4"
     >
-      <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-yellow-700" />
-      <div className="flex-1 space-y-1">
+      <AlertCircle className="h-5 w-5 shrink-0 text-yellow-700" />
+      <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-yellow-900">
           Negative-review email invitations are dormant
         </p>
         <p className="text-sm text-yellow-900/80">
-          Your brand voice has email invitations on but no reply-to email
-          configured. AI responses won&apos;t include the email until you fix
-          this.
+          The toggle is on but no reply-to email is configured.
         </p>
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button asChild size="sm" variant="outline" className="bg-card">
-            {/* Deep-link to the Negative-review email sub-block anchor in
-                ContactSignoffSection so the user lands on the broken
-                control rather than the top of the brand voice page. */}
-            <Link href="/dashboard/settings/brand-voice#negative-review-email">
-              Open brand voice
-            </Link>
-          </Button>
-        </div>
       </div>
+      <Button asChild size="sm" variant="outline" className="shrink-0 bg-card">
+        {/* Deep-link to the Negative-review email sub-block anchor in
+            ContactSignoffSection so the user lands on the broken
+            control rather than the top of the brand voice page. */}
+        <Link href="/dashboard/settings/brand-voice#negative-review-email">
+          Open brand voice
+        </Link>
+      </Button>
       <button
         type="button"
         onClick={handleDismiss}
         aria-label="Dismiss"
-        className="rounded-md p-1 text-yellow-900/70 transition-colors hover:bg-yellow-500/10 hover:text-yellow-900"
+        className="shrink-0 rounded-md p-1 text-yellow-900/70 transition-colors hover:bg-yellow-500/10 hover:text-yellow-900"
       >
         <X className="h-4 w-4" />
       </button>
