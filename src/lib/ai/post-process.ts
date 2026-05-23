@@ -161,6 +161,39 @@ export function substituteReplyToEmail(body: string, email: string | null): stri
 }
 
 /**
+ * Defensive strip: remove any sentence containing the `[your email]`
+ * placeholder. Used when assembling a response and the brand voice has
+ * no `replyToEmail` configured — the prompt builder already declines to
+ * inject the framing in that case (claude.ts), but a sample response or
+ * a model hallucination could still leak the placeholder. Better to drop
+ * the sentence than ship "[your email]" to the customer.
+ *
+ * Splits the body into sentences on `.`/`!`/`?` boundaries, drops any
+ * containing the placeholder (case-insensitive), and rejoins. Preserves
+ * paragraph breaks (`\n\n`) so multi-paragraph responses stay structured.
+ *
+ * Exported for unit testing.
+ */
+export function stripPlaceholderSentences(body: string): string {
+  // Paragraph-by-paragraph so we don't accidentally fuse paragraphs when
+  // a single sentence is dropped mid-paragraph.
+  return body
+    .split(/\n{2,}/u)
+    .map((paragraph) => {
+      // Match sentences greedily: any run of non-terminator chars + a
+      // single terminator (. ! ?). Tail without a terminator is captured
+      // as a trailing sentence too.
+      const sentences = paragraph.match(/[^.!?]+[.!?]+|\S[^.!?]*$/gu) ?? [paragraph];
+      return sentences
+        .filter((s) => !EMAIL_PLACEHOLDER_PATTERN.test(s))
+        .join("")
+        .trim();
+    })
+    .filter((p) => p.length > 0)
+    .join("\n\n");
+}
+
+/**
  * Truncate the model-emitted body to `RESPONSE_BODY_CHAR_MAX`, preferring
  * to end at a sentence boundary when one is available in the last 100
  * characters.
@@ -200,13 +233,24 @@ export function assembleResponse(args: AssembleResponseArgs): string {
   // 2. Body — first cap to RESPONSE_BODY_CHAR_MAX, then optionally
   //    substitute the [your email] placeholder for negative reviews when
   //    the toggle is on AND a reply-to email is configured.
+  //
+  //    Defensive strip: if there's no `replyToEmail` (the toggle is on
+  //    but the prerequisite is missing, OR the toggle is off but a
+  //    sample/hallucination leaked the placeholder anyway), drop any
+  //    sentence containing the placeholder. The customer should never
+  //    see the bracketed text in a live response.
   let body = truncateBody(modelBody.trim());
   const negative = isNegativeReview({
     rating: review.rating,
     sentiment: review.sentiment,
   });
-  if (negative && normalized.negativeReviewEmailEnabled && normalized.replyToEmail) {
+  const hasReplyToEmail =
+    typeof normalized.replyToEmail === "string" && normalized.replyToEmail.trim().length > 0;
+
+  if (negative && normalized.negativeReviewEmailEnabled && hasReplyToEmail) {
     body = substituteReplyToEmail(body, normalized.replyToEmail);
+  } else if (!hasReplyToEmail) {
+    body = stripPlaceholderSentences(body);
   }
 
   // 3. Sign-off
