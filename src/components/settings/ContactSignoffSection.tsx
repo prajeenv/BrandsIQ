@@ -109,7 +109,7 @@ export function ContactSignoffSection({
           container with a faint slate tint. Gives the two halves of this
           long section the same figure-on-ground read the section cards
           themselves have on the page surface. */}
-      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-6">
+      <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-6">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Greeting & closing
@@ -177,7 +177,7 @@ export function ContactSignoffSection({
           framing reveal stays nested inside this block (with its own
           tighter border) so the user sees "toggle expanded into more
           controls within the same conceptual area". */}
-      <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-4">
+      <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Negative-review email
@@ -188,7 +188,7 @@ export function ContactSignoffSection({
         </div>
 
         {/* §7.3 Negative-review email invitation toggle */}
-        <div className="flex items-start justify-between gap-4 rounded-md border border-slate-200 bg-card p-4">
+        <div className="flex items-start justify-between gap-4 rounded-md border border-slate-300 bg-card p-4">
           <div className="flex-1 space-y-1">
             <Label htmlFor="neg-email-enabled" className="text-sm font-medium cursor-pointer">
               Invite customers to contact you via email
@@ -211,7 +211,7 @@ export function ContactSignoffSection({
             the new white cards) to a proper solid-bordered white surface
             with a left accent so it visibly "emerged" from the toggle above. */}
         {negativeReviewEmailEnabled && (
-          <div className="space-y-6 rounded-md border border-slate-200 border-l-2 border-l-primary/40 bg-card p-4">
+          <div className="space-y-6 rounded-md border border-slate-300 border-l-2 border-l-primary/40 bg-card p-4">
             <div className="space-y-3">
               <Label className="text-sm font-medium">
                 How should our AI frame the invitation?
