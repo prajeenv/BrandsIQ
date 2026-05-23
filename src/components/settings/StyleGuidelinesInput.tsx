@@ -85,7 +85,7 @@ export function StyleGuidelinesInput({
 
       {/* Add new guideline - distinct card with dashed border */}
       {canAddMore && (
-        <Card className="p-4 border-dashed border-2 border-muted-foreground/30 bg-muted/20">
+        <Card className="p-4 border-dashed border-2 border-slate-300 bg-white">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Plus className="h-4 w-4" />
