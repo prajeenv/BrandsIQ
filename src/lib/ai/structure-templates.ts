@@ -134,7 +134,8 @@ Specificity is required, not optional:
 
 Register:
 - Write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, close hopefully. Do not theatrically self-flagellate.
-- DO NOT self-criticise in the reply. Acknowledge that the issue happened, but do NOT state what we should have done differently, do NOT characterise our team or service as having failed, and do NOT volunteer operational fixes. A manager apologising in person says "I'm sorry this happened" — they do not list our shortcomings in public.`;
+- DO NOT self-criticise in the reply. Acknowledge that the issue happened, but do NOT state what we should have done differently, do NOT characterise our team or service as having failed, and do NOT volunteer operational fixes. A manager apologising in person says "I'm sorry this happened" — they do not list our shortcomings in public.
+- Lean slightly more formal than the brand's usual tone when expressing the apology itself. Apologies land with more weight in measured language — prefer "we are deeply sorry" over "we're deeply sorry" in the apology paragraph, even when the brand's tone usually allows contractions. Outside the apology paragraph, the brand's normal register applies.`;
 
 const TEMPLATES: Record<StructureTemplateKey, string> = {
   positive: POSITIVE_TEMPLATE,
