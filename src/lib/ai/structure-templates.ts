@@ -89,6 +89,7 @@ Avoid these AI-giveaway markers:
 - Do not end on "We value your feedback" as a sole closer. Be specific about what feedback or what action, or omit.
 - Do not echo the reviewer's phrasing back verbatim (e.g. quoting their exact complaint back at them).
 - Do not use three-adjective lists for rhythm (e.g. "wonderful, memorable, delightful evening"). Pick one or two adjectives deliberately.
+- Do not reference the price the customer paid back to them, even if they mentioned it in the review. The dissatisfaction is what needs acknowledgment, not the amount they spent.
 
 Precedence rule:
 - If a phrase listed in the Key phrases section above contains a word or phrase from this prohibition list, the Key phrases entry takes precedence — use it as the user has written it. The prohibitions apply only to words and phrases the model would otherwise introduce on its own.`;
@@ -119,14 +120,21 @@ Balance:
 // has to make to stay within the length target.
 const NEGATIVE_TEMPLATE = `Structure for this response:
 1. Opening paragraph: thank the reviewer briefly for taking time to share; offer a sincere apology; acknowledge the occasion if mentioned.
-2. Middle paragraph: take ownership of the experience; reference one specific incident the reviewer mentioned (using their wording or a close paraphrase — NOT an abstract category summary). If the reviewer raised many issues, acknowledge "and several other concerns" alongside the one specific incident. State the commitment configured in the brand voice (management contact / investigation / open channel — see the framing instruction above).
-3. Optional final paragraph: any specific ask required by the configured framing (e.g., requesting booking details).
+2. Middle paragraph: reference one specific incident the reviewer mentioned (using their wording or a close paraphrase — NOT an abstract category summary). If the reviewer raised many issues, acknowledge "and several other concerns" alongside the one specific incident. Communicate an internal commitment to address what happened — phrases like "I'll share this with our team", "we'll discuss this with our [relevant department]", or "we'll look into what happened" are all appropriate. This commitment is universal — it does NOT depend on whether a contact channel is configured. The reviewer should always leave feeling the brand will act on what they raised.
+3. Closing paragraph:
+   - If a contact channel is configured in the brand voice (via the framing instruction above): close with an invitation to use that channel (e.g. "please email us at [your email] so we can investigate further").
+   - If NO contact channel is configured: close with a hopeful forward-looking statement — express that we hope for the opportunity to serve them better in the future. Do NOT invent a generic "please reach out" or "contact us directly" close — there is no channel to direct them to.
+
+Universal closing rule:
+- The reply must NOT end on the apology itself. A negative-review close needs warmth, internal commitment, and forward intent. Apology alone reads transactional.
+- Only invite the customer to make contact (email, message, callback, any channel) if a contact channel has been explicitly configured. Do not fabricate channels.
 
 Specificity is required, not optional:
 - Engage with one actual incident from the review. Abstractions like "concerns about cleanliness" or "issues with service" are not enough — name something concrete the reviewer wrote.
 
 Register:
-- Write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, invite to discuss. Do not theatrically self-flagellate.`;
+- Write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, close hopefully. Do not theatrically self-flagellate.
+- DO NOT self-criticise in the reply. Acknowledge that the issue happened, but do NOT state what we should have done differently, do NOT characterise our team or service as having failed, and do NOT volunteer operational fixes. A manager apologising in person says "I'm sorry this happened" — they do not list our shortcomings in public.`;
 
 const TEMPLATES: Record<StructureTemplateKey, string> = {
   positive: POSITIVE_TEMPLATE,
