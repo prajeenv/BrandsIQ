@@ -100,8 +100,15 @@ describe("getStructureTemplate", () => {
   it("returns the negative template body for 1-star routing", () => {
     const out = getStructureTemplate({ rating: 1, sentiment: null });
     expect(out).toContain("sincere apology");
-    expect(out).toContain("take ownership of the experience");
-    expect(out).toContain("management contact / investigation / open channel");
+    // 5/25 prompt-tuning iter-2: "take ownership of the experience"
+    // language replaced with directional "communicate an internal
+    // commitment to address what happened" — same intent, framed as
+    // behavior the model can apply without inviting self-criticism.
+    // The "management contact / investigation / open channel" phrase
+    // moved into the closing-paragraph instruction (Change C) where it
+    // gates the contact-invitation, but is no longer the headline rule.
+    expect(out).toContain("internal commitment to address");
+    expect(out.toLowerCase()).toContain("framing instruction above");
   });
 
   it("returns the negative template body for the 4-star+negative-sentiment routing", () => {
@@ -135,6 +142,46 @@ describe("getStructureTemplate", () => {
     expect(out.toLowerCase()).toContain("not as a corporate statement");
     expect(out.toLowerCase()).toContain("do not theatrically self-flagellate");
   });
+
+  // 5/25 prompt-tuning iter-2 — Change A. Directional anti-self-criticism
+  // rule. Caught the "we should have held service or ensured fresh plates"
+  // pattern from the Hema response, plus all the cousins ("we fell short",
+  // "let you down", "did not meet our standards").
+  it("forbids self-criticism in the negative reply (Change A)", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("do not self-criticise");
+    expect(out.toLowerCase()).toContain("do not state what we should have done differently");
+    expect(out.toLowerCase()).toContain("do not volunteer operational fixes");
+  });
+
+  // 5/25 prompt-tuning iter-2 — Change C (the structural fix). The
+  // negative template now distinguishes internal-commitment (universal)
+  // from contact-channel (config-gated), and explicitly bans inventing
+  // a contact path when no channel is configured.
+  it("communicates an internal commitment to address — universal, not config-gated (Change C)", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("internal commitment to address");
+    expect(out.toLowerCase()).toContain("universal");
+    expect(out.toLowerCase()).toContain("does not depend on whether a contact channel is configured");
+  });
+
+  it("bans fabricating a contact channel when none is configured (Change C)", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("if no contact channel is configured");
+    expect(out.toLowerCase()).toContain("do not invent a generic");
+    expect(out.toLowerCase()).toContain("do not fabricate channels");
+  });
+
+  it("requires a hopeful forward-looking close when no contact channel is configured (Change C)", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("hopeful forward-looking statement");
+    expect(out.toLowerCase()).toContain("serve them better in the future");
+  });
+
+  it("bans ending the negative reply on apology alone (Change C)", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("must not end on the apology");
+  });
 });
 
 describe("UNIVERSAL_STRUCTURAL_RULES", () => {
@@ -151,6 +198,16 @@ describe("UNIVERSAL_STRUCTURAL_RULES", () => {
 
   it("forbids em-dashes (the single most reliable AI tell)", () => {
     expect(UNIVERSAL_STRUCTURAL_RULES).toContain('No em-dashes');
+  });
+
+  // 5/25 prompt-tuning iter-2 — Change B. Stops the model from echoing
+  // back the price the customer paid (the "£700" pattern from the Hema
+  // response). Price-echo reads as the brand agreeing "yes you spent a
+  // lot — bad value", which is tacky.
+  it("bans referencing the price the customer paid back to them (Change B)", () => {
+    expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+      "do not reference the price the customer paid back to them",
+    );
   });
 
   it("forbids the AI-giveaway word list", () => {
