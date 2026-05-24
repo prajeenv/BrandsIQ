@@ -156,6 +156,38 @@ function renderToneLabel(tone: string): string {
 }
 
 /**
+ * Tone-specific register guidance injected after the tone label. Today
+ * primarily about contractions ("we're" vs "we are") — `polished_formal`
+ * brands sound stiff if the model uses contractions; `warm_casual` brands
+ * sound stiff if it doesn't. The choice should follow the brand's tone
+ * preset.
+ *
+ * Iter-7 follow-up: the user flagged that contractions feel AI-frequent
+ * across all generations. They DO feel AI-frequent — but the actual issue
+ * is contractions used at the WRONG register, not contractions themselves.
+ * This helper ties register to tone so the model's default contraction
+ * behavior matches what the brand selected.
+ *
+ * Returns an empty string for unrecognised tone keys so the prompt stays
+ * valid (the upstream `normalizeBrandVoice` should already have mapped
+ * legacy values into the V2 set, but defensive default).
+ */
+function getRegisterGuidance(tone: string): string {
+  switch (tone as BrandVoiceToneV2) {
+    case "warm_casual":
+      return "Register: use contractions naturally (we're, we'll, it's, you're). Write the way you'd speak to a returning guest at the door.";
+    case "friendly_professional":
+      return "Register: moderate use of contractions is fine where they read naturally. Default to natural conversational English.";
+    case "polished_formal":
+      return "Register: avoid contractions. Write 'we are', not 'we're'. 'I will', not 'I'll'. 'We would', not 'we'd'. The slightly more formal cadence is what makes the response read polished.";
+    case "empathetic_attentive":
+      return "Register: lean slightly formal on apologies — fewer contractions when expressing regret ('we are deeply sorry', not 'we're deeply sorry'). Contractions are fine elsewhere if they read naturally.";
+    default:
+      return "";
+  }
+}
+
+/**
  * Render the ratingContext label that prefaces a sample response. "any" means
  * the sample applies to all reviews; 1–5 means the sample is a typical
  * response to a review of that star rating.
@@ -309,6 +341,14 @@ IMPORTANT INSTRUCTIONS:
 
 BRAND VOICE CONFIGURATION:
 - Tone: ${renderToneLabel(brandVoice.tone)}`;
+
+  // Register guidance — primarily contractions ("we're" vs "we are"). Tone-
+  // preset specific, so casual brands sound natural and formal brands
+  // sound polished without a universal contraction ban.
+  const registerGuidance = getRegisterGuidance(brandVoice.tone);
+  if (registerGuidance) {
+    prompt += `\n- ${registerGuidance}`;
+  }
 
   // Optional one-time tone override (regeneration with a different register).
   if (toneModifier) {
