@@ -884,5 +884,64 @@ describe('claude.ts', () => {
         expect(getSystem()).toContain('Friendly & professional');
       });
     });
+
+    // 5/25 prompt-tuning iter-2 follow-up — register guidance per tone.
+    // Contractions are not a universal AI tell; they're a register issue.
+    // The model now gets explicit guidance based on the brand's tone
+    // preset, so casual brands sound natural and formal brands stay
+    // polished without a blanket contraction ban.
+    describe('per-tone register guidance (contractions)', () => {
+      it('injects no-contraction guidance for polished_formal', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          brandVoice: { ...testBrandVoice, tone: 'polished_formal' },
+        });
+        const system = getSystem();
+        expect(system.toLowerCase()).toContain('avoid contractions');
+        expect(system).toContain("'we are', not 'we're'");
+      });
+
+      it('injects use-contractions guidance for warm_casual', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          brandVoice: { ...testBrandVoice, tone: 'warm_casual' },
+        });
+        const system = getSystem();
+        expect(system.toLowerCase()).toContain('use contractions naturally');
+      });
+
+      it('injects moderate-contractions guidance for friendly_professional', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          brandVoice: { ...testBrandVoice, tone: 'friendly_professional' },
+        });
+        const system = getSystem();
+        expect(system.toLowerCase()).toContain('moderate use of contractions');
+      });
+
+      it('injects formal-on-apologies guidance for empathetic_attentive', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          brandVoice: { ...testBrandVoice, tone: 'empathetic_attentive' },
+        });
+        const system = getSystem();
+        expect(system.toLowerCase()).toContain('lean slightly formal on apologies');
+        expect(system.toLowerCase()).toContain('fewer contractions when expressing regret');
+      });
+
+      it('falls back to the default register guidance when given an unknown tone', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          brandVoice: { ...testBrandVoice, tone: 'made_up_tone' as unknown as string },
+        });
+        const system = getSystem();
+        // `normalizeBrandVoice` runs upstream and maps unknown tone keys
+        // to the default V2 key (friendly_professional). So the unknown
+        // tone gets the friendly_professional register guidance, not
+        // empty guidance — this preserves a predictable register signal
+        // even on bad inputs.
+        expect(system.toLowerCase()).toContain('moderate use of contractions');
+      });
+    });
   });
 });
