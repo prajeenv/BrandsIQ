@@ -182,6 +182,17 @@ describe("getStructureTemplate", () => {
     const out = getStructureTemplate({ rating: 1, sentiment: null });
     expect(out.toLowerCase()).toContain("must not end on the apology");
   });
+
+  // 5/25 prompt-tuning iter-2 follow-up — register-aware contractions.
+  // The apology paragraph specifically leans slightly more formal than
+  // the brand's usual tone, even when the brand's tone allows
+  // contractions. Apologies land with more weight in measured language.
+  it("requires the apology paragraph to lean slightly more formal than the brand's usual tone", () => {
+    const out = getStructureTemplate({ rating: 1, sentiment: null });
+    expect(out.toLowerCase()).toContain("lean slightly more formal");
+    expect(out.toLowerCase()).toContain("we are deeply sorry");
+    expect(out.toLowerCase()).toContain("we're deeply sorry");
+  });
 });
 
 describe("UNIVERSAL_STRUCTURAL_RULES", () => {
