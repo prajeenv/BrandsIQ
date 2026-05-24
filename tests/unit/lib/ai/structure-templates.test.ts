@@ -260,11 +260,33 @@ describe("NAMED_STAFF_FRAGMENT", () => {
 });
 
 describe("OCCASION_FRAGMENT", () => {
-  it("instructs the model to acknowledge birthdays/anniversaries/first/returning visits", () => {
+  // 5/25 prompt-tuning iter-2 follow-up — broadened to cover non-
+  // hospitality businesses (retail, services, SaaS support). The
+  // hospitality-specific cases (birthday, anniversary) stay, but
+  // "first visit / returning visit" are now generalised to
+  // "first time using the business / returning customer" so the
+  // fragment doesn't pre-code a visit-based business model.
+  it("acknowledges hospitality-shaped occasions (birthdays, anniversaries, milestones)", () => {
     expect(OCCASION_FRAGMENT).toContain("birthday");
     expect(OCCASION_FRAGMENT).toContain("anniversary");
-    expect(OCCASION_FRAGMENT).toContain("first visit");
-    expect(OCCASION_FRAGMENT).toContain("returning visit");
+    expect(OCCASION_FRAGMENT).toContain("milestone");
+  });
+
+  it("covers non-visit business models (first-time customers, returning customers, significant purchases)", () => {
+    expect(OCCASION_FRAGMENT).toContain("first time using the business");
+    expect(OCCASION_FRAGMENT).toContain("returning customer");
+    expect(OCCASION_FRAGMENT).toContain("significant purchase");
+  });
+
+  // Scope-of-acknowledgement rule: the occasion fragment now explicitly
+  // says the acknowledgement does NOT extend the scope of the apology
+  // or commitment to the surrounding context. This is the same principle
+  // as the top-level context block in claude.ts but applied at the
+  // fragment level so the model sees it both globally and locally.
+  it("forbids extending scope of apology/commitment to the broader context", () => {
+    expect(OCCASION_FRAGMENT.toLowerCase()).toContain("does not extend the scope");
+    expect(OCCASION_FRAGMENT.toLowerCase()).toContain("the broader context");
+    expect(OCCASION_FRAGMENT.toLowerCase()).toContain("stay scoped to the interaction with the business");
   });
 });
 
