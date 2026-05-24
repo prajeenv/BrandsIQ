@@ -167,11 +167,18 @@ describe("sanitize.ts", () => {
       expect(INSTRUCTION_REINFORCEMENT).toContain("2–3 sentences");
     });
 
-    // 5/24 prompt-tuning pass — anti-self-flagellation blocklist.
+    // 5/24 + 5/25 prompt-tuning passes — anti-self-flagellation blocklist.
+    // Iter-2 (5/25) adds "I take full ownership" and "take ownership of" —
+    // the model was sliding past the literal "I take full responsibility"
+    // ban by writing "I take full ownership" instead. Iter-2 also reframes
+    // the blocklist as exemplary-in-English + register-applies-in-any-
+    // language, so the 39 non-English languages aren't silently unenforced.
     describe("corporate-apology blocklist (anti-self-flagellation)", () => {
       const BANNED_PHRASES = [
         "completely unacceptable",
         "I take full responsibility",
+        "I take full ownership",
+        "take ownership of",
         "implement corrective measures",
         "comprehensive review",
         "going forward",
@@ -190,6 +197,41 @@ describe("sanitize.ts", () => {
           "write as a manager apologising in person",
         );
       });
+
+      // 5/25 prompt-tuning iter-2 — multilingual coverage. The blocklist
+      // is reframed as exemplary, not exhaustive, and the register ban
+      // applies in any language.
+      it("frames the blocklist as exemplary-in-English with register-applies-in-any-language", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "do not use corporate-apology register in any language",
+        );
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "in english, examples",
+        );
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "exemplary, not exhaustive",
+        );
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "direct or close-equivalent translations",
+        );
+      });
+
+      // 5/25 prompt-tuning iter-2 — close hopefully on negatives. Previous
+      // wording said "invite to discuss"; now it says "close hopefully".
+      it("instructs the model to close hopefully on negative reviews (not 'invite to discuss')", () => {
+        expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+          "acknowledge briefly, commit briefly, close hopefully",
+        );
+      });
+    });
+
+    // 5/25 prompt-tuning iter-2 — reviewer-protection guardrails get the
+    // "applies in every language" framing too, so the rules aren't
+    // silently English-only.
+    it("declares that reviewer-protection guardrails apply in every language", () => {
+      expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+        "apply in every language the response is written in",
+      );
     });
 
     // 5/24 prompt-tuning pass — sample scoping. Samples teach voice, not
