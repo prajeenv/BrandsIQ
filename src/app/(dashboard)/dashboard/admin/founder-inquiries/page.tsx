@@ -257,7 +257,7 @@ export default function FounderInquiriesAdminPage() {
                         </td>
                         <td className="py-3 pr-4">
                           <div className="space-y-0.5">
-                            <div>{inquiry.submitterName ?? "—"}</div>
+                            <div>{inquiry.submitterName ?? "-"}</div>
                             {inquiry.submitterEmail && (
                               <a
                                 href={`mailto:${inquiry.submitterEmail}`}
@@ -269,7 +269,7 @@ export default function FounderInquiriesAdminPage() {
                           </div>
                         </td>
                         <td className="py-3 pr-4 text-muted-foreground">
-                          {inquiry.businessName ?? "—"}
+                          {inquiry.businessName ?? "-"}
                         </td>
                         <td className="py-3 pr-4 text-muted-foreground">
                           {formatDateTime(inquiry.createdAt)}
@@ -310,7 +310,7 @@ export default function FounderInquiriesAdminPage() {
                 <DialogTitle>{TYPE_LABEL[activeInquiry.type]}</DialogTitle>
                 <DialogDescription>
                   Submitted {formatDateTime(activeInquiry.createdAt)}
-                  {activeInquiry.source ? ` — via ${activeInquiry.source}` : ""}
+                  {activeInquiry.source ? ` (via ${activeInquiry.source})` : ""}
                 </DialogDescription>
               </DialogHeader>
 

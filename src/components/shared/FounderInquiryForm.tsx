@@ -86,7 +86,7 @@ const DEFAULT_COPY: Record<
   },
   general: {
     heading: "Get in touch",
-    description: "We'd love to hear from you — leave a note below and we'll reply.",
+    description: "We'd love to hear from you. Leave a note below and we'll reply.",
     messageLabel: "Message",
     messagePlaceholder: "How can we help?",
     submitLabel: "Send",
@@ -186,7 +186,7 @@ export function FounderInquiryForm({
         <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
           <Check className="h-6 w-6 text-green-600" />
         </div>
-        <h3 className="text-lg font-semibold">Thanks — we&apos;ll be in touch.</h3>
+        <h3 className="text-lg font-semibold">Thanks, we&apos;ll be in touch.</h3>
         <p className="text-sm text-muted-foreground">
           We aim to reply within 24 hours.
         </p>

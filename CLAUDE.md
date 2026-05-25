@@ -86,6 +86,19 @@ if (!result.success) {
 }
 ```
 
+## UI text conventions
+
+These rules apply when writing or editing **user-facing UI text**: JSX text nodes, button labels, headings, descriptions, placeholders, toasts, alerts, email content, page titles. The goal is to keep BrandsIQ's UI from feeling AI-generated.
+
+- **Never use em-dashes ("—") in UI text.** Use commas, periods, parentheses, or colons. Em-dashes are an AI-writing tell and shouldn't appear in product copy.
+- If you find an em-dash in existing UI text while editing a file, fix it as part of the change.
+
+**What is NOT in scope for this rule:**
+- **Code comments** (`// …`, `/* … */`, JSDoc blocks). Free-form notes for developers; not rendered.
+- **Documentation files** (`docs/`, `DECISIONS.md`, `PROGRESS.md`, `MVP.md`, this `CLAUDE.md`). Internal narrative.
+- **AI prompt source files** (`src/lib/ai/sanitize.ts`, `src/lib/ai/structure-templates.ts`, `src/lib/ai/claude.ts`, `src/lib/ai/post-process.ts`, `src/lib/ai/brand-voice-normalize.ts`) — these files contain the prompt that bans em-dashes in AI-generated responses; the prompt has to describe the character to ban it.
+- **Test files** that intentionally assert em-dash-related rules.
+
 ## Critical Gotchas
 
 | Issue | Solution |

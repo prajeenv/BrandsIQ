@@ -422,7 +422,7 @@ export function ProfileForm() {
               <Label>Plan</Label>
               <div className="text-sm">
                 <span className="font-medium">{planLabel}</span>
-                <span className="text-muted-foreground"> — {planSubtext}</span>
+                <span className="text-muted-foreground"> ({planSubtext})</span>
               </div>
             </div>
           </section>
@@ -547,7 +547,7 @@ export function ProfileForm() {
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="locationName"
-                  placeholder='e.g. "The Bear Bakery — Shoreditch"'
+                  placeholder='e.g. "The Bear Bakery, Shoreditch"'
                   className="pl-10"
                   maxLength={VALIDATION_LIMITS.LOCATION_NAME_MAX}
                   value={locationName}
@@ -594,7 +594,7 @@ export function ProfileForm() {
                     <SelectValue placeholder="Select platform" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">— None —</SelectItem>
+                    <SelectItem value="__none__">None</SelectItem>
                     {PLATFORMS.map((value) => (
                       <SelectItem key={value} value={value}>
                         {value}

@@ -87,7 +87,7 @@ export const BRAND_VOICE_TONE_INFO_V2: Record<
   },
   friendly_professional: {
     label: "Friendly & professional",
-    description: "Warm but composed — the default for most hospitality brands",
+    description: "Warm but composed, the default for most hospitality brands",
     icon: "smile",
   },
   polished_formal: {
@@ -97,7 +97,7 @@ export const BRAND_VOICE_TONE_INFO_V2: Record<
   },
   empathetic_attentive: {
     label: "Empathetic & attentive",
-    description: "For guests whose experience matters most — used heavily on complaints",
+    description: "For guests whose experience matters most, used heavily on complaints",
     icon: "heart",
   },
 };

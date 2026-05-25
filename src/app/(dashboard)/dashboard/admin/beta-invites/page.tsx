@@ -131,7 +131,7 @@ export default function BetaInvitesAdminPage() {
         <CardHeader>
           <CardTitle>Generate a new invite</CardTitle>
           <CardDescription>
-            Optionally add notes (e.g. who this invite is for) — visible only
+            Optionally add notes (e.g. who this invite is for). Visible only
             to you.
           </CardDescription>
         </CardHeader>
@@ -244,10 +244,10 @@ export default function BetaInvitesAdminPage() {
                           {formatDateTime(invite.expiresAt)}
                         </td>
                         <td className="py-3 pr-4 text-muted-foreground">
-                          {invite.usedBy?.email ?? "—"}
+                          {invite.usedBy?.email ?? "-"}
                         </td>
                         <td className="py-3 pr-4 text-muted-foreground max-w-[200px] truncate">
-                          {invite.notes ?? "—"}
+                          {invite.notes ?? "-"}
                         </td>
                         <td className="py-3 pr-4 text-right">
                           {invite.status === "active" && (

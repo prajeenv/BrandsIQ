@@ -181,11 +181,11 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
             <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-foreground">
-                You&apos;re in the closed beta — thank you!
+                You&apos;re in the closed beta. Thank you!
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 Below is a preview of the commercial plans we&apos;ll launch
-                later — we&apos;ll be in touch before then.
+                later. We&apos;ll be in touch before then.
               </p>
             </div>
           </div>
@@ -203,7 +203,7 @@ export function PricingClient({ currentPhase }: { currentPhase: SystemPhase }) {
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Tiers below preview the commercial plans. To use BrandsIQ
-                  today, request a beta invite — we&apos;ll reach out within
+                  today, request a beta invite. We&apos;ll reach out within
                   24 hours.
                 </p>
               </div>
