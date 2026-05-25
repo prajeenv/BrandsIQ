@@ -98,8 +98,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const updatedResponse = await prisma.$transaction(async (tx) => {
       // Skip if the text hasn't actually changed
       if (responseText !== review.response!.responseText) {
-        // Save the current (pre-edit) text to version history
-        // Preserve the creditsUsed and isEdited of the current response
+        // Save the current (pre-edit) text to version history.
+        // Preserve the creditsUsed, isEdited, and additionalInstructions
+        // of the current response so the archive records "what produced
+        // this older state" — same archive contract as the regenerate
+        // route uses.
         await tx.responseVersion.create({
           data: {
             reviewResponseId: review.response!.id,
@@ -107,11 +110,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             toneUsed: review.response!.toneUsed,
             creditsUsed: review.response!.creditsUsed,
             isEdited: review.response!.isEdited,
+            additionalInstructions: review.response!.additionalInstructions,
           },
         });
       }
 
-      // Update the response with new text
+      // Update the response with new text. Manual edits aren't AI-
+      // generated, so `additionalInstructions` is cleared on the live
+      // row — there's no instruction associated with the edited text.
       const updated = await tx.reviewResponse.update({
         where: { id: review.response!.id },
         data: {
@@ -119,6 +125,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           isEdited: true,
           editedAt: new Date(),
           creditsUsed: 0,
+          additionalInstructions: null,
         },
       });
 

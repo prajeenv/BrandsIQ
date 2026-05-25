@@ -252,7 +252,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Update response and save old version in a transaction
     const updatedResponse = await prisma.$transaction(async (tx) => {
       // First, save the CURRENT (old) response to version history
-      // This allows the user to restore to the previous version
+      // This allows the user to restore to the previous version.
+      //
+      // The archived row preserves whatever produced the PREVIOUS state:
+      // text, tone, credits, edited-flag, AND the additionalInstructions
+      // that produced that previous state. This is how the version-
+      // history UI can later show "what did the user type to produce this
+      // older response?" alongside each row.
       await tx.responseVersion.create({
         data: {
           reviewResponseId: review.response!.id,
@@ -260,11 +266,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           toneUsed: review.response!.toneUsed,
           creditsUsed: review.response!.creditsUsed, // Credits used for the old generation
           isEdited: review.response!.isEdited, // Preserve edited status for history
+          additionalInstructions: review.response!.additionalInstructions, // Snapshot the instruction that produced the OLD state
           originalCreatedAt: review.response!.createdAt, // Preserve original creation timestamp
         },
       });
 
-      // Then update ReviewResponse with new text
+      // Then update ReviewResponse with new text. The NEW state's
+      // `additionalInstructions` is whatever the user just typed (or
+      // null if the textarea was empty/whitespace).
+      const trimmedInstructions = additionalInstructions?.trim();
       const updated = await tx.reviewResponse.update({
         where: { id: review.response!.id },
         data: {
@@ -274,6 +284,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           creditsUsed: CREDIT_COSTS.REGENERATE_RESPONSE,
           isEdited: false, // Reset edited flag on regeneration
           editedAt: null,
+          additionalInstructions:
+            trimmedInstructions && trimmedInstructions.length > 0
+              ? trimmedInstructions
+              : null,
         },
       });
 
