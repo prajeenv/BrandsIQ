@@ -173,7 +173,6 @@ export function ResponsePanel({
   };
 
   const handleRegenerate = async (payload: {
-    tone: "warm_casual" | "friendly_professional" | "polished_formal" | "empathetic_attentive";
     additionalInstructions?: string;
   }) => {
     setIsLoading(true);
@@ -200,10 +199,17 @@ export function ResponsePanel({
             : null
         );
         toast.success(`Response regenerated!`);
-        // PostHog: response_regenerated. Tone is one of the V2 4-key set
-        // (post-iter-6); additionalInstructions presence is the only other
-        // signal we currently surface as an event property.
-        trackResponseRegenerated({ tone: payload.tone });
+        // PostHog: response_regenerated. The dialog no longer carries a
+        // per-regeneration tone override (5/25 simplification — the brand
+        // voice tone applies as configured). Report the tone the server
+        // persisted, which is the brand voice tone for default regens.
+        trackResponseRegenerated({
+          tone: result.data.response.toneUsed as
+            | "warm_casual"
+            | "friendly_professional"
+            | "polished_formal"
+            | "empathetic_attentive",
+        });
         refreshCredits();
         onResponseUpdate?.(); // This will fetch fresh data including the new version
       } else {

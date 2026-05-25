@@ -13,19 +13,14 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// Iter 6 cutover: tone accepts the V2 4-key set (matches the brand-voice
-// form's tone selector exactly, per spec §8.1). `additionalInstructions`
-// is the new free-text per-regeneration directive — not persisted, capped
-// at 500 chars. The route forwards it as `customRegenerateInstructions`
-// to claude.ts where the iter-1 sanitize helper wraps it before injecting
-// into the user prompt.
+// 5/25 simplification: the per-regeneration tone override was removed
+// from the dialog. The brand voice tone applies as configured; users
+// who want a one-off register change use the Additional Instructions
+// free-text field. `additionalInstructions` stays as the only per-
+// regeneration knob — capped at 500 chars, not persisted, wrapped via
+// the sanitize helper in claude.ts before injection into the user
+// prompt.
 const regenerateSchema = z.object({
-  tone: z.enum([
-    "warm_casual",
-    "friendly_professional",
-    "polished_formal",
-    "empathetic_attentive",
-  ]),
   additionalInstructions: z.string().max(500).optional(),
 });
 
@@ -67,7 +62,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: "Tone is required. Must be one of: professional, friendly, empathetic",
+            message: "Invalid regenerate request body.",
             details: validationResult.error.issues,
           },
         },
@@ -75,7 +70,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const { tone, additionalInstructions } = validationResult.data;
+    const { additionalInstructions } = validationResult.data;
 
     // Get user with credits
     const user = await prisma.user.findUnique({
@@ -164,14 +159,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Get brand voice
     const brandVoice = await getOrCreateBrandVoice(session.user.id);
 
-    // Generate new response with tone modifier
+    // Generate new response — brand voice tone applies as configured.
     // E2E mock opt-in (header gate — see DECISIONS.md #61).
     const e2eMockOptIn = request.headers.get("x-e2e-mock") === "1";
 
-    // Iter 4: pass the V2 brand voice row directly; the iter-3 V2→legacy
-    // projection is gone (DECISION 55). Sentiment is forwarded so the
-    // rating-conditional structure router can pick the right template
-    // (sentiment overrides rating — see spec §9.5).
+    // Iter 4: pass the V2 brand voice row directly. Sentiment is forwarded
+    // so the rating-conditional structure router can pick the right
+    // template (sentiment overrides rating — see spec §9.5).
+    //
+    // 5/25 simplification: `toneModifier` is no longer forwarded. The
+    // brand voice tone is applied via the brandVoice arg; per-regen
+    // overrides go through `customRegenerateInstructions` (free text).
     let generatedResponse;
     try {
       generatedResponse = await generateReviewResponse({
@@ -181,7 +179,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         sentiment: review.sentiment,
         detectedLanguage: review.detectedLanguage,
         brandVoice,
-        toneModifier: tone,
         // Iter 6: forward the per-regeneration free-text directive to the
         // iter-1 sanitize-wrapped slot in claude.ts. Single-use, not
         // persisted; ZOD-capped at 500 chars upstream.
@@ -231,7 +228,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         platform: review.platform,
         rating: review.rating,
         previousTone: review.response.toneUsed,
-        newTone: tone,
+        newTone: brandVoice.tone,
         regeneratedAt: new Date().toISOString(),
       }
     );
@@ -272,7 +269,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         where: { id: review.response!.id },
         data: {
           responseText,
-          toneUsed: tone,
+          toneUsed: brandVoice.tone,
           generationModel: generatedResponse.model || DEFAULT_MODEL,
           creditsUsed: CREDIT_COSTS.REGENERATE_RESPONSE,
           isEdited: false, // Reset edited flag on regeneration
