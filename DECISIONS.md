@@ -1783,6 +1783,213 @@ The net drop reflects deletion of the iter-3 legacy bridge surface and its dedic
 
 Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 996 passed, 0 failed across 63 files. The brand voice redesign is now complete; iter-7 prompt-tuning will follow as a separate dedicated pass.
 
+### Iteration 7 — Incomplete-email-config feedback (defensive logic + 3-layer UI warnings)
+
+Shipped across PRs #138 (May 23, the foundational fix), #139 (trim feedback to two warnings + deep-link), and #140 (compact banner layout). The fix addresses a real functional bug: a user could turn the Negative-review email toggle ON, forget to add a `replyToEmail`, and ship live AI responses containing the literal placeholder `[your email]` in the body. The toggle persisted (autosave), the feature was dormant, but the user had no way to notice.
+
+The shape of the fix is market-standard for autosave forms with prerequisite-dependent features: **save partial state freely; make the dependent action dormant when the prerequisite is missing; signal the dormant state at the field, near the field, and at a frequently-visited surface.** Four layers — two defensive (prompt + post-processor), two visible (page + dashboard).
+
+#### Decision 77: Treat email-toggle ON + missing email as dormant in the prompt builder, not blocked at the form
+
+- **Decision:** `claude.ts:buildSystemPrompt` adds an `hasReplyToEmail` guard alongside the existing `negativeReviewEmailEnabled && isNegativeReview` condition. When the toggle is ON but `replyToEmail` is null/empty/whitespace, the negative-review framing fragment (and the `custom` framing block) is NOT injected. The model never receives the instruction to invite email contact; the feature is silent until configuration is complete.
+- **Alternatives considered:** (a) block the toggle save when no email is configured — rejected; fights the autosave model and creates a "weird, I thought I saved that" UX failure. (b) Treat as "off" but inject some weaker framing — rejected; either the framing is active or it isn't, partial framing is worse than no framing.
+- **Why:** This is the market-standard pattern for partial state in autosave forms (Linear, Notion, Intercom). Toggle persists, dependent action lies dormant, signal is at the field. The user can fix the config later and the feature activates retroactively without any toggle re-flipping.
+- **Risk:** Low ✅. Reversible — the guard reads only the existing `replyToEmail` value; no schema change.
+
+#### Decision 78: Defensive `stripPlaceholderSentences` in post-processing as belt-and-suspenders
+
+- **Decision:** `post-process.ts:assembleResponse` now strips any sentence containing the literal `[your email]` placeholder when `hasReplyToEmail` is false. Belt-and-suspenders alongside Decision 77 — even if a sample response, a model hallucination, or any other path leaks the placeholder, post-processing drops the sentence rather than ship the bracketed text to the customer.
+- **Implementation:** new exported helper `stripPlaceholderSentences(body)` splits the body into paragraph-aware sentences (`[^.!?]+[.!?]+|\S[^.!?]*$`), drops any containing the placeholder (case-insensitive), and rejoins preserving paragraph breaks (`\n\n`). Pure function, exported for unit testing.
+- **Why:** Prompt-level defense (Decision 77) is the first line; the model is well-aligned with explicit instructions but not perfectly. Post-processing closes the gap. The cost of the strip is one regex scan per assembly (~negligible); the benefit is the customer never sees a `[your email]` bracket in a live response.
+- **Risk:** Low ✅. Pure code, paragraph breaks preserved, unit-tested across single-sentence / multi-paragraph / case-variant / whole-paragraph-drop / sample-leak cases.
+
+#### Decision 79: Signal the dormant state at three distances — field, section, dashboard
+
+- **Decision:** Three visible signals derived from the same `isEmailConfigIncomplete` condition (`negativeReviewEmailEnabled && (replyToEmail == null || replyToEmail.trim().length === 0)`):
+  1. **Inline soft-warning** next to the empty Reply-to email field (existing behaviour, retained — this is where the fix lives).
+  2. **"Incomplete" pill** next to the "Negative-review email" sub-block eyebrow inside `ContactSignoffSection` — tells the user which sub-block is incomplete on entry.
+  3. **Dashboard banner** (`BrandVoiceIncompleteBanner` — new) at the top of the dashboard, dismissible with a 7-day localStorage TTL, keyed per user+warning. Catches users who don't revisit the brand voice page.
+- **Trimmed from initial design (PR #139):** the section-level top-of-section banner ("Negative-review email is incomplete") was also initially shipped (PR #138) but removed on user feedback (PR #139). Three warnings on the same page felt like too many. The pill and inline hint are sufficient locally; the dashboard banner is the global signal.
+- **Why:** The user-stated concern was *"I thought I configured it"* — the failure mode where a user remembers turning the toggle ON but never sees that the feature is dormant. The three signals at three distances make that failure mode hard to sustain: the field tells them how to fix it, the pill tells them which sub-block is incomplete on visit, the dashboard banner tells them globally even when they're not on the brand voice page.
+- **Risk:** Low ✅. All signals are non-blocking and reversible (turning the toggle off OR filling the email both resolve the state).
+
+#### Decision 80: Dashboard banner dismissal — per-user-per-warning localStorage with 7-day TTL
+
+- **Decision:** `BrandVoiceIncompleteBanner` persists dismissal in `localStorage` keyed `bv-incomplete-banner-dismissed:<warningType>:<userId>`. Dismissal expires after 7 days, after which the banner re-appears even though the underlying config is still broken.
+- **Why TTL:** A long-running broken config eventually gets noticed again. Without the TTL, a dismissal-once means the user could forget about the issue permanently. 7 days is a reasonable cycle — long enough that the dismissal is genuinely respected for a week, short enough that the warning becomes ambient again.
+- **Why per-user:** Single-tenant settings in `localStorage` would scope dismissal globally; per-user keying ensures dismissal doesn't bleed across user accounts on shared devices.
+- **Why per-warning-type:** Forward-compatible. Today the only warning is `negativeEmailToggleOnButReplyToEmailMissing`, but the API response (`/api/dashboard/stats:brandVoiceWarnings`) is shaped as an object so future incomplete-config flags slot in alongside without changing the dismissal contract.
+- **Risk:** Low ✅. Falls back to "show banner" if `localStorage` is unavailable (private browsing, SSR slip-through) — better an extra banner than a silently broken config.
+
+#### Decision 81: Dashboard banner deep-links to the sub-block anchor (PR #139)
+
+- **Decision:** The dashboard banner's "Open brand voice" CTA navigates to `/dashboard/settings/brand-voice#negative-review-email`. `ContactSignoffSection` attaches `id="negative-review-email"` to the sub-block 2 wrapper with `scroll-mt-24` for sticky-header clearance. `BrandVoiceForm` includes a small `useEffect` that honours the URL hash AFTER the async fetch resolves (browser's built-in hash-anchor scroll fires too early — the target element doesn't exist when the initial scroll attempt happens).
+- **Why:** Without the deep-link, the CTA landed at the top of the brand voice page (4 sections tall) and the user had to scroll-hunt for the broken control. With the deep-link, the user lands on the sub-block directly.
+- **Risk:** Low ✅. The `useEffect` is best-effort; no hash → no scroll, no harm. Compatible with future deep-links (just add more `id`s).
+
+#### Decision 82: `/api/dashboard/stats` returns a `brandVoiceWarnings` object (forward-compat, not a flag)
+
+- **Decision:** The dashboard stats response gained a `brandVoiceWarnings` object: `{ negativeEmailToggleOnButReplyToEmailMissing: boolean }`. Today only one flag, but shaped as an object so future incomplete-config flags can be added without API surface changes.
+- **Why an object, not a flat boolean:** This will grow. Other "feature ON + prerequisite missing" combinations exist or will exist (custom framing selected with empty text, future SMS/callback channels). An object naturally extends; a flat boolean would force a v2 API surface.
+- **Risk:** Low ✅. Additive change; consumers ignore unknown keys.
+
+#### Decision 83: Banner layout matches `LowCreditWarning` (PR #140 follow-up)
+
+- **Decision:** `BrandVoiceIncompleteBanner` uses the same single-row layout as `LowCreditWarning` (icon left, copy middle, CTA right-aligned next to dismiss). Description trimmed from ~30 words to ~11 words: *"The toggle is on but no reply-to email is configured."*
+- **Why:** Visual consistency. On the dashboard, both banners sit one above the other; mismatched layouts read as visually inconsistent. Trimming the description to one line lets the row fit without wrapping.
+- **Risk:** Low ✅. Pure presentation change.
+
+#### Test coverage delta — Iteration 7
+
+| Type | Before iter 7 (suite total) | After iter 7 (suite total) | Net |
+|---|---|---|---|
+| Unit tests | 1009 | 1037 | **+28** |
+| Unit test files | 63 | 64 | +1 (new dashboard banner test file) |
+| New unit test cases | — | — | ~32 (placeholder strip, dormant-prompt, section pill, banner dismissal+TTL+per-user, hash anchor) |
+| Updated unit test cases | — | — | ~3 (section-level banner removed per PR #139, replaced with negative assertion) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 1037 passed, 30 skipped, 0 failed across 64 files.
+
+### Iteration 8 — Default-voice prompt tuning (the long-queued iter-7 prompt-engineering pass)
+
+Note on numbering: the original brand voice redesign roadmap called this "iter-7 prompt tuning". Iteration 7 above is the incomplete-config feedback work (which wasn't part of the original roadmap but was a real bug found mid-stream). Renumbered for chronological accuracy: incomplete-config was 7, prompt-tuning is 8.
+
+Shipped across PRs #141 (foundational 7-change pass), #142 (anti-self-criticism + multilingual + hopeful close + ownership variants), #143 (register-aware contractions + apology formality), and #144 (business-agnostic context block + occasion-fragment scoping). Driven by an iterative spreadsheet-review process: the user generated default-voice responses for 6 real reviews (4 Aqua Shard + 2 Chicken Shop, ratings 1★ to 5★), eyeballed the outputs against the restaurant's own human-written replies, fed specific failure modes back, and re-tested after each PR.
+
+This iteration ships **no schema, no UI, no API changes** — only prompt-engineering. The default response quality is measurably different on every dimension the user flagged.
+
+#### Decision 84: Reviewer-protection guardrails as a separate top-tier of the prompt (PR #141)
+
+- **Decision:** New top-priority block in `INSTRUCTION_REINFORCEMENT` (`sanitize.ts`) called REVIEWER-PROTECTION GUARDRAILS. Five rules that cannot be overridden by any configuration, sample, or instruction:
+  - Never use sarcasm, mockery, or dismissive language toward the reviewer.
+  - Never deny or argue against the reviewer's stated experience.
+  - Never insult or demean the reviewer, named staff, or other customers.
+  - Never invent details beyond what the reviewer wrote.
+  - The response position is always cooperative ("we hear you, here's our response"), never defensive.
+- **Why a separate top-tier:** These rules defend the END CONSUMER (the reviewer) — a third party who didn't consent to anything. The business customer's brand voice configuration cannot weaponize the AI through their settings, samples, or regenerate instructions. This is the same quality contract ChatGPT/Claude/Gemini have for the people referenced in their outputs.
+- **Distinction from earlier work:** All previous guardrails (em-dashes, AI-tell phrases, corporate-apology phrases) were *style* protections for the business customer. These five rules are *target* protections for the reviewer. Two different layers.
+- **Risk:** Low ✅. Five rules added; no existing rule changed.
+
+#### Decision 85: Length target tightened from "approximately 200 words" to 500–750 characters (PR #141)
+
+- **Decision:** Reinforcement tail + `UNIVERSAL_STRUCTURAL_RULES` + system-prompt header all changed in lockstep: "approximately 200 words" → "between 500 and 750 characters. Communicate everything in fewer sentences — do not pad." Paragraph count tightened from 2–4 to 2–3.
+- **Why:** Word-count is fuzzier than char-count (the model interprets it loosely and the language affects the count). Chars are direct and consistent. The user's stated target was "around 500–750 chars unless the user insists on more." This is the explicit floor.
+- **`RESPONSE_BODY_CHAR_MAX = 1200` stays unchanged** as a hard backstop — the prompt asks for 500–750 but the cap exists for runaway model output. Acceptable to allow some flexibility above 750 if the model genuinely needs the extra space (long multi-issue 1★ reviews); the cap prevents the 1500+ char runaway.
+- **Risk:** Low ✅. Sample-driven length adaptation continues to work (samples are the voice signal; defaults are the floor).
+
+#### Decision 86: Anti-self-flagellation blocklist for corporate-apology register (PR #141 + #142)
+
+- **Decision:** Explicit blocklist of phrases that sound like a legal statement, an HR document, or a press release rather than a manager apologising in person. Initial list (PR #141): "completely unacceptable", "I take full responsibility", "implement corrective measures", "comprehensive review", "going forward", "rest assured", "we will be personally reviewing". Extended (PR #142): "I take full ownership", "take ownership of" — variants the model used to dodge the literal "I take full responsibility" ban.
+- **Register instruction:** "On a negative review, write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, close hopefully. Do not theatrically self-flagellate."
+- **Why:** The user's spreadsheet review found 1★ responses ("I take full responsibility for the multiple service failures…", "completely unacceptable", "implement necessary corrective measures") sounded like a corporate apology playbook. The Aqua Shard team's own human replies are much shorter and don't deploy that register. The blocklist + the register instruction together pull the model's register back toward "real manager".
+- **Risk:** Low ✅. False positives possible (a customer might want one of these phrases in a key phrase) — handled by the existing key-phrase-precedence rule.
+
+#### Decision 87: Specificity is mandatory on negative reviews — name one concrete incident (PR #141)
+
+- **Decision:** Negative template gains an explicit instruction: "Reference one specific incident the reviewer mentioned (using their wording or a close paraphrase — NOT an abstract category summary)." If the reviewer raised many issues, acknowledge "and several other concerns" alongside the one specific incident.
+- **Why:** Vadim's spreadsheet review was the motivating case — he listed 8 specific incidents (dirty floor, coughing into glassware, delayed drinks, etc.) and BrandsIQ summarised them as "concerns about cleanliness, service coordination, and hygiene practices". The abstraction stripped the value of his detailed feedback. The instruction is direct: engage with one incident concretely; mention the rest only in aggregate.
+- **Trade-off acknowledged in the prompt:** on multi-issue reviews, picking one incident necessarily means the response can't engage with each individually. The user agreed this trade-off is correct — better to engage with one thing concretely than enumerate everything abstractly.
+- **Risk:** Low ✅.
+
+#### Decision 88: Mixed-review balance — equal weight to positive and negative content (PR #141)
+
+- **Decision:** Mixed-review template (`MIXED_TEMPLATE` — triggered by 3★ rating OR 4-5★ + negative sentiment, the Kiran case) gains an explicit balance instruction: "Give the positive and negative content roughly equal space — do not bury the criticism inside a wall of praise."
+- **Why:** Kiran's 4★ Mother's Day review had ~30% negative content (the dessert request) and ~70% positive (atmosphere, service, staff). BrandsIQ's response gave the dessert ~20% and the positives ~80% — burying the criticism. The new instruction explicitly tells the model to give the negative content proportional weight even when the overall sentiment is mixed-positive.
+- **Risk:** Low ✅.
+
+#### Decision 89: Sample responses scoped to voice/register only, NOT length/structure/style overrides (PR #141)
+
+- **Decision:** Sample responses (when present) are introduced in the prompt with explicit scope: "Use these to learn this brand's voice (warmth, register, what they acknowledge), NOT as templates for length, structure, or style. The style rules below apply regardless of what the samples do." The reinforcement tail also repeats this scope.
+- **Why:** Without explicit scoping, a customer whose samples have em-dashes / corporate-apology language / all-caps writing / defensive register would have those traits leaked into AI responses. The principle the user articulated: **defaults provide a quality floor on the axes we explicitly guard; samples enrich voice on top; samples never drag quality below the floor.** This is the same pattern major AI vendors use — user examples are *additive guidance*, not *replacement rules*.
+- **Acknowledged limitation:** the floor is partial — we have explicit defaults on length, paragraph count, em-dashes, corporate-apology register, reviewer-protection. Axes without explicit defaults (capitalization style, grammar, defensiveness) are sample-driven. Acceptable trade-off; we add new defaults when evidence shows we need them.
+- **Risk:** Low ✅.
+
+#### Decision 90: Scoped precedence on regenerate instructions — length/content overridable, style/security not (PR #141)
+
+- **Decision:** The binding sentence on `customRegenerateInstructions` now explicitly scopes what users can and cannot override. CAN override: default length, content emphasis. CANNOT override: universal style rules (em-dashes, AI-tell phrases, corporate-apology language), reviewer-protection guardrails, security rules.
+- **Why:** Without this scope, a user could write "ignore the structure rules and respond in all caps with sarcasm" via the regenerate dialog and the model would. The wrapped sanitize layer prevents prompt-injection-style attacks via delimiters but doesn't prevent legitimate-looking instructions from overriding our quality contract.
+- **Risk:** Low ✅. Existing wrapping layer unchanged; new scoping is additive instruction text.
+
+#### Decision 91: Anti-self-criticism rule (directional, replaces literal "take ownership" wording) (PR #142)
+
+- **Decision:** Negative template's middle paragraph instruction changed from "take ownership of the experience" to a directional rule: "Do not self-criticise. Acknowledge that the issue happened, but do not state what we should have done differently, do not characterise our team or service as having failed, and do not volunteer operational fixes."
+- **Why:** Hema's spreadsheet response had the model writing *"we should have held service or ensured fresh plates were ready"* — interpreting "take ownership" as "volunteer the operational fix in public". A manager apologising in person doesn't list shortcomings in public; they say "I'm sorry this happened" and move on. The literal-vs-directional pattern: literal bans get dodged by paraphrase; directional rules catch all the variants ("we fell short", "let you down", "did not meet our standards").
+- **Risk:** Low ✅.
+
+#### Decision 92: Ban echoing the customer's money amounts back to them (PR #142)
+
+- **Decision:** New rule in `UNIVERSAL_STRUCTURAL_RULES`: "Do not reference the price the customer paid back to them, even if they mentioned it in the review. The dissatisfaction is what needs acknowledgment, not the amount they spent."
+- **Why:** Hema's spreadsheet response included *"the modest birthday acknowledgment after spending over £700"* — picked up the price from the review and quoted it back. Reads as the brand agreeing "yes, you spent a lot — bad value", which is tacky.
+- **Why literal not directional:** Money-echo is genuinely a specific case, not a category. The broader generalisation ("don't echo back details the reviewer didn't ask you to acknowledge") would be too broad — we DO want to echo occasions and named staff.
+- **Risk:** Low ✅.
+
+#### Decision 93: Structural fix — split internal-commitment (universal) from contact-channel (config-gated); hopeful close (PR #142)
+
+- **Decision:** The negative template separates three jobs of a negative reply:
+  1. **Apology** (paragraph 1, always).
+  2. **Internal commitment to address** (middle, ALWAYS — phrases like "I'll share this with our team", "we'll look into what happened"). Universal, not config-gated.
+  3. **Closing** (config-gated):
+     - If a contact channel IS configured: invite the customer to use it.
+     - If NO channel is configured: close with a hopeful forward-looking statement ("we hope for the opportunity to serve you better in the future"). Do NOT invent a generic "please contact us" line.
+- **Universal closing rule:** the reply must NOT end on the apology alone. A negative close needs warmth, internal commitment, and forward intent.
+- **Why:** Previous template said "state the commitment configured" — but when the email toggle is OFF (default), no commitment is configured, and the model filled the gap by inventing a contact path ("please email us your booking details", "please feel free to reach out"). The structural fix tells the model that "internal commitment" is universal (always say it); "contact invitation" is config-gated (only if a channel is configured). And when no channel is configured, end on a forward-look — never apology alone.
+- **Risk:** Low ✅. Existing email-framing path (when configured) unchanged.
+
+#### Decision 94: Multilingual concept framing for the corporate-apology blocklist (PR #142)
+
+- **Decision:** Blocklist reframed from a literal English string list to an "exemplary-in-English, register-applies-in-any-language" pattern: "DO NOT use corporate-apology register in any language. [...] In English, examples include [list]. When writing in a non-English language, do not use the direct or close-equivalent translations of these phrases either. The English list above is exemplary, not exhaustive — avoid the *register*, not just the *literal strings*."
+- **Alternatives considered:** (a) maintain per-language blocklists for 40 languages — rejected; maintenance hell, no native-speaker curation available. (b) translate from English then ship the translated response — rejected; downgrades native-language quality (Sonnet generates natively well, mechanical translation reads foreign).
+- **Why concept-instruction:** The model has strong priors about "what's corporate-apology language in Spanish" given the English anchors. We trade deterministic English matching for probabilistic multilingual coverage. Acceptable because (a) the blocklist is a polish concern, not a compliance requirement, and (b) the English exemplars still catch English responses deterministically (most of our traffic).
+- **Same framing applied to reviewer-protection guardrails:** "These rules apply in every language the response is written in."
+- **Risk:** Low ✅.
+
+#### Decision 95: Register-aware contractions via tone-specific guidance (PR #143)
+
+- **Decision:** New `getRegisterGuidance(tone)` helper in `claude.ts` injects a tone-specific register sentence right after the tone label:
+  - `warm_casual` → "use contractions naturally (we're, we'll, ...)".
+  - `friendly_professional` → "moderate use of contractions is fine where they read naturally".
+  - `polished_formal` → "avoid contractions — 'we are', not 'we're'".
+  - `empathetic_attentive` → "lean slightly formal on apologies — fewer contractions when expressing regret".
+- **Alternatives considered:** Universal contraction ban — rejected; would force casual brands (Chicken Shop's own replies use "we're thrilled") to sound stiffer than their human-written originals. Contractions aren't a universal AI tell — they're a register issue.
+- **Why per-tone:** The gate is the brand's tone preset, not the contraction itself. The same contraction is right for one brand and wrong for another. Tying register to tone makes the model's default contraction behaviour match what the user selected.
+- **Risk:** Low ✅.
+
+#### Decision 96: Apology paragraph leans more formal than the brand's usual tone (PR #143)
+
+- **Decision:** New rule in the negative template's Register block: "Lean slightly more formal than the brand's usual tone when expressing the apology itself. Prefer 'we are deeply sorry' over 'we're deeply sorry' in the apology paragraph, even when the brand's tone usually allows contractions. Outside the apology paragraph, the brand's normal register applies."
+- **Why:** Apologies land with more weight in measured language. Even on a casual brand, the apology paragraph specifically pulls one notch more formal. This is the apology-specific layer that complements the per-tone contraction guidance from Decision 95.
+- **Risk:** Low ✅.
+
+#### Decision 97: Top-level business-agnostic CONTEXT block in the system prompt (PR #144)
+
+- **Decision:** New CONTEXT block at the very top of `buildSystemPrompt` (above IMPORTANT INSTRUCTIONS, above BRAND VOICE CONFIGURATION). Sets the conceptual frame: a customer interacted with a business (a meal, a stay, a purchase, an appointment, an experience); they left a public review; the business's reply is scoped to the interaction itself, not to surrounding context (trip, anniversary, milestone). Includes the real London-trip scope error as a documented example to avoid.
+- **Why:** User flagged a real scope-of-apology error: *"I sincerely apologize that your partner's birthday celebration and your family's first visit to London didn't meet expectations."* The business doesn't apologise for the trip to London. The model collapsed "surrounding context" and "what the apology is for" into one phrase. Adding upstream context — telling the model what it's responsible for vs. what it's not — gives it the conceptual anchor to derive correct scoping across cases we haven't enumerated.
+- **Why business-agnostic vocabulary:** We will scale to non-restaurant customers. The CONTEXT block uses "a meal, a stay, a purchase, an appointment, an experience" — covers hospitality, retail, services, SaaS support without re-coding.
+- **Risk:** Low ✅.
+
+#### Decision 98: Broadened `OCCASION_FRAGMENT` for non-hospitality businesses (PR #144)
+
+- **Decision:** Previous wording: "If the reviewer mentions a special occasion (birthday, anniversary, first visit, returning visit), acknowledge it specifically." New wording covers more business models: "birthday, anniversary, milestone" (hospitality-friendly) + "first time using the business, returning customer, long-anticipated visit, significant purchase" (non-hospitality). Plus an explicit scope-of-acknowledgement rule layered into the fragment itself: acknowledgement is about recognising what the interaction meant to the customer — it does NOT extend the scope of the apology to the broader context.
+- **Why:** "First visit / returning visit" pre-coded a visit-based business model (restaurants, hotels). Doesn't generalise to retailers, SaaS support, services. Broadening now means we don't have to refactor later when non-hospitality customers arrive.
+- **Risk:** Low ✅.
+
+#### Test coverage delta — Iteration 8
+
+| Type | Before iter 8 (suite total) | After iter 8 (suite total) | Net |
+|---|---|---|---|
+| Unit tests | 1037 | 1084 | **+47** |
+| Unit test files | 64 | 64 | 0 |
+| New unit test cases | — | — | ~52 (guardrails ×5, blocklist ×9, length, paragraph, specificity, mixed-balance, sample-scoping, regenerate scoped precedence, anti-self-criticism, money-echo, hopeful close ×4, multilingual framing, ownership variants, register guidance ×5, apology formality, context block ×4, occasion fragment ×3) |
+| Updated unit test cases | — | — | ~6 (paragraph count 2–4 → 2–3, "approximately 200 words" → "between 500 and 750 characters", negative template signature phrase, occasion fragment broadened) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run test:unit` 1084 passed, 30 skipped, 0 failed across 64 files. All 4 PRs (#141–#144) shipped to main and deployed to Preview.
+
+The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98 numbered decisions** across the prompt-engineering, schema, frontend, API, and post-processing surfaces. The default-voice response quality has been validated through the user's spreadsheet-review iteration cycle: anti-self-flagellation, specificity, scope-of-apology, length, register, and contract-channel handling all confirmed to land on real spreadsheet reviews.
+
 ---
 
 ## Decision Log
@@ -1867,12 +2074,57 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 74 | Salutation/sign-off chips REPLACE the field value on click; style-guideline/key-phrase chips APPEND to the list | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
 | 75 | `regenerateResponseSchema` in `validations.ts` left referencing legacy `RESPONSE_TONES`; route uses its own V2 inline schema | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
 | 76 | Form normalises empty `negativeReviewFramingCustom` / `replyToEmail` to `null` at the boundary (DB convention) | Brand Voice Redesign / It. 6 | May 21 | Low ✅ | ✅ Implemented |
+| 77 | Treat email-toggle ON + missing email as dormant in prompt builder (no fragment injection) — autosave model preserved | Brand Voice / Iter 7 (incomplete-config) | May 23 | Low ✅ | ✅ Implemented |
+| 78 | Defensive `stripPlaceholderSentences` in post-process — drops sentences containing `[your email]` when no email configured | Brand Voice / Iter 7 | May 23 | Low ✅ | ✅ Implemented |
+| 79 | Three-distance signal for incomplete config: inline field hint + sub-block "Incomplete" pill + dashboard banner | Brand Voice / Iter 7 | May 23 | Low ✅ | ✅ Implemented |
+| 80 | Dashboard-banner dismissal — per-user-per-warning `localStorage` with 7-day TTL | Brand Voice / Iter 7 | May 23 | Low ✅ | ✅ Implemented |
+| 81 | Dashboard-banner CTA deep-links to `#negative-review-email` sub-block anchor with post-fetch scroll-into-view | Brand Voice / Iter 7 | May 23 | Low ✅ | ✅ Implemented |
+| 82 | `/api/dashboard/stats` returns `brandVoiceWarnings` as an object (forward-compat for future incomplete-config flags) | Brand Voice / Iter 7 | May 23 | Low ✅ | ✅ Implemented |
+| 83 | Incomplete-config banner adopts compact single-row layout matching `LowCreditWarning` | Brand Voice / Iter 7 | May 23 | Low ✅ | ✅ Implemented |
+| 84 | Reviewer-protection guardrails as a separate top-tier of the prompt — universal rules for the reviewer, non-overridable | Brand Voice / Iter 8 (prompt-tuning) | May 24 | Low ✅ | ✅ Implemented |
+| 85 | Length target tightened to 500–750 chars + paragraph count tightened to 2–3 across all touchpoints | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 86 | Anti-self-flagellation blocklist of corporate-apology phrases + manager-apologising-in-person register | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 87 | Specificity is mandatory on negative reviews — name one concrete incident; "several other concerns" for the rest | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 88 | Mixed-review template gives positive + negative content roughly equal space (Kiran-case rebalance) | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 89 | Sample responses scoped to voice/register only — defaults provide quality floor; samples never drag quality below | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 90 | Regenerate instructions: scoped precedence — length/content overridable; style/security/reviewer-protection not | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 91 | Anti-self-criticism rule (directional, replaces literal "take ownership" wording) on negative template | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 92 | Ban echoing the customer's money amounts back to them | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 93 | Negative template splits internal-commitment (universal) from contact-channel (config-gated); hopeful close, never end on apology alone | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 94 | Corporate-apology blocklist reframed as exemplary-in-English + register-applies-in-any-language (covers 40 languages) | Brand Voice / Iter 8 | May 24 | Low ✅ | ✅ Implemented |
+| 95 | Register-aware contractions via per-tone `getRegisterGuidance` (warm_casual / friendly_professional / polished_formal / empathetic_attentive) | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
+| 96 | Apology paragraph leans more formal than the brand's usual tone (apologies land with more weight in measured language) | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
+| 97 | Top-level business-agnostic CONTEXT block in the system prompt — interaction vs. surrounding context scope distinction | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
+| 98 | `OCCASION_FRAGMENT` broadened to cover non-hospitality businesses; scope-of-acknowledgement rule layered in | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
 ---
 
 ## Change Log
+
+**May 25, 2026** — Brand Voice / Iteration 8 (default-voice prompt tuning)
+- Top-level business-agnostic CONTEXT block in `claude.ts:buildSystemPrompt` (Decision 97) — interaction vs. surrounding-context scope distinction with the real London-trip scope error documented as the example to avoid. PR #144.
+- `OCCASION_FRAGMENT` broadened from hospitality-coded ("first visit", "returning visit") to also cover non-hospitality models ("first time using the business", "returning customer", "long-anticipated visit", "significant purchase") + an explicit scope-of-acknowledgement rule (Decision 98). PR #144.
+- Register-aware contractions per tone via `getRegisterGuidance(tone)` (Decision 95) — `polished_formal` avoids contractions, `warm_casual` uses them naturally, `friendly_professional` is moderate, `empathetic_attentive` leans formal on apologies. PR #143.
+- Apology paragraph leans one notch more formal than the brand's usual tone, regardless of which tone preset is selected (Decision 96). PR #143.
+
+**May 24, 2026** — Brand Voice / Iteration 8 continued
+- Anti-self-criticism (directional rule) in the negative template (Decision 91) — replaces literal "take ownership" wording that the model interpreted as "list our shortcomings in public". PR #142.
+- Ban echoing the customer's money amounts back to them (Decision 92) — addresses the £700 echo in the Hema response. PR #142.
+- Structural fix on negative-review closing: internal commitment (universal) split from contact-channel (config-gated); hopeful close when no channel configured; reply must NOT end on apology alone (Decision 93). PR #142.
+- Corporate-apology blocklist extended with "I take full ownership" / "take ownership of" and reframed as exemplary-in-English + register-applies-in-any-language for 40-language coverage (Decision 94 + extension of Decision 86). PR #142.
+- Foundational 7-change prompt-tuning pass (Decisions 84–90): reviewer-protection guardrails as a separate top-tier of the prompt (84); length target 500–750 chars + paragraph count 2–3 (85); anti-self-flagellation blocklist + manager-apologising register (86); specificity mandatory on negatives (87); mixed-review rebalance for Kiran case (88); sample responses scoped to voice only — defaults provide quality floor (89); regenerate-instruction scoped precedence (90). PR #141.
+
+**May 23, 2026** — Brand Voice / Iteration 7 (incomplete-email-config feedback)
+- Treat email-toggle ON + missing `replyToEmail` as dormant in the prompt builder (Decision 77) — no framing fragment is injected; the model never receives the email-invitation instruction when the prerequisite is missing. PR #138.
+- Defensive `stripPlaceholderSentences` in `post-process.ts` (Decision 78) — belt-and-suspenders against `[your email]` placeholder leakage from sample responses / hallucinations / non-prompt paths. PR #138.
+- Three-distance feedback: inline field hint + sub-block "Incomplete" pill + dashboard banner (Decision 79), with section-level top-of-section banner removed on PR #139 review (three warnings was too many). PR #138 + #139.
+- New `BrandVoiceIncompleteBanner` dashboard component with per-user-per-warning `localStorage` dismissal and 7-day TTL (Decision 80). PR #138.
+- Dashboard banner CTA deep-links to `#negative-review-email` sub-block anchor; `BrandVoiceForm` honours URL hash after async fetch resolves (Decision 81). PR #139.
+- `/api/dashboard/stats` extended with `brandVoiceWarnings` object — forward-compatible for future incomplete-config flags (Decision 82). PR #138.
+- Compact single-row banner layout matching `LowCreditWarning` (Decision 83); description trimmed from ~30 words to ~11. PR #140.
+- All decisions Low ✅ risk; all shipped to main and Preview.
 
 **May 19, 2026** — MVP Phase 1 (Closed Beta), Iteration 3
 - PostHog event taxonomy: new `src/lib/posthog-events.ts` typed helper emitting `signup_completed_with_beta`, `signup_completed_no_beta`, `onboarding_completed`, `beta_invite_link_used`, `founder_inquiry_submitted`, `zero_balance_dialog_shown`, `credit_balance_low`, `response_generated`, `response_regenerated`, `sentiment_analyzed`. `PostHogSessionSync` identifies users on session change. Event properties categorical-only — no PII (Decision 35). PRs #104/#105.
@@ -2042,4 +2294,4 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** May 19, 2026 (MVP Phase 1 closed-beta, iteration 3: PostHog taxonomy + Sentry coverage + `locationId` NOT NULL contract migration + cleanup)
+**Last Reviewed:** May 25, 2026 (Brand Voice / Iteration 8 — default-voice prompt tuning: reviewer-protection guardrails, anti-self-flagellation blocklist, specificity, mixed-review rebalance, sample scoping, regenerate scoped precedence, anti-self-criticism rule, money-echo ban, contact-channel structural fix, multilingual concept framing, register-aware contractions, apology formality, business-agnostic CONTEXT block, broadened occasion fragment. Iteration 7 above covered the incomplete-email-config feedback work (defensive prompt + post-process + 3-distance UI warnings).)
