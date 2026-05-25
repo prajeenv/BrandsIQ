@@ -117,7 +117,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 function buildWelcomePlanSection(isBetaUser: boolean): { headerLine: string; planTitle: string; planItems: string[]; closing: string } {
   if (isBetaUser) {
     return {
-      headerLine: "You're on the BrandsIQ closed beta — your account is verified and ready.",
+      headerLine: "You're on the BrandsIQ closed beta. Your account is verified and ready.",
       planTitle: "Your beta plan includes:",
       planItems: [
         `${BETA_PLAN.credits} AI-generated responses per month`,
@@ -251,7 +251,7 @@ export async function sendFounderInquiryNotification(params: {
       from: FROM_EMAIL,
       to: FOUNDER_PUBLIC_EMAIL,
       replyTo,
-      subject: `[BrandsIQ] ${typeLabel[type]}${businessName ? ` — ${businessName}` : ""}`,
+      subject: `[BrandsIQ] ${typeLabel[type]}${businessName ? ` (${businessName})` : ""}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -277,8 +277,8 @@ ${escapeHtml(message)}
             </div>
 
             <p style="color: #999; font-size: 12px; margin-bottom: 0;">
-              Reply to this email to respond — your reply will go directly to ${submitterEmail ? `<a href="mailto:${submitterEmail}" style="color: #4f46e5;">${escapeHtml(submitterEmail)}</a>` : "the submitter"}.
-              ${submitterEmail ? "" : "<br>(No submitter email captured — check the inquiry ID in the admin dashboard for any user context.)"}
+              Reply to this email to respond. Your reply will go directly to ${submitterEmail ? `<a href="mailto:${submitterEmail}" style="color: #4f46e5;">${escapeHtml(submitterEmail)}</a>` : "the submitter"}.
+              ${submitterEmail ? "" : "<br>(No submitter email captured. Check the inquiry ID in the admin dashboard for any user context.)"}
             </p>
           </body>
         </html>

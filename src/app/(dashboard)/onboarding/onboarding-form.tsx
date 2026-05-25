@@ -364,7 +364,7 @@ export function OnboardingForm() {
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="locationName"
-                    placeholder="e.g. The Bear Bakery — Shoreditch"
+                    placeholder="e.g. The Bear Bakery, Shoreditch"
                     className="pl-10"
                     maxLength={VALIDATION_LIMITS.LOCATION_NAME_MAX}
                     disabled={isSubmitting}
@@ -450,8 +450,8 @@ export function OnboardingForm() {
                   />
                   <p className="text-xs text-muted-foreground">
                     {signupIntent === "yes" || (watch("signupChallengeText")?.trim().length ?? 0) > 0
-                      ? "Submitting this will request beta access — the founder will reach out within 24 hours."
-                      : "Optional — helps us understand who's signing up."}
+                      ? "Submitting this will request beta access. The founder will reach out within 24 hours."
+                      : "Optional. Helps us understand who's signing up."}
                   </p>
                 </div>
               </section>

@@ -71,7 +71,7 @@ const DEFAULT_BRAND_VOICE: Omit<BrandVoiceDataV2, "id"> = {
 
 // Starter chips — spec §4.2 / §4.3.
 const STYLE_GUIDELINE_STARTERS: readonly string[] = [
-  "Avoid corporate language — write the way you'd speak to a returning guest",
+  "Avoid corporate language, write the way you'd speak to a returning guest",
   "For negative reviews, take ownership before explaining",
   "Keep 5-star responses concise; allow more length for complaints",
   'Use "our" rather than "the" when referring to staff',
@@ -508,7 +508,7 @@ export function BrandVoiceForm() {
  *   - Large muted numeral on the left — gives the reader an at-a-glance
  *     "section 2 of 4" cue without forcing them to read every title.
  *   - Bold title in primary text colour.
- *   - Em-dash + muted descriptor inline on the same line — replaces the
+ *   - Colon + muted descriptor inline on the same line, replacing the
  *     stacked CardTitle + CardDescription pair so the section header
  *     reads as one rhythm instead of two paragraphs.
  *
@@ -535,7 +535,7 @@ function SectionHeader({
       <h2 className="text-lg font-semibold tracking-tight">
         {title}
         <span className="ml-2 text-sm font-normal text-muted-foreground/90">
-          — {descriptor}
+          : {descriptor}
         </span>
       </h2>
     </div>
