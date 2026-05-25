@@ -8,7 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, History, Clock, Sparkles } from "lucide-react";
+import { ChevronDown, History, Clock, Sparkles, MessageSquareText } from "lucide-react";
 
 interface Version {
   id: string;
@@ -16,6 +16,11 @@ interface Version {
   toneUsed: string;
   creditsUsed: number;
   isEdited: boolean;
+  // User-typed regenerate-instructions that produced this archived
+  // version. Null when no instruction was provided (initial generation,
+  // empty textarea, manual edit). When present, the version-history UI
+  // surfaces a collapsed "Show regenerate instructions" affordance.
+  additionalInstructions?: string | null;
   createdAt: string;
   originalCreatedAt: string;
 }
@@ -83,6 +88,12 @@ export function ResponseVersionHistory({
 }: ResponseVersionHistoryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
+  // Independent toggle for the "Show regenerate instructions" affordance.
+  // Tracked separately from the response-text "Show more" so the user
+  // can expand the instruction without expanding the response (and vice
+  // versa). Most versions have no instruction, so this state stays null
+  // most of the time.
+  const [expandedInstructionVersionId, setExpandedInstructionVersionId] = useState<string | null>(null);
 
   if (versions.length === 0) {
     return null;
@@ -168,6 +179,44 @@ export function ResponseVersionHistory({
                   {isExpanded ? "Show less" : "Show more"}
                 </Button>
               )}
+
+              {/* Regenerate-instructions reveal — only rendered when a
+                  non-empty instruction was archived with this version.
+                  Collapsed by default so it doesn't take screen space
+                  for typical regens (most have no instruction). */}
+              {version.additionalInstructions &&
+                version.additionalInstructions.trim().length > 0 && (
+                  <div className="space-y-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs gap-1"
+                      onClick={() =>
+                        setExpandedInstructionVersionId(
+                          expandedInstructionVersionId === version.id ? null : version.id,
+                        )
+                      }
+                    >
+                      <MessageSquareText className="h-3 w-3" />
+                      {expandedInstructionVersionId === version.id
+                        ? "Hide regenerate instructions"
+                        : "Show regenerate instructions"}
+                    </Button>
+                    {expandedInstructionVersionId === version.id && (
+                      <div className="rounded-md border border-slate-300 bg-card p-3 space-y-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Regenerate instructions
+                        </p>
+                        <p
+                          className="text-sm text-foreground whitespace-pre-wrap"
+                          dir={textDirection}
+                        >
+                          {version.additionalInstructions}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
             </div>
           );
         })}
