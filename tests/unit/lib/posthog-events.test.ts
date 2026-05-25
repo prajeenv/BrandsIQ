@@ -172,10 +172,28 @@ describe("posthog-events — AI usage", () => {
     });
   });
 
-  it("trackResponseRegenerated carries tone", () => {
-    trackResponseRegenerated({ tone: "empathetic" });
+  it("trackResponseRegenerated carries tone and instruction metadata (no raw text)", () => {
+    trackResponseRegenerated({
+      tone: "empathetic",
+      hadAdditionalInstructions: true,
+      instructionLength: 42,
+    });
     expect(captureMock).toHaveBeenCalledWith("response_regenerated", {
       tone: "empathetic",
+      hadAdditionalInstructions: true,
+      instructionLength: 42,
+    });
+  });
+
+  it("trackResponseRegenerated reports the false case + undefined length when no instruction was typed", () => {
+    trackResponseRegenerated({
+      tone: "friendly_professional",
+      hadAdditionalInstructions: false,
+    });
+    expect(captureMock).toHaveBeenCalledWith("response_regenerated", {
+      tone: "friendly_professional",
+      hadAdditionalInstructions: false,
+      instructionLength: undefined,
     });
   });
 

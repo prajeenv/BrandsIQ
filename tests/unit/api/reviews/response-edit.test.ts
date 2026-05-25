@@ -77,6 +77,9 @@ const existingResponse = {
   generationModel: 'claude-sonnet-4-20250514',
   isPublished: false,
   publishedAt: null,
+  // 5/26 — persisted regenerate-instruction field. Default fixture is
+  // null (initial-generation state).
+  additionalInstructions: null as string | null,
   createdAt: new Date('2026-01-15'),
   updatedAt: new Date('2026-01-15'),
 };
@@ -277,5 +280,60 @@ describe('PUT /api/reviews/[id]/response', () => {
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
     expect(mockPrisma.responseVersion.create).not.toHaveBeenCalled();
+  });
+
+  // 5/26 — manual edits are not AI-generated. The live row's
+  // `additionalInstructions` is cleared (set to null); the archive
+  // preserves whatever produced the previous state.
+  it('clears additionalInstructions on the live row when manually editing', async () => {
+    mockPrisma.review.findFirst.mockResolvedValueOnce({
+      ...reviewWithResponse,
+      response: {
+        ...existingResponse,
+        additionalInstructions: 'Be more apologetic about the dessert',
+      },
+    });
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/response', {
+      method: 'PUT',
+      body: { responseText: 'A hand-edited reply.' },
+    });
+    await PUT(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.reviewResponse.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          additionalInstructions: null,
+        }),
+      }),
+    );
+  });
+
+  it('archives the previous additionalInstructions into the new ResponseVersion row', async () => {
+    mockPrisma.review.findFirst.mockResolvedValueOnce({
+      ...reviewWithResponse,
+      response: {
+        ...existingResponse,
+        additionalInstructions: 'Be more apologetic about the dessert',
+      },
+    });
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/response', {
+      method: 'PUT',
+      body: { responseText: 'A hand-edited reply.' },
+    });
+    await PUT(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.responseVersion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          additionalInstructions: 'Be more apologetic about the dessert',
+        }),
+      }),
+    );
   });
 });
