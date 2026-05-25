@@ -250,6 +250,14 @@ model ReviewResponse {
   toneUsed        String @default("default")
   generationModel String @default("claude-sonnet-4-20250514")
 
+  // Free-text per-regeneration directive the user typed into the
+  // "Additional instructions" field on the regenerate dialog. Null on
+  // initial generations (the initial-generate route has no such field)
+  // and null after manual edits (edits aren't AI-generated, so there's
+  // no instruction associated). Capped at 500 chars at the Zod boundary.
+  // See DECISIONS.md "Persist additional instructions" entry.
+  additionalInstructions String? @db.Text
+
   isPublished Boolean   @default(false)
   publishedAt DateTime?
 
@@ -273,6 +281,11 @@ model ResponseVersion {
   toneUsed     String
   creditsUsed  Int     @default(1)
   isEdited     Boolean @default(false) // true if this version was manually edited
+
+  // Snapshot of `ReviewResponse.additionalInstructions` at the time this
+  // version was archived. Lets the version-history UI show "what did the
+  // user type to produce this older response?" alongside each row.
+  additionalInstructions String? @db.Text
 
   originalCreatedAt DateTime? // When the response was originally generated (null for legacy records)
   createdAt         DateTime  @default(now()) // When this version record was created (moved to history)
