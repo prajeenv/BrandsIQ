@@ -40,11 +40,21 @@ const mockGenerateReviewResponse = vi.hoisted(() =>
 
 const mockGetOrCreateBrandVoice = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
-    tone: 'professional',
-    formality: 3,
+    // V2 tone key — 5/25 simplification persists the brand voice tone to
+    // the DB on regenerate (the tone selector was dropped from the
+    // dialog; the brand voice tone applies as configured).
+    tone: 'friendly_professional',
     keyPhrases: [],
-    styleNotes: null,
+    styleGuidelines: [],
     sampleResponses: [],
+    acknowledgeNamedStaff: true,
+    acknowledgeOccasions: true,
+    salutationPattern: 'Dear {firstName},',
+    signoffLines: 'Warmest regards,\nThe Team',
+    negativeReviewEmailEnabled: false,
+    negativeReviewFraming: 'investigation',
+    negativeReviewFramingCustom: null,
+    replyToEmail: null,
   }),
 );
 
@@ -171,7 +181,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockAuth.mockResolvedValueOnce(null);
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly_professional' },
+      body: {},
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -182,32 +192,29 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     expect(json.error.code).toBe('UNAUTHORIZED');
   });
 
-  it('returns 400 for missing tone', async () => {
+  // 5/25 simplification — tone field was removed from the request body.
+  // Empty bodies are now valid; the brand voice tone applies as
+  // configured.
+  it('accepts an empty request body (tone field is no longer required)', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce({
+      ...existingResponse,
+      responseText: 'We appreciate your feedback!',
+      toneUsed: 'friendly_professional',
+      isEdited: false,
+      editedAt: null,
+      updatedAt: new Date(),
+    });
+
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
       body: {},
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
-    const json = await res.json();
-
-    expect(res.status).toBe(400);
-    expect(json.success).toBe(false);
-    expect(json.error.code).toBe('VALIDATION_ERROR');
-  });
-
-  it('returns 400 for invalid tone value', async () => {
-    const req = createRequest('/api/reviews/review-1/regenerate', {
-      method: 'POST',
-      body: { tone: 'aggressive' },
-    });
-
-    const res = await POST(req, routeParams({ id: 'review-1' }));
-    const json = await res.json();
-
-    expect(res.status).toBe(400);
-    expect(json.success).toBe(false);
-    expect(json.error.code).toBe('VALIDATION_ERROR');
+    expect(res.status).toBe(200);
   });
 
   it('returns 402 when insufficient credits', async () => {
@@ -215,7 +222,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(noCreditsUser);
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly_professional' },
+      body: {},
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -231,7 +238,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.review.findFirst.mockResolvedValueOnce(null);
     const req = createRequest('/api/reviews/nonexistent/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly_professional' },
+      body: {},
     });
 
     const res = await POST(req, routeParams({ id: 'nonexistent' }));
@@ -247,7 +254,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithoutResponse);
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly_professional' },
+      body: {},
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -273,7 +280,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly_professional' },
+      body: {},
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -297,7 +304,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly_professional' },
+      body: {},
     });
 
     await POST(req, routeParams({ id: 'review-1' }));
@@ -315,7 +322,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     );
   });
 
-  it('deducts 1 credit on regeneration', async () => {
+  it('deducts 1 credit on regeneration and uses brand voice tone (no per-regen override)', async () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
     mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
     mockPrisma.responseVersion.create.mockResolvedValueOnce({});
@@ -326,12 +333,14 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'empathetic_attentive' },
+      body: {},
     });
 
     await POST(req, routeParams({ id: 'review-1' }));
 
     // deductCreditsAtomic(userId, amount, action, reviewId, responseId, details)
+    // The newTone in the audit trail is the brand voice tone — there is
+    // no per-regen tone override (5/25 simplification).
     expect(mockDeductCreditsAtomic).toHaveBeenCalledWith(
       'clu1234567890abcdef',
       1,
@@ -342,7 +351,33 @@ describe('POST /api/reviews/[id]/regenerate', () => {
         reviewId: 'review-1',
         platform: 'Google',
         previousTone: 'professional',
-        newTone: 'empathetic_attentive',
+        newTone: 'friendly_professional',
+      }),
+    );
+  });
+
+  it('persists the brand voice tone as the new toneUsed (not from request body)', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce({
+      ...existingResponse,
+      responseText: 'We appreciate your feedback!',
+    });
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: {},
+    });
+
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.reviewResponse.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          // From the mocked brand voice (the only source of tone now).
+          toneUsed: 'friendly_professional',
+        }),
       }),
     );
   });
@@ -354,7 +389,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
     const req = createRequest('/api/reviews/review-1/regenerate', {
       method: 'POST',
-      body: { tone: 'friendly_professional' },
+      body: {},
     });
 
     const res = await POST(req, routeParams({ id: 'review-1' }));
@@ -366,6 +401,25 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     // Neither credit deduction nor version save should happen
     expect(mockDeductCreditsAtomic).not.toHaveBeenCalled();
     expect(mockPrisma.reviewResponse.update).not.toHaveBeenCalled();
+  });
+
+  // 5/25 simplification — the route no longer forwards `toneModifier` to
+  // generateReviewResponse. The brand voice tone applies via the
+  // `brandVoice` arg already.
+  it('does NOT forward a toneModifier to generateReviewResponse', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: {},
+    });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    const callArgs = mockGenerateReviewResponse.mock.calls[0][0];
+    expect(callArgs).not.toHaveProperty('toneModifier');
   });
 
   // ─── Iteration 1: prompt-injection audit logging (spec §10.6) ────
@@ -383,7 +437,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
-        body: { tone: 'friendly_professional' },
+        body: {},
       });
 
       await POST(req, routeParams({ id: 'review-1' }));
@@ -401,7 +455,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
-        body: { tone: 'friendly_professional' },
+        body: {},
       });
 
       await POST(req, routeParams({ id: 'review-1' }));
@@ -426,7 +480,7 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
-        body: { tone: 'friendly_professional' },
+        body: {},
       });
       await POST(req, routeParams({ id: 'review-1' }));
 
@@ -442,8 +496,8 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     });
   });
 
-  // ─── Iteration 6: additionalInstructions plumbing ─────────────────
-  describe('additionalInstructions (iter 6)', () => {
+  // ─── additionalInstructions plumbing (iter 6 / 5/25 simplified) ──
+  describe('additionalInstructions', () => {
     it('forwards additionalInstructions to generateReviewResponse as customRegenerateInstructions', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
       mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
@@ -453,15 +507,15 @@ describe('POST /api/reviews/[id]/regenerate', () => {
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
         body: {
-          tone: 'friendly_professional',
           additionalInstructions: 'Mention our loyalty program once.',
         },
       });
       await POST(req, routeParams({ id: 'review-1' }));
 
+      // 5/25 simplification — no `toneModifier` is forwarded. The brand
+      // voice tone applies via the `brandVoice` arg.
       expect(mockGenerateReviewResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          toneModifier: 'friendly_professional',
           customRegenerateInstructions: 'Mention our loyalty program once.',
         }),
       );
@@ -475,13 +529,12 @@ describe('POST /api/reviews/[id]/regenerate', () => {
 
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
-        body: { tone: 'friendly_professional' },
+        body: {},
       });
       await POST(req, routeParams({ id: 'review-1' }));
 
       expect(mockGenerateReviewResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          toneModifier: 'friendly_professional',
           customRegenerateInstructions: undefined,
         }),
       );
@@ -491,7 +544,6 @@ describe('POST /api/reviews/[id]/regenerate', () => {
       const req = createRequest('/api/reviews/review-1/regenerate', {
         method: 'POST',
         body: {
-          tone: 'friendly_professional',
           additionalInstructions: 'a'.repeat(501),
         },
       });
