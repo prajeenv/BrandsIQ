@@ -107,13 +107,14 @@ describe("BrandVoiceForm (V2)", () => {
     });
 
     // The descriptor lives inside the same h2 as the title, prefixed
-    // with an em-dash. Querying by the descriptor text confirms the
+    // with a colon. Querying by the descriptor text confirms the
     // inline-descriptor rendering pattern is in place for all four
-    // sections.
-    expect(screen.getByText(/— how we sound/)).toBeInTheDocument();
-    expect(screen.getByText(/— what good looks like for us/)).toBeInTheDocument();
-    expect(screen.getByText(/— what we acknowledge/)).toBeInTheDocument();
-    expect(screen.getByText(/— how we close/)).toBeInTheDocument();
+    // sections. (Em-dash was replaced with a colon in the UI text
+    // cleanup pass — em-dashes are banned in UI per CLAUDE.md.)
+    expect(screen.getByText(/: how we sound/)).toBeInTheDocument();
+    expect(screen.getByText(/: what good looks like for us/)).toBeInTheDocument();
+    expect(screen.getByText(/: what we acknowledge/)).toBeInTheDocument();
+    expect(screen.getByText(/: how we close/)).toBeInTheDocument();
   });
 
   it("renders the page header as a plain heading (not a Card)", async () => {

@@ -79,7 +79,7 @@ describe("PricingClient — phase_1 banner state", () => {
       ).toBeInTheDocument();
     });
     expect(
-      screen.getByText(/you're in the closed beta — thank you!/i),
+      screen.getByText(/you're in the closed beta\. thank you!/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/preview of the commercial plans we'll launch later/i),
