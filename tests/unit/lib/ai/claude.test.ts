@@ -447,6 +447,60 @@ describe('claude.ts', () => {
       return mockCreate.mock.calls[0][0].system as string;
     }
 
+    // 5/25 prompt-tuning iter-2 follow-up — top-level business-agnostic
+    // context block at the very top of the system prompt. Sets the
+    // conceptual frame (interaction vs. surrounding context) so the
+    // model scopes apologies/commitments to the business's own service
+    // rather than the broader trip/occasion. Generalises across business
+    // types (hospitality, retail, services, SaaS) so the rules don't
+    // pre-code restaurant-specific framing.
+    describe('top-level context block', () => {
+      it('introduces the interaction-vs-context distinction', async () => {
+        await generateReviewResponse(defaultParams);
+        const system = getSystem();
+        expect(system).toContain("CONTEXT — what's actually happening");
+        expect(system.toLowerCase()).toContain('interacted with a business');
+        expect(system.toLowerCase()).toContain('the business\'s reply is always scoped to the interaction itself');
+      });
+
+      it('uses business-agnostic vocabulary (meal/stay/purchase/appointment), not restaurant-coded', async () => {
+        await generateReviewResponse(defaultParams);
+        const system = getSystem();
+        // Whitelist of neutral terms in the context block.
+        expect(system.toLowerCase()).toContain('a meal, a stay, a purchase, an appointment');
+        // The context block uses neutral framing — explicitly avoids
+        // hardcoding "restaurant" as the only business type.
+        const contextBlockMatch = system.match(/CONTEXT — what's actually happening[\s\S]+?(?=IMPORTANT INSTRUCTIONS)/);
+        expect(contextBlockMatch).not.toBeNull();
+        const contextBlock = (contextBlockMatch?.[0] ?? '').toLowerCase();
+        // The context block should mention "business" generically rather
+        // than coding the business model as a restaurant. The "London"
+        // example phrase IS allowed because it's referencing a concrete
+        // observed scope error — that's documentation, not framing.
+        expect(contextBlock).toContain('business');
+      });
+
+      it('explicitly flags the London-trip scope error as the example to avoid', async () => {
+        await generateReviewResponse(defaultParams);
+        const system = getSystem();
+        // Real example from a generation: model included "first visit
+        // to London" in the apology's scope. Reproduced in the prompt
+        // so the model has a concrete example of the mistake it should
+        // NOT make.
+        expect(system).toContain("first visit to London");
+        expect(system.toLowerCase()).toContain('the business does not apologise for the trip');
+      });
+
+      it('places the context block ABOVE the IMPORTANT INSTRUCTIONS section', async () => {
+        await generateReviewResponse(defaultParams);
+        const system = getSystem();
+        const contextIdx = system.indexOf("CONTEXT — what's actually happening");
+        const instructionsIdx = system.indexOf('IMPORTANT INSTRUCTIONS');
+        expect(contextIdx).toBeGreaterThanOrEqual(0);
+        expect(instructionsIdx).toBeGreaterThan(contextIdx);
+      });
+    });
+
     describe('style guidelines (the headline JSON-render bug fix)', () => {
       it('renders styleGuidelines as a bullet list, NOT as JSON', async () => {
         await generateReviewResponse({

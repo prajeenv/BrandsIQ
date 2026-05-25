@@ -157,7 +157,7 @@ export const NAMED_STAFF_FRAGMENT =
   "If the reviewer mentions a staff member by name, thank them specifically and note that you'll share the feedback with that person.";
 
 export const OCCASION_FRAGMENT =
-  "If the reviewer mentions a special occasion (birthday, anniversary, first visit, returning visit), acknowledge it specifically in the response.";
+  "If the reviewer mentions a special occasion (birthday, anniversary, milestone) or a meaningful reason for the interaction (first time using the business, a returning customer, a long-anticipated visit, a significant purchase), acknowledge it specifically. Acknowledgement is about recognising what the interaction meant to the customer — it does NOT extend the scope of any apology, commitment, or forward-look to the broader context (the trip, the milestone year, the occasion as a whole). Those stay scoped to the interaction with the business.";
 
 export type NegativeReviewFraming =
   | "management_contact"
