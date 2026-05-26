@@ -89,4 +89,89 @@ describe("ResponseVersionHistory", () => {
 
     expect(screen.getByText("Show more")).toBeInTheDocument();
   });
+
+  // 5/26 — regenerate-instructions reveal. The button is collapsed by
+  // default and only renders when the archived version carries a non-
+  // empty instruction.
+  describe("regenerate-instructions reveal", () => {
+    it("does NOT render the 'Show regenerate instructions' button when no instruction was archived", () => {
+      // mockVersions both have `additionalInstructions` undefined / unset.
+      render(<ResponseVersionHistory versions={mockVersions} />);
+      fireEvent.click(screen.getByText("Version History (2)"));
+
+      expect(
+        screen.queryByText(/show regenerate instructions/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does NOT render the button when additionalInstructions is empty/whitespace", () => {
+      const versions = [{ ...mockVersions[0], additionalInstructions: "   " }];
+      render(<ResponseVersionHistory versions={versions} />);
+      fireEvent.click(screen.getByText("Version History (1)"));
+
+      expect(
+        screen.queryByText(/show regenerate instructions/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the collapsed button when a non-empty instruction was archived", () => {
+      const versions = [
+        {
+          ...mockVersions[0],
+          additionalInstructions: "Be more apologetic about the dessert",
+        },
+      ];
+      render(<ResponseVersionHistory versions={versions} />);
+      fireEvent.click(screen.getByText("Version History (1)"));
+
+      // Button is visible, panel is collapsed (the instruction text is
+      // NOT rendered yet).
+      expect(
+        screen.getByText(/show regenerate instructions/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Be more apologetic about the dessert"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("expands to reveal the instruction text on click; toggles back to hidden", () => {
+      const versions = [
+        {
+          ...mockVersions[0],
+          additionalInstructions: "Be more apologetic about the dessert",
+        },
+      ];
+      render(<ResponseVersionHistory versions={versions} />);
+      fireEvent.click(screen.getByText("Version History (1)"));
+
+      // Reveal
+      fireEvent.click(screen.getByText(/show regenerate instructions/i));
+      expect(
+        screen.getByText("Be more apologetic about the dessert"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/hide regenerate instructions/i),
+      ).toBeInTheDocument();
+
+      // Hide again
+      fireEvent.click(screen.getByText(/hide regenerate instructions/i));
+      expect(
+        screen.queryByText("Be more apologetic about the dessert"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the section label 'Regenerate instructions' when expanded", () => {
+      const versions = [
+        {
+          ...mockVersions[0],
+          additionalInstructions: "Mention loyalty",
+        },
+      ];
+      render(<ResponseVersionHistory versions={versions} />);
+      fireEvent.click(screen.getByText("Version History (1)"));
+      fireEvent.click(screen.getByText(/show regenerate instructions/i));
+
+      expect(screen.getByText("Regenerate instructions")).toBeInTheDocument();
+    });
+  });
 });

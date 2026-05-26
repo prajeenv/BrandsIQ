@@ -207,11 +207,30 @@ export function trackResponseGenerated(props: { tone: string }): void {
 }
 
 /**
- * Fires when the user regenerates an existing response with a different
- * tone modifier.
+ * Fires when the user regenerates an existing response.
+ *
+ * Properties:
+ *  - `tone` — the brand voice tone applied (5/25: tone selector dropped
+ *    from the dialog, so this is always the brand voice tone).
+ *  - `hadAdditionalInstructions` — boolean. Did the user type anything
+ *    into the regenerate dialog's textarea? Tells us how often the
+ *    feature is used at all.
+ *  - `instructionLength` — character length of the trimmed instruction,
+ *    or undefined when none was provided. Lets us see the distribution
+ *    of how much users type (one-liner instruction vs. paragraph). Raw
+ *    text is NOT sent — PostHog stays free of free-form PII; the raw
+ *    text is queryable in Postgres for ad-hoc analysis.
  */
-export function trackResponseRegenerated(props: { tone: string }): void {
-  capture("response_regenerated", { tone: props.tone });
+export function trackResponseRegenerated(props: {
+  tone: string;
+  hadAdditionalInstructions: boolean;
+  instructionLength?: number;
+}): void {
+  capture("response_regenerated", {
+    tone: props.tone,
+    hadAdditionalInstructions: props.hadAdditionalInstructions,
+    instructionLength: props.instructionLength,
+  });
 }
 
 /**

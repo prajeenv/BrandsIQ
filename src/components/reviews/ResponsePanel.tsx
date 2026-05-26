@@ -203,12 +203,24 @@ export function ResponsePanel({
         // per-regeneration tone override (5/25 simplification — the brand
         // voice tone applies as configured). Report the tone the server
         // persisted, which is the brand voice tone for default regens.
+        //
+        // 5/26: also report whether the user typed an instruction and
+        // how long it was. Raw text is NOT sent to PostHog — it lives in
+        // Postgres on ResponseVersion for ad-hoc analysis. PostHog event
+        // properties stay free of free-form PII.
+        const trimmedInstructions = payload.additionalInstructions?.trim();
+        const hadAdditionalInstructions =
+          !!trimmedInstructions && trimmedInstructions.length > 0;
         trackResponseRegenerated({
           tone: result.data.response.toneUsed as
             | "warm_casual"
             | "friendly_professional"
             | "polished_formal"
             | "empathetic_attentive",
+          hadAdditionalInstructions,
+          instructionLength: hadAdditionalInstructions
+            ? trimmedInstructions.length
+            : undefined,
         });
         refreshCredits();
         onResponseUpdate?.(); // This will fetch fresh data including the new version

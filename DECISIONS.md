@@ -2096,12 +2096,37 @@ The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98
 | 96 | Apology paragraph leans more formal than the brand's usual tone (apologies land with more weight in measured language) | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
 | 97 | Top-level business-agnostic CONTEXT block in the system prompt — interaction vs. surrounding context scope distinction | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
 | 98 | `OCCASION_FRAGMENT` broadened to cover non-hospitality businesses; scope-of-acknowledgement rule layered in | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
+| 99 | Persist `additionalInstructions` on `ReviewResponse` + `ResponseVersion`; surface collapsed in version history; PostHog telemetry sends metadata only (no raw text) | Brand Voice / regen-instructions persistence | May 26 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
+
+### Persist additional instructions (regenerate dialog free-text)
+
+**Context.** The "Additional instructions" textarea on the regenerate dialog (iter-6 / spec §8.2) was single-use and not persisted. Users had no way to recall what they had asked the AI to do in a previous regeneration, and we had no way to learn what overrides users were typing.
+
+#### Decision 99: Persist `additionalInstructions` on `ReviewResponse` + `ResponseVersion`; surface collapsed in version history; PostHog telemetry sends metadata only.
+
+- **Decision (storage):** Add `additionalInstructions String? @db.Text` to BOTH `ReviewResponse` and `ResponseVersion`. The live row carries the instruction that produced the *current* state; the archive snapshots whatever produced each *previous* state. On regenerate, the prior `ReviewResponse.additionalInstructions` is copied into the new `ResponseVersion` row alongside `responseText`, `toneUsed`, etc.; the new request's `additionalInstructions` lands on the live row. On manual edits, the live row's `additionalInstructions` is cleared (edits aren't AI-generated, so no instruction is associated); the archive preserves whatever produced the pre-edit state.
+- **Decision (UI):** Render a collapsed "Show regenerate instructions" button per `ResponseVersion` row only when the field is non-empty. State tracked independently from the existing response-text "Show more" toggle. When expanded, the instruction appears in a small bordered panel with a "Regenerate instructions" eyebrow label. Most regens have no instruction, so most rows render no button.
+- **Decision (telemetry):** Extend `trackResponseRegenerated` with `hadAdditionalInstructions: boolean` + `instructionLength?: number`. Raw text is NOT sent to PostHog — it lives in Postgres for ad-hoc analysis via SQL + LLM tagging scripts. Keeps PostHog free of free-form PII.
+- **Alternatives considered:**
+  - *Store on `ResponseVersion` only* — wrong, the live row would lose its instruction immediately after the regen completed. The live row needs the field too.
+  - *Fire-and-forget to PostHog without DB storage* — loses the ability to recategorize later. PostHog requires categorization at write-time; the DB lets us re-explore the raw text whenever new questions come up.
+  - *Persist initial-generation instructions too* — N/A today. The initial-generate route has no instruction field. Leaving the column nullable means future work (e.g., a "polish my draft" feature on initial generate, flagged below) can populate it naturally without a schema change.
+- **GDPR posture:** `additionalInstructions` cascades with `ReviewResponse` → `Review` → `User` deletes. No special audit semantics. Same risk profile as the response text itself.
+- **Future consideration:** the user flagged interest in a draft-polishing feature on the *initial* generate flow — user pastes a draft, AI polishes it. Today's `customRegenerateInstructions` slot works as a hack but isn't designed for this (the prompt framing is "additional instructions", not "user-supplied draft to refine"). A proper implementation would add a parallel slot in the prompt builder with its own framing and override semantics. Out of scope for this PR; captured for future evidence-driven decision.
+- **Risk:** Low ✅. Additive migration. No existing data affected (existing rows have null). Cascade deletes preserved.
 
 ---
 
 ## Change Log
+
+**May 26, 2026** — Brand Voice / persist additional instructions
+- New nullable column `additionalInstructions String? @db.Text` on both `ReviewResponse` (live row) and `ResponseVersion` (archive). Migration `20260526120000_add_response_additional_instructions` is additive; no data backfill (Decision 99).
+- Regenerate route writes the new instruction to the live `ReviewResponse` row and archives the previous instruction into the new `ResponseVersion` row. Whitespace-only input normalised to null.
+- Manual edit route clears the live row's `additionalInstructions` (edits aren't AI-gen) and archives the previous value into the new `ResponseVersion`.
+- `ResponseVersionHistory.tsx` renders a collapsed "Show regenerate instructions" button per version when the field is non-empty. Expanded panel shows a "Regenerate instructions" eyebrow + the raw text. Independent toggle from the response-text "Show more".
+- `trackResponseRegenerated` extended with `hadAdditionalInstructions: boolean` + `instructionLength?: number`. Raw text NOT sent — it lives in Postgres for ad-hoc analysis.
 
 **May 25, 2026** — Brand Voice / Iteration 8 (default-voice prompt tuning)
 - Top-level business-agnostic CONTEXT block in `claude.ts:buildSystemPrompt` (Decision 97) — interaction vs. surrounding-context scope distinction with the real London-trip scope error documented as the example to avoid. PR #144.
@@ -2294,4 +2319,4 @@ The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** May 25, 2026 (Brand Voice / Iteration 8 — default-voice prompt tuning: reviewer-protection guardrails, anti-self-flagellation blocklist, specificity, mixed-review rebalance, sample scoping, regenerate scoped precedence, anti-self-criticism rule, money-echo ban, contact-channel structural fix, multilingual concept framing, register-aware contractions, apology formality, business-agnostic CONTEXT block, broadened occasion fragment. Iteration 7 above covered the incomplete-email-config feedback work (defensive prompt + post-process + 3-distance UI warnings).)
+**Last Reviewed:** May 26, 2026 (regen-instructions persistence: schema columns + UI reveal + PostHog metadata-only telemetry. Earlier on May 25 — Brand Voice / Iteration 8 — default-voice prompt tuning: reviewer-protection guardrails, anti-self-flagellation blocklist, specificity, mixed-review rebalance, sample scoping, regenerate scoped precedence, anti-self-criticism rule, money-echo ban, contact-channel structural fix, multilingual concept framing, register-aware contractions, apology formality, business-agnostic CONTEXT block, broadened occasion fragment. Iteration 7 above covered the incomplete-email-config feedback work (defensive prompt + post-process + 3-distance UI warnings).)

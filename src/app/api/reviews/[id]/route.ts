@@ -92,6 +92,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                   toneUsed: v.toneUsed,
                   creditsUsed: v.creditsUsed,
                   isEdited: v.isEdited,
+                  // The user-typed regenerate instruction that produced
+                  // this archived version (null for initial-generation
+                  // archives and for archives created when no instruction
+                  // was provided).
+                  additionalInstructions: v.additionalInstructions,
                   createdAt: v.createdAt.toISOString(),
                   originalCreatedAt: v.originalCreatedAt?.toISOString() ?? v.createdAt.toISOString(),
                 })),

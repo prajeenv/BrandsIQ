@@ -138,6 +138,9 @@ const existingResponse = {
   generationModel: 'claude-sonnet-4-20250514',
   isPublished: false,
   publishedAt: null,
+  // 5/26 — persisted regenerate-instruction field. The default fixture
+  // represents an initial-generation response (no instruction).
+  additionalInstructions: null as string | null,
   createdAt: new Date('2026-01-15'),
   updatedAt: new Date('2026-01-15'),
 };
@@ -317,6 +320,106 @@ describe('POST /api/reviews/[id]/regenerate', () => {
           toneUsed: 'professional',
           creditsUsed: 1,
           isEdited: false,
+          // 5/26 — the snapshot must carry the additionalInstructions
+          // value that was on the PREVIOUS state of the response. Our
+          // default fixture has null (initial generation), so the
+          // archive also gets null.
+          additionalInstructions: null,
+        }),
+      }),
+    );
+  });
+
+  // 5/26 — when the previous response was itself a regen (had an
+  // instruction), that instruction must be archived to the new version.
+  it('archives the previous additionalInstructions value into the new version row', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce({
+      ...reviewWithResponse,
+      response: {
+        ...existingResponse,
+        additionalInstructions: 'Be more apologetic about the dessert',
+      },
+    });
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: { additionalInstructions: 'Mention the loyalty program' },
+    });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.responseVersion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          // The archive snapshots the OLD instruction (what produced
+          // the response we're replacing).
+          additionalInstructions: 'Be more apologetic about the dessert',
+        }),
+      }),
+    );
+  });
+
+  // 5/26 — the LIVE row (ReviewResponse) gets the NEW instruction.
+  it('persists the new additionalInstructions on the live ReviewResponse row', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: { additionalInstructions: 'Mention the loyalty program' },
+    });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.reviewResponse.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          additionalInstructions: 'Mention the loyalty program',
+        }),
+      }),
+    );
+  });
+
+  it('writes null to the live row when no additionalInstructions was provided', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: {},
+    });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.reviewResponse.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          additionalInstructions: null,
+        }),
+      }),
+    );
+  });
+
+  it('normalises whitespace-only additionalInstructions to null on the live row', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: { additionalInstructions: '   \n\n   ' },
+    });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.reviewResponse.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          additionalInstructions: null,
         }),
       }),
     );
