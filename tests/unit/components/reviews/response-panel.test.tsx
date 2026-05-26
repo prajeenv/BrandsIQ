@@ -212,6 +212,80 @@ describe("ResponsePanel", () => {
     });
   });
 
+  // 5/26 — regenerate-instructions reveal on the LIVE response. The
+  // button is collapsed by default and only renders when the live row
+  // carries a non-empty `additionalInstructions`. Mirrors the per-
+  // version pattern in ResponseVersionHistory.
+  describe("live-response regenerate-instructions reveal", () => {
+    it("does NOT render the button when the live response has no instruction", () => {
+      // mockResponse has `additionalInstructions` undefined.
+      render(<ResponsePanel reviewId="rev_1" response={mockResponse} />);
+
+      expect(
+        screen.queryByText(/show regenerate instructions/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does NOT render the button when additionalInstructions is empty/whitespace", () => {
+      const withWhitespace = { ...mockResponse, additionalInstructions: "   " };
+      render(<ResponsePanel reviewId="rev_1" response={withWhitespace} />);
+
+      expect(
+        screen.queryByText(/show regenerate instructions/i),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the collapsed button when the live response carries a non-empty instruction", () => {
+      const withInstruction = {
+        ...mockResponse,
+        additionalInstructions: "Mention the loyalty program",
+      };
+      render(<ResponsePanel reviewId="rev_1" response={withInstruction} />);
+
+      // Button visible, panel collapsed (instruction text NOT in the DOM yet).
+      expect(
+        screen.getByText(/show regenerate instructions/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Mention the loyalty program"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("expands to reveal the instruction text on click; toggles back to hidden", () => {
+      const withInstruction = {
+        ...mockResponse,
+        additionalInstructions: "Be more apologetic about the cold food",
+      };
+      render(<ResponsePanel reviewId="rev_1" response={withInstruction} />);
+
+      // Reveal
+      fireEvent.click(screen.getByText(/show regenerate instructions/i));
+      expect(
+        screen.getByText("Be more apologetic about the cold food"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/hide regenerate instructions/i),
+      ).toBeInTheDocument();
+
+      // Hide again
+      fireEvent.click(screen.getByText(/hide regenerate instructions/i));
+      expect(
+        screen.queryByText("Be more apologetic about the cold food"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the section label 'Regenerate instructions' when expanded", () => {
+      const withInstruction = {
+        ...mockResponse,
+        additionalInstructions: "Mention loyalty",
+      };
+      render(<ResponsePanel reviewId="rev_1" response={withInstruction} />);
+      fireEvent.click(screen.getByText(/show regenerate instructions/i));
+
+      expect(screen.getByText("Regenerate instructions")).toBeInTheDocument();
+    });
+  });
+
   describe("version history", () => {
     it("does not render version history when versions is empty", () => {
       render(<ResponsePanel reviewId="rev_1" response={mockResponse} />);

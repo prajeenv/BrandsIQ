@@ -336,4 +336,37 @@ describe('PUT /api/reviews/[id]/response', () => {
       }),
     );
   });
+
+  // 5/26 — manual edits clear additionalInstructions on the live row.
+  // The route response must surface that null so the client can collapse
+  // its live-response "Show regenerate instructions" reveal in one round
+  // trip instead of waiting for a follow-up GET.
+  it('returns null additionalInstructions in the route response payload after a manual edit', async () => {
+    mockPrisma.review.findFirst.mockResolvedValueOnce({
+      ...reviewWithResponse,
+      response: {
+        ...existingResponse,
+        additionalInstructions: 'Be more apologetic about the dessert',
+      },
+    });
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce({
+      ...existingResponse,
+      responseText: 'A hand-edited reply.',
+      isEdited: true,
+      editedAt: new Date(),
+      creditsUsed: 0,
+      additionalInstructions: null,
+    });
+
+    const req = createRequest('/api/reviews/review-1/response', {
+      method: 'PUT',
+      body: { responseText: 'A hand-edited reply.' },
+    });
+    const res = await PUT(req, routeParams({ id: 'review-1' }));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.response.additionalInstructions).toBeNull();
+  });
 });
