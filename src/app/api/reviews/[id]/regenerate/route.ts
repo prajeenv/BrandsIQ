@@ -306,6 +306,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           generationModel: updatedResponse.generationModel,
           isEdited: updatedResponse.isEdited,
           isPublished: updatedResponse.isPublished,
+          // 5/26 — surface the persisted instruction so the client can
+          // refresh the live-response reveal without a follow-up GET.
+          additionalInstructions: updatedResponse.additionalInstructions,
           createdAt: updatedResponse.createdAt.toISOString(),
           updatedAt: updatedResponse.updatedAt.toISOString(),
         },

@@ -81,6 +81,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 generationModel: review.response.generationModel,
                 isPublished: review.response.isPublished,
                 publishedAt: review.response.publishedAt?.toISOString() || null,
+                // 5/26 — user-typed regenerate instruction that produced
+                // the CURRENT live response. Null for initial-generation
+                // state, null after a manual edit (edits aren't AI-gen),
+                // null for regens where the textarea was empty.
+                additionalInstructions: review.response.additionalInstructions,
                 createdAt: review.response.createdAt.toISOString(),
                 updatedAt: review.response.updatedAt.toISOString(),
                 totalCreditsUsed:

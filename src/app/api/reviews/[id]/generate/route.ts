@@ -274,6 +274,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           generationModel: result.generationModel,
           isEdited: result.isEdited,
           isPublished: result.isPublished,
+          // 5/26 — initial generation has no per-regeneration instruction,
+          // but the field is included for response-shape consistency with
+          // the regenerate/edit routes. Always null here.
+          additionalInstructions: result.additionalInstructions,
           createdAt: result.createdAt.toISOString(),
         },
         creditsRemaining: creditResult.user?.credits ?? user.credits - CREDIT_COSTS.GENERATE_RESPONSE,
