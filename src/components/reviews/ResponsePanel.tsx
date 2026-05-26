@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
   Coins,
+  MessageSquareText,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ResponseEditor } from "./ResponseEditor";
@@ -49,6 +50,12 @@ interface Response {
   generationModel: string;
   isPublished: boolean;
   publishedAt: string | null;
+  // User-typed regenerate-instruction that produced the CURRENT live
+  // response. Null for initial-generation state, null after a manual
+  // edit (edits aren't AI-gen), and null for regens where the textarea
+  // was empty. When non-empty, the "Show regenerate instructions"
+  // reveal appears beneath the response text.
+  additionalInstructions?: string | null;
   createdAt: string;
   updatedAt: string;
   totalCreditsUsed: number;
@@ -119,6 +126,11 @@ export function ResponsePanel({
   const [isLoading, setIsLoading] = useState(false);
   const [localResponse, setLocalResponse] = useState<Response | null>(response);
   const [isResponseExpanded, setIsResponseExpanded] = useState(false);
+  // 5/26 — independent toggle for the live response's "Show regenerate
+  // instructions" affordance. Collapsed by default; most responses
+  // (initial generations, manual edits, no-instruction regens) have a
+  // null instruction and never render the button at all.
+  const [isInstructionExpanded, setIsInstructionExpanded] = useState(false);
   const [showOutOfCreditsDialog, setShowOutOfCreditsDialog] = useState(false);
   const [outOfCreditsActionType, setOutOfCreditsActionType] = useState<"generate" | "regenerate">("generate");
 
@@ -156,9 +168,17 @@ export function ResponsePanel({
                 responseText: result.data.response.responseText,
                 isEdited: result.data.response.isEdited,
                 editedAt: result.data.response.editedAt,
+                // Manual edits clear `additionalInstructions` on the
+                // server (the live row has no AI-gen instruction
+                // associated with hand-edited text). Mirror that in
+                // local state and collapse the reveal so a stale
+                // expanded panel doesn't linger.
+                additionalInstructions:
+                  result.data.response.additionalInstructions ?? null,
               }
             : null
         );
+        setIsInstructionExpanded(false);
         setIsEditing(false);
         toast.success("Response updated!");
         onResponseUpdate?.();
@@ -195,9 +215,17 @@ export function ResponsePanel({
                 toneUsed: result.data.response.toneUsed,
                 isEdited: false,
                 editedAt: null,
+                // Carry the server-persisted instruction onto the live
+                // row so the reveal renders for the new state. `null`
+                // when the textarea was empty for this regen.
+                additionalInstructions:
+                  result.data.response.additionalInstructions ?? null,
               }
             : null
         );
+        // Collapse the reveal by default for the new instruction. The
+        // user can expand it again from the button below the response.
+        setIsInstructionExpanded(false);
         toast.success(`Response regenerated!`);
         // PostHog: response_regenerated. The dialog no longer carries a
         // per-regeneration tone override (5/25 simplification — the brand
@@ -292,6 +320,11 @@ export function ResponsePanel({
           generationModel: result.data.response.generationModel,
           isPublished: false,
           publishedAt: null,
+          // Initial generation never carries an instruction — the
+          // dialog/textarea is a regenerate-only knob — so this is
+          // effectively always null here. Kept for shape consistency.
+          additionalInstructions:
+            result.data.response.additionalInstructions ?? null,
           createdAt: result.data.response.createdAt,
           updatedAt: result.data.response.createdAt,
           totalCreditsUsed: result.data.response.creditsUsed,
@@ -472,6 +505,43 @@ export function ResponsePanel({
                 </Button>
               )}
             </div>
+
+            {/* Regenerate-instructions reveal for the LIVE response.
+                Mirrors the per-version pattern in ResponseVersionHistory:
+                only renders when a non-empty instruction is associated
+                with the current state. Collapsed by default so a typical
+                regen (no instruction) doesn't add visual noise. */}
+            {localResponse.additionalInstructions &&
+              localResponse.additionalInstructions.trim().length > 0 && (
+                <div className="space-y-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1"
+                    onClick={() =>
+                      setIsInstructionExpanded((prev) => !prev)
+                    }
+                  >
+                    <MessageSquareText className="h-3 w-3" />
+                    {isInstructionExpanded
+                      ? "Hide regenerate instructions"
+                      : "Show regenerate instructions"}
+                  </Button>
+                  {isInstructionExpanded && (
+                    <div className="rounded-md border border-slate-300 bg-card p-3 space-y-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Regenerate instructions
+                      </p>
+                      <p
+                        className="text-sm text-foreground whitespace-pre-wrap"
+                        dir={textDirection}
+                      >
+                        {localResponse.additionalInstructions}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-2">

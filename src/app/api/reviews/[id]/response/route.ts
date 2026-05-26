@@ -143,6 +143,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           editedAt: updatedResponse.editedAt?.toISOString() || null,
           toneUsed: updatedResponse.toneUsed,
           isPublished: updatedResponse.isPublished,
+          // 5/26 — surface the (now-null) instruction so the client can
+          // collapse the live-response reveal after a manual edit.
+          additionalInstructions: updatedResponse.additionalInstructions,
           createdAt: updatedResponse.createdAt.toISOString(),
           updatedAt: updatedResponse.updatedAt.toISOString(),
         },

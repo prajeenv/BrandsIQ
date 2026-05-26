@@ -383,6 +383,32 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     );
   });
 
+  // 5/26 — the route response payload must surface the persisted
+  // additionalInstructions so the ResponsePanel can refresh its live-
+  // response "Show regenerate instructions" reveal without a follow-up
+  // GET.
+  it('returns the persisted additionalInstructions in the route response payload', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce({
+      ...existingResponse,
+      additionalInstructions: 'Mention the loyalty program',
+    });
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: { additionalInstructions: 'Mention the loyalty program' },
+    });
+    const res = await POST(req, routeParams({ id: 'review-1' }));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.response.additionalInstructions).toBe(
+      'Mention the loyalty program',
+    );
+  });
+
   it('writes null to the live row when no additionalInstructions was provided', async () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
     mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);

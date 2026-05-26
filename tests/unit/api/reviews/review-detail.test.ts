@@ -90,6 +90,10 @@ const reviewWithResponse = {
     generationModel: 'claude-sonnet-4-20250514',
     isPublished: false,
     publishedAt: null,
+    // 5/26 — persisted regenerate-instruction on the LIVE response.
+    // Default fixture is null (initial-generation / manual-edit / no-
+    // instruction-regen state).
+    additionalInstructions: null as string | null,
     createdAt: new Date('2026-01-15'),
     updatedAt: new Date('2026-01-15'),
     versions: [],
@@ -153,6 +157,41 @@ describe('GET /api/reviews/[id]', () => {
     expect(json.data.review.response).toBeDefined();
     expect(json.data.review.response.responseText).toBe('Thank you for your kind words!');
     expect(json.data.review.response.versions).toEqual([]);
+  });
+
+  // 5/26 — the live response must surface `additionalInstructions` so
+  // the ResponsePanel can render its "Show regenerate instructions"
+  // reveal without a follow-up fetch. Previously this field was only
+  // exposed on archived versions, not on the live row.
+  it('surfaces additionalInstructions on the live response object when present', async () => {
+    mockPrisma.review.findFirst.mockResolvedValueOnce({
+      ...reviewWithResponse,
+      response: {
+        ...reviewWithResponse.response,
+        additionalInstructions: 'Be more apologetic about the dessert',
+      },
+    });
+    const req = createRequest('/api/reviews/review-1');
+
+    const res = await GET(req, routeParams({ id: 'review-1' }));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.review.response.additionalInstructions).toBe(
+      'Be more apologetic about the dessert',
+    );
+  });
+
+  it('returns null additionalInstructions on the live response in the no-instruction state', async () => {
+    // Default fixture has additionalInstructions: null.
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithResponse);
+    const req = createRequest('/api/reviews/review-1');
+
+    const res = await GET(req, routeParams({ id: 'review-1' }));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.review.response.additionalInstructions).toBeNull();
   });
 });
 
