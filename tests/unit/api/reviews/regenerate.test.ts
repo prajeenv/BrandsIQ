@@ -330,6 +330,53 @@ describe('POST /api/reviews/[id]/regenerate', () => {
     );
   });
 
+  // 5/26 — the archive must carry the response's `updatedAt` as the
+  // `originalCreatedAt`, NOT its `createdAt`. The live row's `createdAt`
+  // is fixed at initial generation and never moves; `updatedAt` bumps
+  // on every regen/edit, so it's the correct "when did this archived
+  // state originate" timestamp. Without this, the version-history UI
+  // shows the initial-generation time on every archive after the first
+  // regen, or worse, shows "just now" when the archive row itself
+  // was created.
+  it('archives the response.updatedAt as originalCreatedAt (not createdAt)', async () => {
+    const createdAt = new Date('2026-01-15T10:00:00Z');
+    const updatedAt = new Date('2026-01-15T10:05:00Z'); // 5 minutes later
+
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce({
+      ...reviewWithResponse,
+      response: {
+        ...existingResponse,
+        createdAt,
+        updatedAt,
+      },
+    });
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce(existingResponse);
+
+    const req = createRequest('/api/reviews/review-1/regenerate', {
+      method: 'POST',
+      body: {},
+    });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.responseVersion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          originalCreatedAt: updatedAt,
+        }),
+      }),
+    );
+    // Defensive: confirm we did NOT use createdAt.
+    expect(mockPrisma.responseVersion.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          originalCreatedAt: createdAt,
+        }),
+      }),
+    );
+  });
+
   // 5/26 — when the previous response was itself a regen (had an
   // instruction), that instruction must be archived to the new version.
   it('archives the previous additionalInstructions value into the new version row', async () => {

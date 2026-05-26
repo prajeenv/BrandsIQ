@@ -111,6 +111,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             creditsUsed: review.response!.creditsUsed,
             isEdited: review.response!.isEdited,
             additionalInstructions: review.response!.additionalInstructions,
+            // Preserve the timestamp of the response state we're about
+            // to overwrite, so the version-history UI shows when the
+            // archived text was actually produced (last generated or
+            // edited) instead of "just now" when this archive row was
+            // created. We use `updatedAt` here, not `createdAt`,
+            // because the live row's `createdAt` is fixed to the time
+            // of initial generation and never moves — `updatedAt`
+            // bumps on every regen/edit (Prisma `@updatedAt`), so it's
+            // the correct "when did this state originate" timestamp
+            // for any non-first archive. Matches the regenerate
+            // route's archive contract.
+            originalCreatedAt: review.response!.updatedAt,
           },
         });
       }

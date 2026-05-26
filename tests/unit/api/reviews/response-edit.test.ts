@@ -311,6 +311,57 @@ describe('PUT /api/reviews/[id]/response', () => {
     );
   });
 
+  // 5/26 — same archive timestamp contract as the regenerate route.
+  // The archive must carry the response's `updatedAt` as
+  // `originalCreatedAt`, NOT its fixed `createdAt`, so the version-
+  // history UI shows when the archived state was actually produced
+  // (last regen/edit) rather than the initial-generation time.
+  // Reported symptom: latest live response "5 minutes ago" but the
+  // archive row that just moved into history showing "just now".
+  it('archives the response.updatedAt as originalCreatedAt (not createdAt)', async () => {
+    const createdAt = new Date('2026-01-15T10:00:00Z');
+    const updatedAt = new Date('2026-01-15T10:05:00Z');
+
+    mockPrisma.review.findFirst.mockResolvedValueOnce({
+      ...reviewWithResponse,
+      response: {
+        ...existingResponse,
+        createdAt,
+        updatedAt,
+      },
+    });
+    mockPrisma.responseVersion.create.mockResolvedValueOnce({});
+    mockPrisma.reviewResponse.update.mockResolvedValueOnce({
+      ...existingResponse,
+      responseText: 'A hand-edited reply.',
+      isEdited: true,
+      editedAt: new Date(),
+      creditsUsed: 0,
+    });
+
+    const req = createRequest('/api/reviews/review-1/response', {
+      method: 'PUT',
+      body: { responseText: 'A hand-edited reply.' },
+    });
+    await PUT(req, routeParams({ id: 'review-1' }));
+
+    expect(mockPrisma.responseVersion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          originalCreatedAt: updatedAt,
+        }),
+      }),
+    );
+    // Defensive: confirm we did NOT use the stale createdAt.
+    expect(mockPrisma.responseVersion.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          originalCreatedAt: createdAt,
+        }),
+      }),
+    );
+  });
+
   it('archives the previous additionalInstructions into the new ResponseVersion row', async () => {
     mockPrisma.review.findFirst.mockResolvedValueOnce({
       ...reviewWithResponse,
