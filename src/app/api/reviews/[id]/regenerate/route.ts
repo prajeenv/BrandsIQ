@@ -267,7 +267,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           creditsUsed: review.response!.creditsUsed, // Credits used for the old generation
           isEdited: review.response!.isEdited, // Preserve edited status for history
           additionalInstructions: review.response!.additionalInstructions, // Snapshot the instruction that produced the OLD state
-          originalCreatedAt: review.response!.createdAt, // Preserve original creation timestamp
+          // Preserve the timestamp of the response state we're about
+          // to overwrite. We use `updatedAt`, not `createdAt`, because
+          // the live row's `createdAt` is fixed to the time of initial
+          // generation and never moves — `updatedAt` bumps on every
+          // regen/edit (Prisma `@updatedAt`), so it's the correct
+          // "when did this state originate" timestamp for any non-
+          // first archive. The version-history UI reads this value
+          // and displays it as the per-version "X minutes ago" label.
+          originalCreatedAt: review.response!.updatedAt,
         },
       });
 
