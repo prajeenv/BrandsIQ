@@ -11,7 +11,7 @@ import {
   type BrandVoiceToneV2,
 } from "@/lib/constants";
 import { normalizeBrandVoice } from "./brand-voice-normalize";
-import { INSTRUCTION_REINFORCEMENT, wrapUserContent } from "./sanitize";
+import { buildInstructionReinforcement, wrapUserContent } from "./sanitize";
 import {
   getFramingFragment,
   getStructureTemplate,
@@ -62,6 +62,14 @@ export interface BrandVoiceConfig {
   negativeReviewFraming?: "management_contact" | "investigation" | "open_channel" | "custom" | string;
   negativeReviewFramingCustom?: string | null;
   replyToEmail?: string | null;
+  /**
+   * Optional response-language override. Null/undefined = follow the
+   * review's detected language (default behaviour). Non-null pins the
+   * response to the configured language regardless of what language the
+   * review was written in. Validated at the API boundary against
+   * SUPPORTED_RESPONSE_LANGUAGES.
+   */
+  responseLanguage?: string | null;
 }
 
 /**
@@ -245,9 +253,19 @@ export async function generateReviewResponse(
   // to guard against missing fields.
   const normalized = normalizeBrandVoice(brandVoice);
 
+  // Response-language override. Null on the brand voice = follow the
+  // review's detected language (default). Non-null pins the response to
+  // the configured language regardless of what the review was written in.
+  // `normalizeBrandVoice` coerces unknown / invalid values to null, so
+  // truthy `responseLanguage` here is guaranteed valid.
+  const effectiveLanguage = normalized.responseLanguage || detectedLanguage;
+  const isLanguageOverridden = Boolean(normalized.responseLanguage);
+
   const systemPrompt = buildSystemPrompt({
     brandVoice: normalized,
-    language: detectedLanguage,
+    effectiveLanguage,
+    reviewLanguage: detectedLanguage,
+    isLanguageOverridden,
     rating: rating ?? null,
     sentiment: sentiment ?? null,
     toneModifier,
@@ -318,17 +336,40 @@ export async function generateReviewResponse(
  * Build the system prompt with V2 brand voice configuration.
  *
  * Order matters: every user-supplied section is wrapped via `wrapUserContent`
- * so injected content is treated as data, and `INSTRUCTION_REINFORCEMENT`
- * comes LAST so its rules retain attention precedence over user content.
+ * so injected content is treated as data, and the reinforcement tail
+ * (built by `buildInstructionReinforcement`) comes LAST so its rules
+ * retain attention precedence over user content.
  */
 function buildSystemPrompt(args: {
   brandVoice: ReturnType<typeof normalizeBrandVoice>;
-  language: string;
+  /** Language the model MUST write the response in. */
+  effectiveLanguage: string;
+  /** Language the review itself is written in (used only when overridden). */
+  reviewLanguage: string;
+  /** True when `effectiveLanguage` differs from the review's language. */
+  isLanguageOverridden: boolean;
   rating: number | null;
   sentiment: string | null;
   toneModifier?: ToneModifier;
 }): string {
-  const { brandVoice, language, rating, sentiment, toneModifier } = args;
+  const {
+    brandVoice,
+    effectiveLanguage,
+    reviewLanguage,
+    isLanguageOverridden,
+    rating,
+    sentiment,
+    toneModifier,
+  } = args;
+
+  // Two-variant language directive. Default form (no override) keeps the
+  // historical phrasing. Override form gives the model the *why* — the
+  // review is in one language but the business has configured all
+  // responses in another — so the model doesn't second-guess and revert
+  // to the review's language.
+  const languageDirective = isLanguageOverridden
+    ? `Write the response in ${effectiveLanguage}. The review was written in ${reviewLanguage}, but the business has configured all responses to be in ${effectiveLanguage}.`
+    : `Write the response in ${effectiveLanguage} (the same language as the review).`;
 
   let prompt = `You are a customer service representative writing responses to customer reviews.
 
@@ -340,7 +381,7 @@ The review may mention surrounding context — a trip, an anniversary, a milesto
 Example scope error to avoid (taken from a real generation): writing "I sincerely apologize that your partner's birthday celebration and your family's first visit to London didn't meet expectations." The business does not apologise for the trip to London — they apologise for the dining experience at the restaurant. The first visit to London is context; the experience at the restaurant is the scope.
 
 IMPORTANT INSTRUCTIONS:
-1. Write the response in ${language} (the same language as the review).
+1. ${languageDirective}
 2. Keep the response body between 500 and 750 characters. Communicate in fewer sentences — do not pad (max ${RESPONSE_BODY_CHAR_MAX} characters as a hard backstop).
 3. Be genuine and human — never sound robotic or template-like.
 4. Address specific points mentioned in the review when relevant.
@@ -459,8 +500,12 @@ Negative-review framing (apply to this response — the team will follow up via 
 
   // ─── Reinforcement (spec §10.3) ──────────────────────────────────
   // Appended AFTER all user-configured sections so the rules survive any
-  // attempted override from user-supplied content.
-  prompt += `\n\n${INSTRUCTION_REINFORCEMENT}`;
+  // attempted override from user-supplied content. The language directive
+  // inside the reinforcement is templated so an override on the brand
+  // voice changes the floor rule, not just the IMPORTANT INSTRUCTIONS
+  // header — without that, a hostile sample response could try to push
+  // the model back to the review's language.
+  prompt += `\n\n${buildInstructionReinforcement({ effectiveLanguage, isLanguageOverridden })}`;
 
   return prompt;
 }

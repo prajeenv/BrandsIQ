@@ -17,6 +17,7 @@ import {
   NEGATIVE_REVIEW_FRAMINGS,
   DEFAULT_NEGATIVE_REVIEW_FRAMING,
   BRAND_VOICE_LIMITS_V2,
+  SUPPORTED_RESPONSE_LANGUAGES,
   type Industry,
 } from "./constants";
 
@@ -335,6 +336,23 @@ export const brandVoiceSchemaV2 = z.object({
     )
     .refine((v) => !v.includes("\n") && !v.includes("\r"), {
       message: "Email cannot contain line breaks",
+    })
+    .optional()
+    .nullable(),
+
+  // Response language override. Null = follow the review's detected
+  // language (default). Non-null must be one of the display-names in
+  // SUPPORTED_RESPONSE_LANGUAGES (derived from LANGUAGE_MAP). Bounded at
+  // the column-level cap; the refine guards against arbitrary strings
+  // that would pass the length check.
+  responseLanguage: z
+    .string()
+    .max(
+      BRAND_VOICE_LIMITS_V2.RESPONSE_LANGUAGE_MAX,
+      `Response language must be under ${BRAND_VOICE_LIMITS_V2.RESPONSE_LANGUAGE_MAX} characters`,
+    )
+    .refine((v) => (SUPPORTED_RESPONSE_LANGUAGES as readonly string[]).includes(v), {
+      message: "Unsupported response language",
     })
     .optional()
     .nullable(),

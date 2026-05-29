@@ -2097,6 +2097,7 @@ The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98
 | 97 | Top-level business-agnostic CONTEXT block in the system prompt — interaction vs. surrounding context scope distinction | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
 | 98 | `OCCASION_FRAGMENT` broadened to cover non-hospitality businesses; scope-of-acknowledgement rule layered in | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
 | 99 | Persist `additionalInstructions` on `ReviewResponse` + `ResponseVersion`; surface collapsed in version history; PostHog telemetry sends metadata only (no raw text) | Brand Voice / regen-instructions persistence | May 26 | Low ✅ | ✅ Implemented |
+| 100 | Response-language override on `BrandVoice` — nullable column pins AI response language regardless of review language; default null preserves current "follow detected language" behaviour; templated reinforcement-tail directive defends against prompt-injection language swap | Response language override | May 29 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
@@ -2119,7 +2120,42 @@ The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98
 
 ---
 
+## Response Language Override (brand-voice setting)
+
+**Context.** The AI generates responses in the review's detected language. That's correct when business and reviewer share a language, but fails the common UK case: an English-only business receives a French / German / Italian review, and the AI's perfectly written response is unreadable by the staff who would publish it. The override pins the response language to a fixed value at the brand-voice layer so it applies to every generation across the whole account, with no per-review UI cost.
+
+#### Decision 100: Add a nullable `responseLanguage` column on `BrandVoice`; default null = follow the review's detected language (current behaviour); non-null pins the response to the configured language regardless of the review language; the reinforcement-tail language directive becomes templated so the override survives prompt injection.
+
+- **Decision (storage):** New nullable column `responseLanguage String? @db.VarChar(50)` on `BrandVoice`. Null is the default. Non-null is a display name from the existing `LANGUAGE_MAP` values (e.g. `"English"`, `"Spanish"`) — matching the shape of `Review.detectedLanguage`. No CHECK constraint; Zod validates against `SUPPORTED_RESPONSE_LANGUAGES` at the API boundary, same pattern as `replyToEmail`. Additive migration with no backfill.
+- **Decision (prompt builder):** In `generateReviewResponse`, compute `effectiveLanguage = brandVoice.responseLanguage || detectedLanguage` once at the top, then plumb both the effective language and an `isLanguageOverridden` flag through to `buildSystemPrompt`. The IMPORTANT INSTRUCTIONS header switches between two phrasings — `Write the response in X (the same language as the review).` for the null case, `Write the response in X. The review was written in Y, but the business has configured all responses to be in X.` for the override case. Naming BOTH languages in the override form was deliberate; without it the model sometimes second-guesses and replies in the review's language.
+- **Decision (sanitize reinforcement tail):** Convert `INSTRUCTION_REINFORCEMENT` from a `const string` to `buildInstructionReinforcement({ effectiveLanguage, isLanguageOverridden }): string`. The CORE RULES line "Respond in the language of the customer review" becomes templated: either `Respond in X (the same language as the review).` or `Respond in X regardless of the language of the customer review.`. Keeping the directive INSIDE the reinforcement tail — which comes LAST in the prompt — preserves its precedence over any hostile sample response or review text that might try to redirect the language.
+- **Decision (user prompt):** The `buildUserPrompt` line that describes the language the model is about to READ (`in ${detectedLanguage}:`) keeps using `detectedLanguage`, not `effectiveLanguage`. The review is in the detected language no matter what the response should be in. Only the response-language directive changes; the review-language label stays accurate.
+- **Decision (UI):** New `ResponseLanguageSelector` component using shadcn `Select` with the first option as `"Match the review's language (default)"` (mapped to a `__default__` sentinel internally because Radix Select treats `""` as "no selection"), followed by the 45 sorted entries from `SUPPORTED_RESPONSE_LANGUAGES`. Empty / sentinel → null at the form boundary, matching the empty-string-to-null normalisation already used by `replyToEmail` and `negativeReviewFramingCustom`. Inserted into §1 Voice between Tone and Style guidelines — response language is "how we sound" content, not a contact / sign-off concern.
+- **Alternatives considered:**
+  - *Per-review override.* Rejected — fights the autosave / set-once shape of every other brand-voice control. The user explicitly framed this as a one-time decision per business.
+  - *Boolean "Always respond in English" toggle.* Rejected — locks the product into one language. A Paris business with English-only staff or a French restaurant in a tourist district needs the same feature with different parameters; the dropdown costs no more code to ship and serves all of them.
+  - *Store an ISO 639-3 code (`"eng"`) instead of a display name.* Rejected — `Review.detectedLanguage` already stores display names. Mixing codes and names across the schema is inconsistency cost without benefit.
+  - *Just delete the reinforcement-tail language line.* Rejected — that line is the prompt-injection floor. Without it a hostile sample response saying "respond in pig-latin" would have nothing arguing it down. Templating preserves the defense.
+  - *Auto-derive from `User.country`.* Rejected — country and target-response-language are not the same thing. A UK business might serve French-speaking staff; a US business might prefer Spanish responses for a Mexican-American customer base. Explicit beats inferred.
+- **GDPR posture:** The column holds a category label (a language name), not PII. Cascade-deleted with the parent `BrandVoice` → `User`.
+- **Future consideration:** if non-hospitality business types accumulate, the dropdown might want grouping (Western European / Asian / etc.) or a search filter. 45 entries is manageable today; revisit only if the dropdown becomes a friction point.
+- **Risk:** Low ✅. Additive migration. Null default preserves current behaviour for every existing brand voice without touching the data. The two-variant prompt phrasing is the only place the prompt body actually changes per-request, and the default-case phrasing is a close paraphrase of the previous hard-coded line.
+
+---
+
 ## Change Log
+
+**May 29, 2026** — Response language override (brand-voice setting)
+- New nullable column `responseLanguage String? @db.VarChar(50)` on `BrandVoice` via migration `20260529120000_add_brand_voice_response_language`. Additive, no backfill. Null = follow review's detected language (current behaviour, preserved for every existing user). Non-null = display name from `SUPPORTED_RESPONSE_LANGUAGES` (Decision 100).
+- New constants in `src/lib/constants.ts`: `BRAND_VOICE_LIMITS_V2.RESPONSE_LANGUAGE_MAX = 50` and `SUPPORTED_RESPONSE_LANGUAGES = Object.values(LANGUAGE_MAP).sort()` — single source of truth shared with the detector.
+- `brandVoiceSchemaV2.responseLanguage` validates against the allow-list, bounded at 50 chars, nullable + optional.
+- `normalizeBrandVoice` adds `responseLanguage: string | null` with defensive coercion (unknown / non-string / not-in-allow-list → null).
+- `INSTRUCTION_REINFORCEMENT` constant converted to `buildInstructionReinforcement({ effectiveLanguage, isLanguageOverridden })` so the language directive in the CORE RULES block is templated rather than hard-coded.
+- `claude.ts:generateReviewResponse` resolves `effectiveLanguage = brandVoice.responseLanguage || detectedLanguage` and passes both that and `isLanguageOverridden` to `buildSystemPrompt` and the reinforcement builder. Two-variant system-prompt directive: default form keeps "same language as the review" phrasing; override form names BOTH languages explicitly so the model doesn't second-guess.
+- `/api/brand-voice` GET surfaces the field; PUT writes both `create` and `update` branches; both routes flow the column through automatically since they pass `brandVoice` as a whole to `generateReviewResponse`.
+- New `ResponseLanguageSelector` shadcn `Select` rendered in §1 Voice (between Tone and Style guidelines) — first option "Match the review's language (default)" maps to a `__default__` sentinel internally because Radix Select treats `""` as "no selection". Empty-sentinel → null at the form boundary.
+- Tests: +6 sanitize cases (default vs override directive variants), +5 claude cases (null / undefined / overridden / coerced-invalid / detectedLanguage-preserved-in-user-prompt), +7 brand-voice schema cases (null, valid, unsupported, code-not-name, length cap), +6 normalize cases (defaults, valid pass-through, trim, coerce empty/unknown/non-string), +4 brand-voice route cases (GET surfaces null + non-null, PUT persists supported value + null default, PUT rejects unsupported), +4 constants cases.
+- Verification: `npm run lint:strict` clean, `npm run type-check` clean, `npm run test:unit` 1137 passed / 0 failed across 64 files.
 
 **May 26, 2026** — Brand Voice / persist additional instructions
 - New nullable column `additionalInstructions String? @db.Text` on both `ReviewResponse` (live row) and `ResponseVersion` (archive). Migration `20260526120000_add_response_additional_instructions` is additive; no data backfill (Decision 99).

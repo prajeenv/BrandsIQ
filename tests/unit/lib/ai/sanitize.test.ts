@@ -1,11 +1,20 @@
 import { describe, it, expect } from "vitest";
 
 import {
-  INSTRUCTION_REINFORCEMENT,
+  buildInstructionReinforcement,
   SUSPICIOUS_PATTERNS,
   detectInjectionAttempt,
   wrapUserContent,
 } from "@/lib/ai/sanitize";
+
+// Default rendering: no override, English. Used by every existing
+// reinforcement assertion below — the templated language directive is a
+// thin variant on top of an otherwise-identical body, so most of the
+// existing assertions assert the body, not the directive.
+const INSTRUCTION_REINFORCEMENT = buildInstructionReinforcement({
+  effectiveLanguage: "English",
+  isLanguageOverridden: false,
+});
 
 describe("sanitize.ts", () => {
   describe("wrapUserContent", () => {
@@ -116,8 +125,69 @@ describe("sanitize.ts", () => {
       expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain("respond only to the customer review");
     });
 
-    it("requires responses in the customer's language", () => {
-      expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain("language of the customer review");
+    // Language directive — default (no override) form. Originally a
+    // hard-coded "Respond in the language of the customer review" line,
+    // it is now templated by `buildInstructionReinforcement` so the
+    // brand-voice `responseLanguage` override can pin the response to a
+    // fixed language. See the "language directive variants" describe
+    // block below for the override-form assertions.
+    it("requires responses in the review's language when no override is configured", () => {
+      expect(INSTRUCTION_REINFORCEMENT).toContain(
+        "Respond in English (the same language as the review).",
+      );
+    });
+
+    describe("language directive variants", () => {
+      it("default form keeps the historical 'same language as the review' phrasing", () => {
+        const out = buildInstructionReinforcement({
+          effectiveLanguage: "English",
+          isLanguageOverridden: false,
+        });
+        expect(out).toContain("Respond in English (the same language as the review).");
+      });
+
+      it("default form names the effective language (Spanish review → Spanish directive)", () => {
+        const out = buildInstructionReinforcement({
+          effectiveLanguage: "Spanish",
+          isLanguageOverridden: false,
+        });
+        expect(out).toContain("Respond in Spanish (the same language as the review).");
+      });
+
+      it("override form pins the response to the configured language regardless of the review", () => {
+        const out = buildInstructionReinforcement({
+          effectiveLanguage: "English",
+          isLanguageOverridden: true,
+        });
+        expect(out).toContain(
+          "Respond in English regardless of the language of the customer review.",
+        );
+      });
+
+      it("override form names whichever language was configured", () => {
+        const out = buildInstructionReinforcement({
+          effectiveLanguage: "French",
+          isLanguageOverridden: true,
+        });
+        expect(out).toContain(
+          "Respond in French regardless of the language of the customer review.",
+        );
+      });
+
+      it("language directive lives inside the CORE RULES block (precedence over user content)", () => {
+        const out = buildInstructionReinforcement({
+          effectiveLanguage: "English",
+          isLanguageOverridden: true,
+        });
+        expect(out).toContain("CORE RULES:");
+        // The directive comes after the CORE RULES heading.
+        const coreIdx = out.indexOf("CORE RULES:");
+        const directiveIdx = out.indexOf(
+          "Respond in English regardless of the language of the customer review.",
+        );
+        expect(coreIdx).toBeGreaterThan(-1);
+        expect(directiveIdx).toBeGreaterThan(coreIdx);
+      });
     });
 
     // 5/24 prompt-tuning pass — reviewer-protection guardrails: a quality

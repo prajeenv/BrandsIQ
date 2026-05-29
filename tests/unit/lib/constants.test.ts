@@ -314,6 +314,33 @@ describe('BRAND_VOICE_LIMITS_V2', () => {
     expect(BRAND_VOICE_LIMITS_V2.SIGNOFF_MAX).toBe(500);
     expect(BRAND_VOICE_LIMITS_V2.FRAMING_CUSTOM_MAX).toBe(500);
     expect(BRAND_VOICE_LIMITS_V2.REPLY_TO_EMAIL_MAX).toBe(254);
+    // Response-language override: 50-char cap is comfortable headroom
+    // over the longest entry in LANGUAGE_MAP today (21 chars).
+    expect(BRAND_VOICE_LIMITS_V2.RESPONSE_LANGUAGE_MAX).toBe(50);
+  });
+});
+
+describe('SUPPORTED_RESPONSE_LANGUAGES', () => {
+  // Imported lazily to keep this describe self-contained; it's derived from
+  // LANGUAGE_MAP values so the dropdown and the detector share one source
+  // of truth.
+  it('mirrors the LANGUAGE_MAP values exactly (single source of truth)', async () => {
+    const { SUPPORTED_RESPONSE_LANGUAGES } = await import('@/lib/constants');
+    expect(SUPPORTED_RESPONSE_LANGUAGES.length).toBe(Object.values(LANGUAGE_MAP).length);
+    for (const name of Object.values(LANGUAGE_MAP)) {
+      expect(SUPPORTED_RESPONSE_LANGUAGES).toContain(name);
+    }
+  });
+
+  it('is sorted alphabetically (for dropdown rendering)', async () => {
+    const { SUPPORTED_RESPONSE_LANGUAGES } = await import('@/lib/constants');
+    const sorted = [...SUPPORTED_RESPONSE_LANGUAGES].sort();
+    expect(SUPPORTED_RESPONSE_LANGUAGES).toEqual(sorted);
+  });
+
+  it('contains English, the most common override target', async () => {
+    const { SUPPORTED_RESPONSE_LANGUAGES } = await import('@/lib/constants');
+    expect(SUPPORTED_RESPONSE_LANGUAGES).toContain('English');
   });
 });
 

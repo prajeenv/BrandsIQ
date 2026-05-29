@@ -226,6 +226,49 @@ describe("normalizeBrandVoice", () => {
     });
   });
 
+  describe("responseLanguage", () => {
+    it("defaults to null when the field is absent", () => {
+      expect(normalizeBrandVoice({}).responseLanguage).toBeNull();
+    });
+
+    it("defaults to null when explicitly null", () => {
+      expect(normalizeBrandVoice({ responseLanguage: null }).responseLanguage).toBeNull();
+    });
+
+    it("passes a supported display name through unchanged", () => {
+      expect(normalizeBrandVoice({ responseLanguage: "English" }).responseLanguage).toBe("English");
+      expect(normalizeBrandVoice({ responseLanguage: "Spanish" }).responseLanguage).toBe("Spanish");
+    });
+
+    it("trims whitespace before validating", () => {
+      expect(normalizeBrandVoice({ responseLanguage: "  English  " }).responseLanguage).toBe(
+        "English",
+      );
+    });
+
+    it("coerces an empty/whitespace string to null", () => {
+      expect(normalizeBrandVoice({ responseLanguage: "" }).responseLanguage).toBeNull();
+      expect(normalizeBrandVoice({ responseLanguage: "   " }).responseLanguage).toBeNull();
+    });
+
+    it("coerces unknown language strings to null (defensive — never leak invalid values downstream)", () => {
+      // Even though Zod validates at the API boundary, anything that
+      // slipped past (e.g. a DB row written before the column existed)
+      // should normalize to null rather than break the prompt builder.
+      expect(normalizeBrandVoice({ responseLanguage: "Klingon" }).responseLanguage).toBeNull();
+      // ISO 639-3 codes are not the storage shape — display names are.
+      expect(normalizeBrandVoice({ responseLanguage: "eng" }).responseLanguage).toBeNull();
+    });
+
+    it("coerces non-string values to null", () => {
+      // normalizeBrandVoice's `raw` parameter is `unknown`, so these
+      // bad-shape inputs don't need a ts-expect-error — defensive
+      // runtime hardening is the function's contract.
+      expect(normalizeBrandVoice({ responseLanguage: 42 }).responseLanguage).toBeNull();
+      expect(normalizeBrandVoice({ responseLanguage: true }).responseLanguage).toBeNull();
+    });
+  });
+
   describe("safety", () => {
     it("returns defaults for null input", () => {
       const out = normalizeBrandVoice(null);

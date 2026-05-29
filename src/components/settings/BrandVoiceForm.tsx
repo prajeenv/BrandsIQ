@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ToneSelector } from "./ToneSelector";
+import { ResponseLanguageSelector } from "./ResponseLanguageSelector";
 import { KeyPhrasesInput } from "./KeyPhrasesInput";
 import { StyleGuidelinesInput } from "./StyleGuidelinesInput";
 import { SampleResponsesInput, type SampleResponseItem } from "./SampleResponsesInput";
@@ -52,6 +53,8 @@ interface BrandVoiceDataV2 {
   negativeReviewFraming: NegativeReviewFraming;
   negativeReviewFramingCustom: string | null;
   replyToEmail: string | null;
+  // Null = follow the review's detected language (default behaviour).
+  responseLanguage: string | null;
 }
 
 const DEFAULT_BRAND_VOICE: Omit<BrandVoiceDataV2, "id"> = {
@@ -67,6 +70,7 @@ const DEFAULT_BRAND_VOICE: Omit<BrandVoiceDataV2, "id"> = {
   negativeReviewFraming: DEFAULT_NEGATIVE_REVIEW_FRAMING,
   negativeReviewFramingCustom: null,
   replyToEmail: null,
+  responseLanguage: null,
 };
 
 // Starter chips — spec §4.2 / §4.3.
@@ -111,6 +115,7 @@ export function BrandVoiceForm() {
   );
   const [negativeReviewFramingCustom, setNegativeReviewFramingCustom] = useState<string | null>(null);
   const [replyToEmail, setReplyToEmail] = useState<string | null>(null);
+  const [responseLanguage, setResponseLanguage] = useState<string | null>(null);
 
   // Ref for debounce timer
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -167,6 +172,13 @@ export function BrandVoiceForm() {
           // distinction is consistent at the boundary.
           replyToEmail:
             replyToEmail && replyToEmail.trim().length > 0 ? replyToEmail : null,
+          // Empty-string sentinel from the Select primitive is normalised
+          // to null so the server sees "follow detected language" as a
+          // clean null, not a zero-length string.
+          responseLanguage:
+            responseLanguage && responseLanguage.trim().length > 0
+              ? responseLanguage
+              : null,
         }),
       });
 
@@ -198,6 +210,7 @@ export function BrandVoiceForm() {
     negativeReviewFraming,
     negativeReviewFramingCustom,
     replyToEmail,
+    responseLanguage,
   ]);
 
   // Auto-save effect with debounce
@@ -216,7 +229,8 @@ export function BrandVoiceForm() {
       negativeReviewEmailEnabled !== brandVoice.negativeReviewEmailEnabled ||
       negativeReviewFraming !== brandVoice.negativeReviewFraming ||
       (negativeReviewFramingCustom ?? "") !== (brandVoice.negativeReviewFramingCustom ?? "") ||
-      (replyToEmail ?? "") !== (brandVoice.replyToEmail ?? "");
+      (replyToEmail ?? "") !== (brandVoice.replyToEmail ?? "") ||
+      (responseLanguage ?? "") !== (brandVoice.responseLanguage ?? "");
 
     if (!hasChanges) {
       setSaveStatus("saved");
@@ -252,6 +266,7 @@ export function BrandVoiceForm() {
     negativeReviewFraming,
     negativeReviewFramingCustom,
     replyToEmail,
+    responseLanguage,
     performSave,
   ]);
 
@@ -276,6 +291,7 @@ export function BrandVoiceForm() {
       setNegativeReviewFraming(bv.negativeReviewFraming);
       setNegativeReviewFramingCustom(bv.negativeReviewFramingCustom);
       setReplyToEmail(bv.replyToEmail);
+      setResponseLanguage(bv.responseLanguage);
       setTimeout(() => setIsInitialized(true), 100);
     } catch (error) {
       console.error("Error fetching brand voice:", error);
@@ -298,6 +314,7 @@ export function BrandVoiceForm() {
     setNegativeReviewFraming(DEFAULT_BRAND_VOICE.negativeReviewFraming);
     setNegativeReviewFramingCustom(DEFAULT_BRAND_VOICE.negativeReviewFramingCustom);
     setReplyToEmail(DEFAULT_BRAND_VOICE.replyToEmail);
+    setResponseLanguage(DEFAULT_BRAND_VOICE.responseLanguage);
     toast.info("Reset to default values. Changes will auto-save.");
   };
 
@@ -362,6 +379,28 @@ export function BrandVoiceForm() {
               </p>
             </div>
             <ToneSelector value={tone} onChange={setTone} disabled={isSaving} />
+          </div>
+
+          {/* Response language override.
+              Default null = match the review's detected language (existing
+              behaviour). Pin to a fixed language for businesses whose
+              reviewing audience writes in mixed languages but whose own team
+              only reads one (e.g. UK business serving tourists who leave
+              French / German / Italian reviews). */}
+          <div className="rounded-lg border border-slate-300 bg-slate-50/50 p-4 space-y-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Response language
+              </p>
+              <p className="text-xs text-muted-foreground">
+                What language we write responses in.
+              </p>
+            </div>
+            <ResponseLanguageSelector
+              value={responseLanguage}
+              onChange={setResponseLanguage}
+              disabled={isSaving}
+            />
           </div>
 
           {/* §4.2 Style guidelines */}

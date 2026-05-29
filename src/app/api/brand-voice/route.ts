@@ -44,6 +44,7 @@ function projectToV2(row: {
     negativeReviewFraming: normalized.negativeReviewFraming,
     negativeReviewFramingCustom: normalized.negativeReviewFramingCustom,
     replyToEmail: normalized.replyToEmail,
+    responseLanguage: normalized.responseLanguage,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -156,6 +157,7 @@ export async function PUT(request: NextRequest) {
         negativeReviewFraming: v2.negativeReviewFraming,
         negativeReviewFramingCustom: v2.negativeReviewFramingCustom ?? null,
         replyToEmail: v2.replyToEmail ?? null,
+        responseLanguage: v2.responseLanguage ?? null,
       },
       create: {
         userId: session.user.id,
@@ -171,6 +173,7 @@ export async function PUT(request: NextRequest) {
         negativeReviewFraming: v2.negativeReviewFraming,
         negativeReviewFramingCustom: v2.negativeReviewFramingCustom ?? null,
         replyToEmail: v2.replyToEmail ?? null,
+        responseLanguage: v2.responseLanguage ?? null,
       },
     });
 

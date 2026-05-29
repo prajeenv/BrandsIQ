@@ -968,6 +968,54 @@ describe('brandVoiceSchemaV2', () => {
     });
   });
 
+  // Response-language override (pins AI response language regardless of
+  // the review's detected language). Null = follow detected language
+  // (default). Validated against SUPPORTED_RESPONSE_LANGUAGES.
+  describe('responseLanguage', () => {
+    it('accepts null (the default — follow the review language)', () => {
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, responseLanguage: null });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.responseLanguage).toBeNull();
+    });
+
+    it('accepts omission (the field is optional)', () => {
+      const { responseLanguage: _omit, ...rest } = { ...validFull, responseLanguage: null };
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a supported display name (English)', () => {
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, responseLanguage: 'English' });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.responseLanguage).toBe('English');
+    });
+
+    it('accepts another supported display name (Spanish)', () => {
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, responseLanguage: 'Spanish' });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects an unknown language', () => {
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, responseLanguage: 'Klingon' });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a language code rather than display name', () => {
+      // We store display names (matches Review.detectedLanguage). "eng" is the
+      // detector code, not what the column should hold.
+      const result = brandVoiceSchemaV2.safeParse({ ...validFull, responseLanguage: 'eng' });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects > 50 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        responseLanguage: 'a'.repeat(51),
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('full payload', () => {
     it('accepts a minimal valid payload (just tone) and defaults the rest', () => {
       const result = brandVoiceSchemaV2.safeParse({ tone: 'friendly_professional' });

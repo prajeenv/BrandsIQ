@@ -901,6 +901,92 @@ describe('claude.ts', () => {
       });
     });
 
+    // Response-language override. When the brand voice's
+    // `responseLanguage` is null (default), the response is written in the
+    // review's detected language — current behaviour, preserved for
+    // everyone who doesn't change anything. When non-null, the response is
+    // pinned to the configured language regardless of what the review was
+    // written in (e.g. a UK business with English-only staff receiving a
+    // French review).
+    describe('response language override', () => {
+      it('uses the review detected language when responseLanguage is null (default)', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          detectedLanguage: 'French',
+          brandVoice: { ...testBrandVoice, responseLanguage: null },
+        });
+        const system = getSystem();
+        // Default-form directive — "same language as the review".
+        expect(system).toContain('Write the response in French (the same language as the review).');
+        // Reinforcement tail also uses the default form.
+        expect(system).toContain('Respond in French (the same language as the review).');
+      });
+
+      it('uses the review detected language when responseLanguage is undefined', async () => {
+        // Same as null — undefined means "no override configured".
+        await generateReviewResponse({
+          ...defaultParams,
+          detectedLanguage: 'Spanish',
+          brandVoice: { ...testBrandVoice },
+        });
+        const system = getSystem();
+        expect(system).toContain('Write the response in Spanish (the same language as the review).');
+      });
+
+      it('pins the response to the configured language when responseLanguage is set', async () => {
+        await generateReviewResponse({
+          ...defaultParams,
+          detectedLanguage: 'French',
+          brandVoice: { ...testBrandVoice, responseLanguage: 'English' },
+        });
+        const system = getSystem();
+        // Override-form directive explicitly names BOTH languages so the
+        // model knows the review is in one and the response must be in
+        // another. This phrasing is the contract; without naming both,
+        // the model sometimes second-guesses and replies in the review's
+        // language.
+        expect(system).toContain(
+          'Write the response in English. The review was written in French, but the business has configured all responses to be in English.',
+        );
+        // Reinforcement tail also uses the override form so a hostile
+        // sample response can't push the model back to the review's
+        // language by including a "respond in the review's language" line.
+        expect(system).toContain(
+          'Respond in English regardless of the language of the customer review.',
+        );
+      });
+
+      it('coerces unsupported responseLanguage values to null via normalizeBrandVoice (defensive)', async () => {
+        // The Zod schema validates at the API boundary, but if a DB row
+        // somehow carries an invalid value (e.g. from a manual fix-up),
+        // the normalize adapter coerces it to null and the prompt falls
+        // back to the detected language. This is the defensive floor.
+        await generateReviewResponse({
+          ...defaultParams,
+          detectedLanguage: 'French',
+          brandVoice: { ...testBrandVoice, responseLanguage: 'Klingon' },
+        });
+        const system = getSystem();
+        expect(system).toContain('Write the response in French (the same language as the review).');
+      });
+
+      it('keeps the user-prompt review language label as the DETECTED language even when overridden', async () => {
+        // The user prompt's "Write a response to this google review (5/5 stars) in X:" line
+        // describes the language of the review the model is about to READ
+        // — that should always be the detected language. Only the
+        // RESPONSE-language directive (in the system prompt) is overridden.
+        await generateReviewResponse({
+          ...defaultParams,
+          detectedLanguage: 'French',
+          brandVoice: { ...testBrandVoice, responseLanguage: 'English' },
+        });
+        const callArgs = mockCreate.mock.calls[0][0];
+        const messages = callArgs.messages as Array<{ role: string; content: string }>;
+        const userMessage = messages.find((m) => m.role === 'user');
+        expect(userMessage?.content).toContain(' in French:');
+      });
+    });
+
     describe('sentiment plumbing', () => {
       it('forwards sentiment from GenerateResponseParams to the structure router', async () => {
         // 4-star + mixed sentiment → mixed template (not positive).
