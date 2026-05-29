@@ -26,6 +26,7 @@ import {
   type BrandVoiceToneV2,
   type NegativeReviewFraming,
   NEGATIVE_REVIEW_FRAMINGS,
+  SUPPORTED_RESPONSE_LANGUAGES,
 } from "@/lib/constants";
 
 /** Sample-response item, normalized shape. */
@@ -51,6 +52,12 @@ export interface NormalizedBrandVoice {
   negativeReviewFraming: NegativeReviewFraming;
   negativeReviewFramingCustom: string | null;
   replyToEmail: string | null;
+  /**
+   * Optional response-language override. Null = follow the review's
+   * detected language (default). Non-null must be one of the display
+   * names in SUPPORTED_RESPONSE_LANGUAGES. Unknown values coerce to null.
+   */
+  responseLanguage: string | null;
 }
 
 const DEFAULTS: NormalizedBrandVoice = {
@@ -66,10 +73,12 @@ const DEFAULTS: NormalizedBrandVoice = {
   negativeReviewFraming: DEFAULT_NEGATIVE_REVIEW_FRAMING,
   negativeReviewFramingCustom: null,
   replyToEmail: null,
+  responseLanguage: null,
 };
 
 const V2_TONE_SET = new Set<string>(BRAND_VOICE_TONES_V2);
 const FRAMING_SET = new Set<string>(NEGATIVE_REVIEW_FRAMINGS);
+const SUPPORTED_RESPONSE_LANGUAGES_SET = new Set<string>(SUPPORTED_RESPONSE_LANGUAGES);
 
 /**
  * Map any tone string we might see in stored data to a V2 key.
@@ -178,6 +187,18 @@ function normalizeFraming(raw: unknown): NegativeReviewFraming {
 }
 
 /**
+ * Normalize the response-language override. Unknown / non-string values
+ * (and any string not in SUPPORTED_RESPONSE_LANGUAGES) coerce to null so
+ * downstream code can rely on "non-null implies the override is valid".
+ */
+function normalizeResponseLanguage(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  return SUPPORTED_RESPONSE_LANGUAGES_SET.has(trimmed) ? trimmed : null;
+}
+
+/**
  * Normalize any plausible brand-voice payload (legacy DB row, V2 DB row,
  * partial object, untrusted JSON) into the canonical {@link NormalizedBrandVoice}
  * shape. Missing fields fall back to spec defaults. Unknown fields are ignored.
@@ -207,5 +228,6 @@ export function normalizeBrandVoice(raw: unknown): NormalizedBrandVoice {
     negativeReviewFraming: normalizeFraming(r.negativeReviewFraming),
     negativeReviewFramingCustom: asNullableString(r.negativeReviewFramingCustom),
     replyToEmail: asNullableString(r.replyToEmail),
+    responseLanguage: normalizeResponseLanguage(r.responseLanguage),
   };
 }

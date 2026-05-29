@@ -187,6 +187,15 @@ model BrandVoice {
   // DECISION 49 / iter 2).
   replyToEmail String? @map("reply_to_email") @db.VarChar(254)
 
+  // Response language override. Nullable. Null (default) means the
+  // response is written in the review's detected language (current
+  // behaviour, preserved for everyone who doesn't change anything).
+  // Non-null is a display-name from LANGUAGE_MAP values (e.g. "English",
+  // "Spanish") matching the shape of Review.detectedLanguage. Zod
+  // validates the value against SUPPORTED_RESPONSE_LANGUAGES at the API
+  // boundary.
+  responseLanguage String? @map("response_language") @db.VarChar(50)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

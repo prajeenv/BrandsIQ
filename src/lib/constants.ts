@@ -163,6 +163,10 @@ export const BRAND_VOICE_LIMITS_V2 = {
   SIGNOFF_MAX: 500,
   FRAMING_CUSTOM_MAX: 500,
   REPLY_TO_EMAIL_MAX: 254,
+  // Response language override (display-name of a LANGUAGE_MAP value).
+  // The longest name in LANGUAGE_MAP today is "Chinese (Traditional)" at
+  // 21 chars; 50 leaves comfortable headroom for any future addition.
+  RESPONSE_LANGUAGE_MAX: 50,
 } as const;
 
 // Spec / decision 3 — the model is told to generate a body of approximately
@@ -513,6 +517,19 @@ export const LANGUAGE_MAP: Record<string, string> = {
   urd: "Urdu",
   fas: "Persian",
 };
+
+/**
+ * Supported response languages for the per-brand-voice override.
+ *
+ * Single source of truth — derived from `LANGUAGE_MAP` values so the
+ * dropdown the user picks from is exactly the set of languages the
+ * detector can emit on a review's `detectedLanguage`. The override is
+ * stored as a display-name (e.g. "English"), validated against this set
+ * by Zod at the API boundary.
+ *
+ * Sorted alphabetically for the dropdown.
+ */
+export const SUPPORTED_RESPONSE_LANGUAGES = Object.values(LANGUAGE_MAP).sort();
 
 // API rate limits
 export const RATE_LIMITS = {

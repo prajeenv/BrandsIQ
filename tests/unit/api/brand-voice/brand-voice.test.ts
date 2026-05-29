@@ -68,6 +68,7 @@ const defaultBrandVoiceV2 = {
   negativeReviewFraming: 'investigation',
   negativeReviewFramingCustom: null,
   replyToEmail: null,
+  responseLanguage: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -115,10 +116,25 @@ describe('GET /api/brand-voice (V2)', () => {
     expect(json.data.brandVoice.negativeReviewEmailEnabled).toBe(false);
     expect(json.data.brandVoice.negativeReviewFraming).toBe('investigation');
     expect(json.data.brandVoice.replyToEmail).toBeNull();
+    // Response-language override defaults to null (the brand voice
+    // follows the review's detected language unless explicitly pinned).
+    expect(json.data.brandVoice.responseLanguage).toBeNull();
 
     // The legacy `formality` and `styleNotes` projections are gone.
     expect(json.data.brandVoice.formality).toBeUndefined();
     expect(json.data.brandVoice.styleNotes).toBeUndefined();
+  });
+
+  it('surfaces a non-null responseLanguage from the DB row', async () => {
+    mockPrisma.brandVoice.findUnique.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      responseLanguage: 'English',
+    });
+
+    const res = await GET();
+    const json = await res.json();
+
+    expect(json.data.brandVoice.responseLanguage).toBe('English');
   });
 
   it('creates default brand voice with V2 tone if none exists', async () => {
@@ -279,5 +295,61 @@ describe('PUT /api/brand-voice (V2)', () => {
     // Confirm no legacy keys leak into the response.
     expect(json.data.brandVoice.formality).toBeUndefined();
     expect(json.data.brandVoice.styleNotes).toBeUndefined();
+  });
+
+  // Response-language override (default null = follow review detected
+  // language). Routes through the same upsert as every other V2 field.
+  it('persists a supported responseLanguage to both create and update branches', async () => {
+    mockPrisma.brandVoice.upsert.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      responseLanguage: 'English',
+    });
+
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: { tone: 'friendly_professional', responseLanguage: 'English' },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ responseLanguage: 'English' }),
+        create: expect.objectContaining({ responseLanguage: 'English' }),
+      }),
+    );
+
+    const json = await res.json();
+    expect(json.data.brandVoice.responseLanguage).toBe('English');
+  });
+
+  it('persists responseLanguage = null when the field is omitted (default)', async () => {
+    mockPrisma.brandVoice.upsert.mockResolvedValue(defaultBrandVoiceV2);
+
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: { tone: 'friendly_professional' },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ responseLanguage: null }),
+        create: expect.objectContaining({ responseLanguage: null }),
+      }),
+    );
+  });
+
+  it('rejects an unsupported responseLanguage (Klingon)', async () => {
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: { tone: 'friendly_professional', responseLanguage: 'Klingon' },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe('VALIDATION_ERROR');
   });
 });
