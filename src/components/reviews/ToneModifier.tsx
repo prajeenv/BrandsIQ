@@ -108,6 +108,23 @@ export function ToneModifier({
         <DialogHeader>
           <DialogTitle>Regenerate response</DialogTitle>
           <DialogDescription>Apply just for this regeneration.</DialogDescription>
+          {/*
+            5/26 — UX honesty note. Users intuitively read "regenerate"
+            as "iterate on top of the current response", but every
+            regen runs as a fresh composition against the original
+            review (the current live response is NOT used as input).
+            Instructions from previous regens are also not carried
+            forward; only what the user types into the textarea below
+            applies. Without this note, users who fix one thing in
+            regen N and a different thing in regen N+1 see the first
+            fix silently undone — exactly the surprise the persisted-
+            instructions feature was meant to make visible.
+          */}
+          <p className="text-xs text-muted-foreground">
+            Each regeneration runs independently on the original review.
+            Earlier instructions from previous regens are not carried
+            forward.
+          </p>
         </DialogHeader>
 
         <div className="space-y-2">

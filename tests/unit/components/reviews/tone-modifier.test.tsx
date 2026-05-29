@@ -113,6 +113,31 @@ describe("ToneModifier", () => {
     expect(screen.queryByText(/pick a different tone, add specific instructions/i)).not.toBeInTheDocument();
   });
 
+  // 5/26 — UX honesty note. Users intuitively read "regenerate" as
+  // "iterate on top of the current response", but every regen runs as a
+  // fresh composition against the original review. Earlier additional
+  // instructions are not carried forward. Without this note, users who
+  // fix one thing in regen N and a different thing in regen N+1 see
+  // the first fix silently undone.
+  it("renders the independence-clarifying note in the dialog header", async () => {
+    render(<ToneModifier {...defaultProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Regenerate response")).toBeInTheDocument();
+    });
+
+    // Match across whitespace-normalised text — the copy is wrapped
+    // across multiple lines in the JSX for readability.
+    expect(
+      screen.getByText((_content, element) => {
+        const text = element?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+        return text ===
+          "Each regeneration runs independently on the original review. Earlier instructions from previous regens are not carried forward.";
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("autofocuses the Additional instructions textarea when the dialog opens", async () => {
     render(<ToneModifier {...defaultProps} />);
     fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
