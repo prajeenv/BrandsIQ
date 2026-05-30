@@ -183,6 +183,72 @@ describe("getStructureTemplate", () => {
     expect(out.toLowerCase()).toContain("must not end on the apology");
   });
 
+  // 5/30 prompt-tuning iter-9 / PR 3 (Change C) — internal-commitment cap.
+  // Spreadsheet review symptom: the model honoured the "I'll share this
+  // with our team" substitute but kept appending a trailing purpose
+  // clause ("to ensure this doesn't happen again", "per assicurarci che
+  // una situazione del genere non si ripeta"). The trailing clause turns
+  // the commitment into a public narration of internal process, which is
+  // the corporate-apology register even when the substitute phrase was
+  // the right replacement.
+  describe("internal commitment cap (PR 3 Change C)", () => {
+    it("introduces the cap as a labelled sub-section", () => {
+      const out = getStructureTemplate({ rating: 1, sentiment: null });
+      expect(out).toContain("Internal commitment cap:");
+    });
+
+    it("requires the commitment to be ONE short clause", () => {
+      const out = getStructureTemplate({ rating: 1, sentiment: null });
+      expect(out.toLowerCase()).toContain("must be one short clause");
+    });
+
+    it("bans the trailing purpose clause explicitly", () => {
+      const out = getStructureTemplate({ rating: 1, sentiment: null });
+      expect(out.toLowerCase()).toContain(
+        "do not add a trailing purpose clause",
+      );
+    });
+
+    it("names the specific trailing-clause patterns observed in spreadsheet review", () => {
+      const out = getStructureTemplate({ rating: 1, sentiment: null });
+      // These are the literal patterns the model produced across the
+      // pizza-review iterations. Naming them gives the model concrete
+      // anchors, same approach as Change A's substitution pairs.
+      const badTrailingClauses = [
+        "to ensure this doesn't happen again",
+        "to ensure our cooking standards are properly maintained",
+        "so we can address what happened with the preparation",
+        "to prevent this from recurring",
+      ];
+      for (const clause of badTrailingClauses) {
+        expect(out).toContain(clause);
+      }
+    });
+
+    it("gives the model an acceptable form to mirror", () => {
+      const out = getStructureTemplate({ rating: 1, sentiment: null });
+      expect(out).toContain("I'll share this with our kitchen team.");
+      expect(out.toLowerCase()).toContain("full stop, no trailing clause");
+    });
+
+    it("explains why this matters (public narration of internal process)", () => {
+      const out = getStructureTemplate({ rating: 1, sentiment: null });
+      expect(out.toLowerCase()).toContain(
+        "public narration of internal process",
+      );
+    });
+
+    it("cross-references the cap from step 2 of the template", () => {
+      // Step 2's internal-commitment instruction must point at the cap
+      // section so the model is told to look for the constraint at the
+      // moment it's deciding what to write.
+      const out = getStructureTemplate({ rating: 1, sentiment: null });
+      expect(out).toContain(
+        "see the Internal commitment cap section below",
+      );
+    });
+  });
+
   // 5/25 prompt-tuning iter-2 follow-up — register-aware contractions.
   // The apology paragraph specifically leans slightly more formal than
   // the brand's usual tone, even when the brand's tone allows
@@ -241,6 +307,94 @@ describe("UNIVERSAL_STRUCTURAL_RULES", () => {
   it("forbids the opening AI-cliche phrases", () => {
     expect(UNIVERSAL_STRUCTURAL_RULES).toContain('I hope this finds you well');
     expect(UNIVERSAL_STRUCTURAL_RULES).toContain('Thank you for reaching out');
+  });
+
+  // 5/30 prompt-tuning iter-9 / PR 3 (Change D) — universal rule against
+  // acknowledging missing service-recovery actions (compensation,
+  // refunds, discounts, complimentary items). Spreadsheet symptom: the
+  // Italian-via-English-override response surfaced "we appreciate your
+  // feedback about the lack of compensation offered" — itemising the
+  // service-recovery failure as a separate confessed wrong. This
+  // anchors the reader (and the reviewer) on the missing remediation
+  // and narrows the business's legitimate range of responses. The
+  // specificity rule (engage with what went wrong) doesn't extend to
+  // engaging with missing remediations — those are private
+  // negotiations, not apology topics. Adjacent to the price-echo rule
+  // since both are "don't engage with sensitive negotiation topics".
+  describe("Do not acknowledge missing service-recovery actions (PR 3 Change D)", () => {
+    it("introduces the rule by name in the universal block", () => {
+      expect(UNIVERSAL_STRUCTURAL_RULES).toContain(
+        "Do not acknowledge missing service-recovery actions",
+      );
+    });
+
+    it("names compensation, refunds, discounts, and complimentary items as covered categories", () => {
+      // Concrete category enumeration so the model doesn't try to
+      // wriggle around with one of the variants.
+      const covered = [
+        "Compensation",
+        "refunds",
+        "discounts",
+        "complimentary items",
+        "comped meals",
+        "free replacements",
+        "store credit",
+      ];
+      for (const item of covered) {
+        expect(UNIVERSAL_STRUCTURAL_RULES).toContain(item);
+      }
+    });
+
+    it("bans the four engagement modes the model might reach for", () => {
+      // do NOT acknowledge / apologise for / confirm should have been
+      // offered / promise for next time — all four must be explicitly
+      // banned because each is a distinct phrasing the model defaults
+      // to.
+      const lower = UNIVERSAL_STRUCTURAL_RULES.toLowerCase();
+      expect(lower).toContain("do not acknowledge any of it");
+      expect(lower).toContain("do not apologise for it");
+      expect(lower).toContain("do not confirm it should have been offered");
+      expect(lower).toContain("do not promise it for next time");
+    });
+
+    it("frames this as private negotiation, not an apology topic", () => {
+      expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+        "private negotiations, not apology topics",
+      );
+    });
+
+    it("explains the public-anchoring why so the model judges edge cases instead of pattern-matching", () => {
+      expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+        "every reader is anchored on that as a thing the business has now confessed to owing",
+      );
+    });
+
+    it("names canonical bad examples from the spreadsheet review", () => {
+      const badExamples = [
+        '"we\'re sorry no discount was offered"',
+        '"you didn\'t receive the compensation you deserved"',
+        '"we should have offered a replacement"',
+        '"we apologise that no refund was provided"',
+        '"we will make sure you receive proper compensation next time"',
+      ];
+      for (const example of badExamples) {
+        expect(UNIVERSAL_STRUCTURAL_RULES).toContain(example);
+      }
+    });
+
+    it("explicitly carves out the conflict with the specificity rule", () => {
+      // The specificity rule (engage with one concrete incident) would,
+      // naively, tell the model to engage with "no compensation" the
+      // same way it engages with "undercooked pizza". The cap must
+      // explicitly say: specificity is about the interaction itself,
+      // not about missing recovery actions.
+      expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+        "this rule applies even when the reviewer raised the missing remediation",
+      );
+      expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+        "does not extend to acknowledging missing recovery actions",
+      );
+    });
   });
 
   // 5/30 prompt-tuning iter-9 / PR 2 — "Do not promise the failed thing

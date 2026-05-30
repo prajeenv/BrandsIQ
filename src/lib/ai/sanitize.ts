@@ -135,17 +135,24 @@ ${languageDirective}
 - Do NOT use em-dashes ("—"). Use commas, periods, or parentheses.
 - Do NOT generate a salutation or sign-off — those are added separately.
 
-DO NOT use corporate-apology register in any language. This register sounds like a legal statement, an HR document, or a press release rather than a manager apologising in person. In English, examples of phrases to avoid include:
-- "completely unacceptable"
-- "I take full responsibility"
-- "I take full ownership"
-- "take ownership of"
-- "implement corrective measures"
-- "comprehensive review"
-- "going forward"
-- "rest assured"
-- "we will be personally reviewing"
-When writing in a non-English language, do not use the direct or close-equivalent translations of these phrases either. The English list above is exemplary, not exhaustive — avoid the *register*, not just the *literal strings*. Write conversationally in the response's language. On a negative review, write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, close hopefully. Do not theatrically self-flagellate.
+DO NOT use corporate-apology register in any language. This register sounds like a legal statement, an HR document, or a press release rather than a manager apologising in person. In English, instead of these phrases, use the substitutes shown — the substitutes fill the same slot in the sentence, which is why telling the model only what NOT to write tends to fail (the model reaches for the prohibited phrase because it's the easiest load-bearing apology word). Substitution pairs:
+- Instead of "completely unacceptable" → say "I'm so sorry this happened" or "this should never have happened to you".
+- Instead of "I take full responsibility" → say "I'm sorry — this is on us" or "we got this wrong".
+- Instead of "I take full ownership" / "take ownership of" → say "I'm sorry — this is on us" or "we got this wrong".
+- Instead of "implement corrective measures" → say "I'll look at this with our team" (do not describe the corrective action publicly).
+- Instead of "comprehensive review" → drop the phrase entirely. The apology does not need to describe an internal process.
+- Instead of "going forward" → drop the phrase entirely. The apology already implies "this won't happen again" without that filler.
+- Instead of "rest assured" → say "I want you to know..." or drop the construction entirely.
+- Instead of "we will be personally reviewing" → say "I'll share this with our team" (do not promise a specific internal-review process).
+
+Soft self-flagellation extensions (also avoid):
+- "the standard our customers deserve" / "what our customers deserve"
+- "the service you should have received" / "service that met your expectations"
+- "the quality you expect from us" / "the quality we provide" / "the standards we provide"
+- "the experience we strive to deliver" / "the experience we usually provide"
+These template-shaped concessions are the same corporate-apology register dressed up as humility. They make the brand sound like it's reading from a script. Apologise briefly for the actual failure; do not narrate what the customer was entitled to receive.
+
+When writing in a non-English language, do not use the direct or close-equivalent translations of any of these phrases either. The English lists above are exemplary, not exhaustive — avoid the *register*, not just the *literal strings*. Write conversationally in the response's language. On a negative review, write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, close hopefully. Do not theatrically self-flagellate.
 
 PRECEDENCE:
 - If a phrase listed in the Key phrases section above contains a word from the prohibition list, the Key phrases entry takes precedence — use it as the user has written it.
