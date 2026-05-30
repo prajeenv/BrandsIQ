@@ -243,6 +243,84 @@ describe("UNIVERSAL_STRUCTURAL_RULES", () => {
     expect(UNIVERSAL_STRUCTURAL_RULES).toContain('Thank you for reaching out');
   });
 
+  // 5/30 prompt-tuning iter-9 / PR 2 — "Do not promise the failed thing
+  // done correctly". Observed in spreadsheet review: the model was
+  // closing a 1★ undercooked-pizza reply with "a properly prepared
+  // meal in the future" — re-naming the specific failure as part of
+  // the hopeful close. This reduces the apology to a sales pitch for
+  // the corrected version of the failed thing. The rule lives in the
+  // universal block (not the negative template) because the failure
+  // mode can surface anywhere: apology paragraph, internal commitment,
+  // close, or any other sentence. Same anywhere-in-response scope as
+  // the price-echo rule (Change B).
+  describe("Do not promise the failed thing done correctly (PR 2)", () => {
+    it("introduces the rule by name in the universal block", () => {
+      expect(UNIVERSAL_STRUCTURAL_RULES).toContain(
+        "Do not promise the failed thing done correctly",
+      );
+    });
+
+    it("scopes the rule explicitly to anywhere in the response (not close-only)", () => {
+      // Anchor on the phrase that makes the scope universal — the lower-
+      // case search keeps the test resilient to minor capitalisation
+      // edits in the prompt copy.
+      expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+        "apology paragraph, internal commitment, close",
+      );
+      expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+        "it is not limited to the closing",
+      );
+    });
+
+    it("names the canonical bad example from the spreadsheet-review symptom", () => {
+      // "a properly prepared meal" was the literal output that
+      // motivated the rule.
+      expect(UNIVERSAL_STRUCTURAL_RULES).toContain(
+        '"a properly prepared meal"',
+      );
+    });
+
+    it("names additional don't-promise-the-fix examples across business types", () => {
+      // The example list covers more than one failure shape so the
+      // model generalises rather than memorising a single hospitality
+      // phrase. Spot-check a representative range.
+      const badExamples = [
+        "an on-time delivery this time",
+        "a booking that's actually honoured",
+        "the warm service you should have received",
+        "the experience that meets your expectations",
+        "the standard our customers expect",
+      ];
+      for (const example of badExamples) {
+        expect(UNIVERSAL_STRUCTURAL_RULES).toContain(example);
+      }
+    });
+
+    it("names the generic-future-visit substitutes so the model has something to say instead", () => {
+      // Without positive substitutes, the model would either suppress
+      // the bad phrasing and leave a structural hole, or invent a
+      // worse one. The substitutes are the load-bearing other half of
+      // the rule.
+      const substitutes = [
+        "we'd love to welcome you back",
+        "we hope to see you again",
+        "we hope you'll give us another chance",
+      ];
+      for (const sub of substitutes) {
+        expect(UNIVERSAL_STRUCTURAL_RULES).toContain(sub);
+      }
+    });
+
+    it("explains why this matters (sales-pitch / apology-as-condition framing)", () => {
+      // The "why" lets the model judge edge cases instead of just
+      // pattern-matching the example list — same approach the multi-
+      // lingual blocklist took (Decision 94).
+      expect(UNIVERSAL_STRUCTURAL_RULES.toLowerCase()).toContain(
+        "sales pitch for the corrected version",
+      );
+    });
+  });
+
   it("includes the Key-phrases precedence rule", () => {
     expect(UNIVERSAL_STRUCTURAL_RULES).toContain("Key phrases entry takes precedence");
   });

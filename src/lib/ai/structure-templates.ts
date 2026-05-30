@@ -91,6 +91,13 @@ Avoid these AI-giveaway markers:
 - Do not use three-adjective lists for rhythm (e.g. "wonderful, memorable, delightful evening"). Pick one or two adjectives deliberately.
 - Do not reference the price the customer paid back to them, even if they mentioned it in the review. The dissatisfaction is what needs acknowledgment, not the amount they spent.
 
+Do not promise the failed thing done correctly:
+- This rule applies anywhere in the response — apology paragraph, internal commitment, close, or any other sentence. It is not limited to the closing.
+- If the reviewer raised a specific failure (e.g., an undercooked meal, a delayed delivery, a missed booking, a rude interaction, a faulty product), do NOT promise the negation of that failure as part of your reply.
+- Examples of what NOT to write: "a properly prepared meal", "an on-time delivery this time", "a booking that's actually honoured", "the warm service you should have received", "the experience that meets your expectations", "the standard our customers expect", "the kind of quality we usually deliver".
+- Refer to any future visit, return, or interaction generically. Acceptable substitutes include: "we'd love to welcome you back", "we hope to see you again", "we hope you'll give us another chance", "we'd be glad to host you again", "we hope to have the opportunity to serve you again". These work because they invite the customer back without itemising the corrected version of the failure.
+- Why this matters: promising the failure done correctly turns the apology into a sales pitch for the corrected version of the failed thing. It also implies the customer must give the business another try to find out whether the issue was fixed, which reduces the apology to a condition. Generic future-visit language avoids both.
+
 Precedence rule:
 - If a phrase listed in the Key phrases section above contains a word or phrase from this prohibition list, the Key phrases entry takes precedence — use it as the user has written it. The prohibitions apply only to words and phrases the model would otherwise introduce on its own.`;
 
