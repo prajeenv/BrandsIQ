@@ -275,8 +275,14 @@ describe("sanitize.ts", () => {
         expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
           "do not use corporate-apology register in any language",
         );
+        // 5/30 prompt-tuning iter-9 / PR 3 (Change A): the section now
+        // introduces the substitution pairs with "In English, instead of
+        // these phrases, use the substitutes shown" rather than the
+        // earlier "In English, examples of phrases to avoid include".
+        // Substance is the same — still English-anchored, still
+        // exemplary not exhaustive — but the wording is sharper.
         expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
-          "in english, examples",
+          "in english, instead of these phrases",
         );
         expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
           "exemplary, not exhaustive",
@@ -292,6 +298,114 @@ describe("sanitize.ts", () => {
         expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
           "acknowledge briefly, commit briefly, close hopefully",
         );
+      });
+
+      // 5/30 prompt-tuning iter-9 / PR 3 (Change A) — substitution pairs.
+      // The previous flat blocklist named what NOT to say but didn't give
+      // the model a load-bearing replacement, so the model kept reaching
+      // for the prohibited phrase or paraphrasing it ("inaccettabile" in
+      // Italian, "ensure this doesn't occur again" as a workaround in
+      // English). The substitution pairs name a phrase that fills the
+      // same slot in the sentence, which is the only reliable way to
+      // suppress the prohibited register.
+      describe("substitution pairs (PR 3 Change A)", () => {
+        it("explains WHY substitutions are needed (model reaches for the prohibited phrase otherwise)", () => {
+          expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+            "the substitutes fill the same slot in the sentence",
+          );
+        });
+
+        it("pairs each banned phrase with its substitute via 'Instead of X → say Y' format", () => {
+          // Anchor on the "Instead of" + arrow construction so the rule
+          // form is enforceable. The actual phrase pairs are spot-
+          // checked individually below.
+          const arrowPairCount = (
+            INSTRUCTION_REINFORCEMENT.match(/Instead of "/g) || []
+          ).length;
+          // 8 substitution pairs covering: completely unacceptable, I take
+          // full responsibility, I take full ownership (incl. "take
+          // ownership of" via slash), implement corrective measures,
+          // comprehensive review, going forward, rest assured, we will
+          // be personally reviewing.
+          expect(arrowPairCount).toBeGreaterThanOrEqual(8);
+        });
+
+        it("provides 'I'm so sorry this happened' as a substitute for 'completely unacceptable'", () => {
+          expect(INSTRUCTION_REINFORCEMENT).toMatch(
+            /Instead of "completely unacceptable"[^.]*"I'm so sorry this happened"/,
+          );
+        });
+
+        it("provides 'I'm sorry — this is on us' as a substitute for the take-responsibility/ownership family", () => {
+          expect(INSTRUCTION_REINFORCEMENT).toMatch(
+            /Instead of "I take full responsibility"[^.]*"I'm sorry/,
+          );
+          expect(INSTRUCTION_REINFORCEMENT).toMatch(
+            /Instead of "I take full ownership"[^.]*"I'm sorry/,
+          );
+        });
+
+        it("instructs the model to DROP filler constructions (going forward, comprehensive review) rather than substitute", () => {
+          // Some prohibited phrases have no good substitute — the
+          // apology speaks for itself without them. The rule must say
+          // so explicitly or the model invents a substitute that's
+          // worse than what it replaced.
+          expect(INSTRUCTION_REINFORCEMENT).toMatch(
+            /Instead of "comprehensive review"[^.]*drop the phrase entirely/,
+          );
+          expect(INSTRUCTION_REINFORCEMENT).toMatch(
+            /Instead of "going forward"[^.]*drop the phrase entirely/,
+          );
+        });
+      });
+
+      // 5/30 prompt-tuning iter-9 / PR 3 (Change B) — soft self-flagellation
+      // extensions. These are the template-shaped concessions the model
+      // falls back to when the literal blocklist phrases are unavailable
+      // ("the standard our customers deserve", "service that met your
+      // expectations", etc.). Same corporate-apology register dressed up
+      // as humility.
+      describe("soft self-flagellation extensions (PR 3 Change B)", () => {
+        it("introduces the extensions as a labelled section in the reinforcement tail", () => {
+          expect(INSTRUCTION_REINFORCEMENT).toContain(
+            "Soft self-flagellation extensions",
+          );
+        });
+
+        it("names the customer-deserving family of concessions", () => {
+          // The model reaches for "deserve" / "expect" templates when
+          // the literal apology phrases are blocked. Without naming
+          // them here, the previous spreadsheet review showed the model
+          // produced "the quality our customers deserve" (Italian
+          // response) as an unintentional workaround.
+          expect(INSTRUCTION_REINFORCEMENT).toContain(
+            "the standard our customers deserve",
+          );
+          expect(INSTRUCTION_REINFORCEMENT).toContain(
+            "what our customers deserve",
+          );
+          expect(INSTRUCTION_REINFORCEMENT).toContain(
+            "the service you should have received",
+          );
+          expect(INSTRUCTION_REINFORCEMENT).toContain(
+            "service that met your expectations",
+          );
+        });
+
+        it("explains why these are the same corporate-apology register", () => {
+          expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+            "same corporate-apology register dressed up as humility",
+          );
+        });
+
+        it("frames these extensions as multilingual too (don't translate them either)", () => {
+          // The "any of these phrases" wording in the multilingual
+          // paragraph must explicitly cover BOTH the substitution pair
+          // list AND the soft-self-flagellation list.
+          expect(INSTRUCTION_REINFORCEMENT.toLowerCase()).toContain(
+            "any of these phrases",
+          );
+        });
       });
     });
 
