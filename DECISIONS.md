@@ -1990,6 +1990,81 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 
 The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98 numbered decisions** across the prompt-engineering, schema, frontend, API, and post-processing surfaces. The default-voice response quality has been validated through the user's spreadsheet-review iteration cycle: anti-self-flagellation, specificity, scope-of-apology, length, register, and contract-channel handling all confirmed to land on real spreadsheet reviews.
 
+### Iteration 9 — Prompt-tuning batch driven by the Italian undercooked-pizza spreadsheet review
+
+Shipped across PRs #153 (regen-dialog independence note), #154 (universal "do not promise the failed thing done correctly" rule), and #155 (substitution pairs + soft self-flagellation extensions + internal-commitment cap + don't-acknowledge-missing-service-recovery).
+
+Driven by an iterative spreadsheet-review cycle on a 1★ Italian undercooked-pizza review across both Italian-native and English-via-override (response-language override) paths. The user generated regens, compared outputs against each other and against the Italian restaurant's own human-written replies, and fed each failure mode back as a new diagnostic. Four patterns were addressed at the prompt floor instead of remaining as per-regen instruction patches: corporate-apology register leakage (Change A), template-shaped concessions (Change B), trailing purpose clauses on internal commitments (Change C), and acknowledgement of missing service-recovery actions (Change D).
+
+#### Decision 101: Regen-dialog independence note — surface the autosave-style independence model in copy, not behaviour change (PR #153)
+
+- **Decision:** Add a two-sentence muted-text note in the regenerate dialog header: *"Each regeneration runs independently on the original review. Earlier instructions from previous regens are not carried forward."*
+- **Why:** Users intuitively read "regenerate" as iterative refinement — fix one thing in regen N, fix a different thing in regen N+1, expect both to hold. The actual behaviour is independent regeneration: each regen runs as a fresh composition against the original review with only the textarea's current contents as a directive. Without disclosure, regen N+1 silently undoes the correction from regen N (the spreadsheet review caught exactly this when "completely unacceptable" came back after a separate regen for "properly prepared meal").
+- **Why not stacking instructions:** Instruction stacking degrades quickly — "be more apologetic" + "don't apologize too much" makes the model worse with each regen. Independent regen is the correct prompt-engineering choice; the gap was UX honesty, not algorithm. Same conclusion the autosave model already lives by elsewhere in the product.
+- **Why not auto-prefill from prior regen:** Prefilling the textarea would create a worse mental model — users would clear it expecting reset but the system would actually be doing something custom. The "each regen is fresh" mental model scales to whatever the user is trying to achieve.
+- **Risk:** Low ✅. Pure UX copy change, no schema, no prompt change.
+
+#### Decision 102: Universal "do not promise the failed thing done correctly" rule, in UNIVERSAL_STRUCTURAL_RULES (PR #154)
+
+- **Decision:** New rule in the universal block: *"Do not promise the failed thing done correctly. This rule applies anywhere in the response — apology paragraph, internal commitment, close, or any other sentence."* With examples spanning hospitality, delivery, and bookings, and named generic-future-visit substitutes ("we'd love to welcome you back", "we hope to see you again").
+- **Why universal, not negative-template only:** The failure mode (acknowledge a specific failure → promise its negation) can surface anywhere — a body paragraph could just as easily say "our usual service is much more attentive than what you experienced" or "next time you'll find our bread fresh". Both are the same pattern. The rule lives next to the price-echo rule because both are "anywhere-in-response" anti-patterns about engaging with the customer's specific complaint in the wrong shape.
+- **Why concept-based with examples, not literal phrase list:** Same approach as Decision 94 (multilingual concept framing). Naming the *pattern* lets the model generalise to phrasings not on any list. The "Why this matters" paragraph (apology-as-sales-pitch / apology-as-condition framing) anchors the model so it judges edge cases instead of pattern-matching.
+- **Why positive substitutes are mandatory:** Without "we'd love to welcome you back" etc., the model would either suppress the bad phrasing and leave a structural hole, or invent a worse substitute. Substitutes are the load-bearing other half of the rule. (Same principle that drove Change A's substitution pairs in PR #155.)
+- **Risk:** Low ✅.
+
+#### Decision 103: Substitution pairs for the corporate-apology blocklist — "Instead of X, say Y" beats "do not say X" (PR #155 Change A)
+
+- **Decision:** The previous flat blocklist in `INSTRUCTION_REINFORCEMENT` (which named what NOT to write but didn't give the model a load-bearing replacement) is reframed as 8 substitution pairs in the form `Instead of "X" → say "Y"`. Three of the pairs explicitly instruct "drop the phrase entirely" because some prohibited phrases ("comprehensive review", "going forward", "rest assured") have no good substitute — the apology speaks for itself without them.
+- **Why:** The spreadsheet review proved the model needs a sentence-slot filler. Across iterative regens with the literal blocklist alone, the model kept reaching for the prohibited phrase, paraphrasing it ("inaccettabile" in Italian, "I'll be discussing what happened with our kitchen team to ensure this doesn't occur again" in English as a workaround for "completely unacceptable"), or substituting the next-easiest reach. Banning a phrase without giving the model what to write instead leaves a load-bearing hole in the sentence shape — and the model fills it with something worse than what was banned.
+- **Pattern lesson:** Prompt rules of the form "do not write X" only work when (a) X has an obvious natural replacement the model would already reach for, or (b) the slot can be left empty. Otherwise the rule must explicitly name the substitute. This generalises beyond the corporate-apology list — when adding any new prohibited-phrase rule, the question to ask is *"what fills the same slot?"* and name it.
+- **Risk:** Low ✅.
+
+#### Decision 104: Soft self-flagellation extensions discriminate between owner-voice acknowledgement and obligation-shaped concession (PR #155 Change B + calibration learning)
+
+- **Decision:** A new labelled "Soft self-flagellation extensions" section in `INSTRUCTION_REINFORCEMENT` names obligation-shaped concession phrases the model falls back to when the literal blocklist is unavailable: *"the standard our customers deserve"*, *"the service you should have received"*, *"the quality you expect from us"*, *"service that met your expectations"*, *"the experience we strive to deliver"*. These extensions are explicitly marked as multilingual (the same "any of these phrases" / "don't translate them either" framing as Change A).
+- **Calibration learning (the load-bearing part of this decision):** The list deliberately targets a **register pattern**, not a phrase bag. There are two surface-similar speech acts that look like the same thing and aren't:
+  - **Obligation-shaped concession (banned):** enumerates what the customer was *entitled to* receive — "the quality our customers deserve", "the service you should have received". Frames the customer as shortchanged and the business as having failed an obligation. Reads legalistic.
+  - **Owner-voice acknowledgement (NOT banned):** "this isn't us at our best", "not what we aim for". Frames the brand as having an identity that normally includes the failed thing's opposite, and acknowledges the gap honestly. Reads human and genuine.
+- **Why this matters going forward:** A spreadsheet-review regen that produced *"Your experience was clearly not what we aim for"* was initially flagged as a leak by Claude — that was a false positive. The user's correction ("for me it sounds like owner just accepting the mistake") identified the speech-act distinction. The current Change B list correctly captures only the obligation-shaped variant because every entry uses "you" as the entitled party or "we should have / met your expectations" as the obligation pattern. "We aim for" doesn't fit that pattern, which is why it correctly slipped through.
+- **Implication for future prompt-tuning:** When adding to the soft-self-flagellation list, the test is NOT "does this sound like corporate apology?" but rather "does this phrase frame the customer as having been shortchanged or the business as having failed an obligation?" If yes, ban. If the phrase is the owner acknowledging the brand's identity-gap in active voice, leave it. Banning owner-voice phrases would strip out a register that's actually doing good work in human replies.
+- **Risk:** Low ✅. The current list passes this test for every entry.
+
+#### Decision 105: Internal-commitment cap — ban the trailing purpose clause (PR #155 Change C)
+
+- **Decision:** New "Internal commitment cap" sub-section in the negative template requiring the internal commitment ("I'll share this with our team") to be ONE short clause with no trailing purpose clause. Explicitly bans patterns like *"to ensure this doesn't happen again"*, *"to ensure our cooking standards are properly maintained"*, *"to prevent this from recurring"*. Names an acceptable form ("I'll share this with our kitchen team." — full stop, no trailing clause) for the model to mirror. Step 2 of the template now cross-references the cap so the model is told about the constraint at the moment it's deciding what to write.
+- **Why:** The model honoured the iter-8 substitute ("I'll share this with our team") but kept appending a trailing purpose clause that re-introduces the corporate-apology register the substitute was meant to escape. A manager apologising in person says "I'll share this with the team" and moves on; they don't enumerate the internal process. The trailing clause turns the commitment into a public narration of internal process — the same register tell, in a slightly different shape.
+- **Pattern lesson:** Banning the *phrase* without banning the *shape* leaves the shape free to surface in paraphrases. The cap targets the structural pattern (trailing purpose clause), not the specific words.
+- **Risk:** Low ✅.
+
+#### Decision 106: Universal rule against acknowledging missing service-recovery actions, with explicit carve-out from the specificity rule (PR #155 Change D)
+
+- **Decision:** New universal rule in `UNIVERSAL_STRUCTURAL_RULES`: do not acknowledge compensation, refunds, discounts, complimentary items, comped meals, free replacements, or store credit that the customer says they did NOT receive. Four engagement modes explicitly banned: do not acknowledge, do not apologise for, do not confirm should have been offered, do not promise for next time. The rule explicitly carves out a conflict with the iter-8 specificity rule: *"This rule applies even when the reviewer raised the missing remediation as a specific concrete grievance... The specificity rule is about acknowledging WHAT WENT WRONG with the interaction itself — it does not extend to acknowledging missing recovery actions."*
+- **Why:** Once a public reply names a missing remediation ("we're sorry no compensation was offered"), every reader is anchored on that as a thing the business has confessed to owing, and the brand has narrowed its legitimate range of responses. These are private negotiations, not apology topics. The Italian-native response handled this correctly by default (omitted the compensation grievance); the English-via-override response surfaced it because the iter-8 specificity rule ("engage with one concrete incident") dragged it in.
+- **Why the explicit carve-out:** Without it, the specificity rule and this rule contend, and spreadsheet evidence shows specificity wins. The carve-out tells the model how to resolve the conflict: specificity applies to the interaction itself; missing recovery actions are out of scope.
+- **Pattern lesson:** When adding a new prompt rule that could be read as conflicting with an existing rule, name the conflict explicitly and tell the model which rule wins in that case. Otherwise the model resolves the ambiguity the wrong way (in this case, by following whichever rule has more emphasis or more recent placement).
+- **Risk:** Low ✅.
+
+#### Validation status
+
+The four primary spreadsheet-review symptoms (corporate-apology phrase leakage, trailing purpose clause, compensation acknowledgement, "properly prepared meal" close) are all resolved per the user's post-merge regen test on the same Italian undercooked-pizza review:
+
+> "Thank you for taking the time to share your feedback. We are deeply sorry about the undercooked pizza you received, and that the replacement was also not properly prepared. I'll share this with our kitchen team right away. Your experience was clearly not what we aim for, and we appreciate you bringing this to our attention. We hope you'll give us another chance to serve you better in the future."
+
+No "completely unacceptable", clean internal commitment with no trailing clause, no compensation acknowledgement, generic close. The "not what we aim for" phrase initially looked like a residual tell but on second read (per Decision 104's calibration) is correctly classified as owner-voice acknowledgement — not banned, and shouldn't be.
+
+#### Test coverage delta — Iteration 9
+
+| Type | Before iter 9 | After iter 9 | Net |
+|---|---|---|---|
+| Unit tests | 1137 (post-Decision-100) | 1167 (PR #155 merged target) | **+30** |
+| Unit test files | 64 | 64 | 0 |
+| New unit test cases | — | — | ~31 across 3 PRs (PR #153: 1; PR #154: 6; PR #155: 24) |
+| Updated unit test cases | — | — | 1 (matching the new section intro phrasing in sanitize.ts) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+Verification: lint:strict, type-check, all unit tests green at each PR. PR #153 and #154 merged + deployed to Preview before PR #155's spreadsheet re-validation.
+
 ---
 
 ## Decision Log
@@ -2098,6 +2173,12 @@ The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98
 | 98 | `OCCASION_FRAGMENT` broadened to cover non-hospitality businesses; scope-of-acknowledgement rule layered in | Brand Voice / Iter 8 | May 25 | Low ✅ | ✅ Implemented |
 | 99 | Persist `additionalInstructions` on `ReviewResponse` + `ResponseVersion`; surface collapsed in version history; PostHog telemetry sends metadata only (no raw text) | Brand Voice / regen-instructions persistence | May 26 | Low ✅ | ✅ Implemented |
 | 100 | Response-language override on `BrandVoice` — nullable column pins AI response language regardless of review language; default null preserves current "follow detected language" behaviour; templated reinforcement-tail directive defends against prompt-injection language swap | Response language override | May 29 | Low ✅ | ✅ Implemented |
+| 101 | Regen-dialog independence note — surface the autosave-style independence model in copy ("Each regeneration runs independently on the original review. Earlier instructions from previous regens are not carried forward"); don't change the algorithm | Brand Voice / Iter 9 | May 29 | Low ✅ | ✅ Implemented |
+| 102 | Universal "do not promise the failed thing done correctly" rule in `UNIVERSAL_STRUCTURAL_RULES` — concept-based with examples spanning hospitality / delivery / bookings, generic-future-visit substitutes named | Brand Voice / Iter 9 | May 30 | Low ✅ | ✅ Implemented |
+| 103 | Substitution pairs replace flat blocklist for corporate-apology phrases — "Instead of X → say Y" gives the model a load-bearing sentence-slot filler; three explicit "drop entirely" rules for phrases with no good substitute | Brand Voice / Iter 9 | May 30 | Low ✅ | ✅ Implemented |
+| 104 | Soft self-flagellation list targets obligation-shaped concessions only, NOT owner-voice acknowledgement — speech-act calibration; "what we aim for" / "this isn't us at our best" remain valid because they don't frame the customer as shortchanged or the business as having failed an obligation | Brand Voice / Iter 9 | May 30 | Low ✅ | ✅ Implemented |
+| 105 | Internal-commitment cap on negative template — ban the trailing purpose clause ("to ensure this doesn't happen again"); name an acceptable form to mirror; step 2 of the template cross-references the cap | Brand Voice / Iter 9 | May 30 | Low ✅ | ✅ Implemented |
+| 106 | Universal rule against acknowledging missing service-recovery actions (compensation, refunds, discounts, complimentary items) — explicit carve-out from the iter-8 specificity rule (specificity applies to the interaction itself, not to missing remediations) | Brand Voice / Iter 9 | May 30 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
@@ -2144,6 +2225,17 @@ The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98
 ---
 
 ## Change Log
+
+**May 30, 2026** — Brand Voice / Iteration 9 — prompt-tuning batch driven by Italian undercooked-pizza spreadsheet review (Decisions 101–106)
+- Three PRs across two days (#153, #154, #155). PR #153 + #154 merged + deployed to Preview; PR #155 open on `feat/prompt-iter-9-register-and-service-recovery`.
+- PR #153 (Decision 101): regenerate-dialog two-sentence independence note in `ToneModifier.tsx` — UX honesty fix, no algorithm change. Closes the surprise where regen N+1 silently undoes regen N's correction.
+- PR #154 (Decision 102): universal "do not promise the failed thing done correctly" rule in `UNIVERSAL_STRUCTURAL_RULES` — addresses the "we hope to serve you a properly prepared meal" close that re-references the specific failure. Concept-based with examples spanning hospitality/delivery/bookings; generic-future-visit substitutes named.
+- PR #155 Change A (Decision 103): the corporate-apology blocklist in `INSTRUCTION_REINFORCEMENT` reframed as substitution pairs ("Instead of X → say Y"), with three "drop entirely" rules for filler phrases. Addresses the spreadsheet observation that the model needs a load-bearing sentence-slot filler — banning a phrase without naming what to write instead leaves a hole the model fills with something worse.
+- PR #155 Change B (Decision 104): soft self-flagellation extensions named alongside the literal blocklist — "what our customers deserve", "the service you should have received", etc. **The calibration learning** that justifies the section's design: the list targets a **register pattern** (obligation-shaped concession), not a phrase bag. Owner-voice acknowledgement ("not what we aim for", "this isn't us at our best") is structurally different and remains valid; the test is "does this frame the customer as shortchanged or the business as having failed an obligation?", not "does this sound like corporate apology?". A regen producing "not what we aim for" was initially flagged as a tell by Claude and correctly classified as owner-voice by the user — the calibration is recorded in Decision 104 so future prompt-tuning passes don't strip out a register that's doing good work in human replies.
+- PR #155 Change C (Decision 105): internal-commitment cap in the negative template — bans the trailing purpose clause ("to ensure this doesn't happen again") that re-introduces corporate-apology register even when the substitute phrase ("I'll share this with our team") was the right replacement. Pattern lesson: ban the *shape*, not just the *phrase*.
+- PR #155 Change D (Decision 106): universal rule against acknowledging missing service-recovery actions (compensation, refunds, discounts, complimentary items) — with an explicit carve-out from the iter-8 specificity rule (specificity applies to the interaction itself, not to missing remediations). Pattern lesson: when adding a rule that could conflict with an existing rule, name the conflict explicitly and tell the model which wins.
+- Validation: post-merge regen of the same Italian undercooked-pizza review now resolves all four primary symptoms (no "completely unacceptable" or paraphrases, no trailing purpose clause, no compensation acknowledgement, generic close). Documented in DECISIONS.md under "Validation status".
+- Tests: +30 net unit tests across the three PRs; 1 modified existing test for new section intro phrasing. Final suite: 1167 passing.
 
 **May 29, 2026** — Response language override (brand-voice setting)
 - New nullable column `responseLanguage String? @db.VarChar(50)` on `BrandVoice` via migration `20260529120000_add_brand_voice_response_language`. Additive, no backfill. Null = follow review's detected language (current behaviour, preserved for every existing user). Non-null = display name from `SUPPORTED_RESPONSE_LANGUAGES` (Decision 100).
@@ -2355,4 +2447,4 @@ The brand voice redesign + the iter-7 / iter-8 follow-ups together comprise **98
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** May 26, 2026 (regen-instructions persistence: schema columns + UI reveal + PostHog metadata-only telemetry. Earlier on May 25 — Brand Voice / Iteration 8 — default-voice prompt tuning: reviewer-protection guardrails, anti-self-flagellation blocklist, specificity, mixed-review rebalance, sample scoping, regenerate scoped precedence, anti-self-criticism rule, money-echo ban, contact-channel structural fix, multilingual concept framing, register-aware contractions, apology formality, business-agnostic CONTEXT block, broadened occasion fragment. Iteration 7 above covered the incomplete-email-config feedback work (defensive prompt + post-process + 3-distance UI warnings).)
+**Last Reviewed:** May 30, 2026 — Brand Voice / Iteration 9 prompt-tuning batch driven by Italian undercooked-pizza spreadsheet review (Decisions 101–106). Three PRs: #153 regen-dialog independence note (merged), #154 universal "do not promise the failed thing done correctly" rule (merged), #155 substitution pairs + soft-flagellation extensions + commitment cap + missing-service-recovery rule (open). Decision 104 captures the speech-act calibration (obligation-shaped concession vs. owner-voice acknowledgement) that justifies the soft-flagellation list's design. Earlier on May 29 — response-language override on `BrandVoice` (Decision 100); May 26 — regen-instructions persistence (schema columns + UI reveal + PostHog metadata-only telemetry); May 25 — Brand Voice / Iteration 8 default-voice prompt tuning. Iteration 7 above covered the incomplete-email-config feedback work.
