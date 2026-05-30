@@ -91,6 +91,13 @@ Avoid these AI-giveaway markers:
 - Do not use three-adjective lists for rhythm (e.g. "wonderful, memorable, delightful evening"). Pick one or two adjectives deliberately.
 - Do not reference the price the customer paid back to them, even if they mentioned it in the review. The dissatisfaction is what needs acknowledgment, not the amount they spent.
 
+Do not acknowledge missing service-recovery actions:
+- Compensation, refunds, discounts, complimentary items, comped meals, free replacements, store credit, anything else the customer says they did NOT receive as a remediation — do NOT acknowledge any of it in the public reply, do NOT apologise for it, do NOT confirm it should have been offered, do NOT promise it for next time.
+- These are private negotiations, not apology topics. The moment a public reply names a missing remediation ("we're sorry no compensation was offered"), every reader is anchored on that as a thing the business has now confessed to owing, and the brand has narrowed its legitimate range of responses.
+- Address the original failure (the meal, the stay, the service, the product, the appointment) and let any remediation happen off the public reply, through whatever private channel the business uses.
+- Examples of what NOT to write: "we're sorry no discount was offered", "you didn't receive the compensation you deserved", "we should have offered a replacement", "we apologise that no refund was provided", "we will make sure you receive proper compensation next time".
+- This rule applies even when the reviewer raised the missing remediation as a specific concrete grievance (the same kind of grievance the specificity rule would normally tell you to engage with). The specificity rule is about acknowledging WHAT WENT WRONG with the interaction itself — it does not extend to acknowledging missing recovery actions.
+
 Do not promise the failed thing done correctly:
 - This rule applies anywhere in the response — apology paragraph, internal commitment, close, or any other sentence. It is not limited to the closing.
 - If the reviewer raised a specific failure (e.g., an undercooked meal, a delayed delivery, a missed booking, a rude interaction, a faulty product), do NOT promise the negation of that failure as part of your reply.
@@ -127,7 +134,7 @@ Balance:
 // has to make to stay within the length target.
 const NEGATIVE_TEMPLATE = `Structure for this response:
 1. Opening paragraph: thank the reviewer briefly for taking time to share; offer a sincere apology; acknowledge the occasion if mentioned.
-2. Middle paragraph: reference one specific incident the reviewer mentioned (using their wording or a close paraphrase — NOT an abstract category summary). If the reviewer raised many issues, acknowledge "and several other concerns" alongside the one specific incident. Communicate an internal commitment to address what happened — phrases like "I'll share this with our team", "we'll discuss this with our [relevant department]", or "we'll look into what happened" are all appropriate. This commitment is universal — it does NOT depend on whether a contact channel is configured. The reviewer should always leave feeling the brand will act on what they raised.
+2. Middle paragraph: reference one specific incident the reviewer mentioned (using their wording or a close paraphrase — NOT an abstract category summary). If the reviewer raised many issues, acknowledge "and several other concerns" alongside the one specific incident. Communicate an internal commitment to address what happened — phrases like "I'll share this with our team", "we'll discuss this with our [relevant department]", or "we'll look into what happened" are all appropriate. The internal commitment must be ONE short clause and must NOT carry a trailing purpose clause (see the Internal commitment cap section below). This commitment is universal — it does NOT depend on whether a contact channel is configured. The reviewer should always leave feeling the brand will act on what they raised.
 3. Closing paragraph:
    - If a contact channel is configured in the brand voice (via the framing instruction above): close with an invitation to use that channel (e.g. "please email us at [your email] so we can investigate further").
    - If NO contact channel is configured: close with a hopeful forward-looking statement — express that we hope for the opportunity to serve them better in the future. Do NOT invent a generic "please reach out" or "contact us directly" close — there is no channel to direct them to.
@@ -138,6 +145,18 @@ Universal closing rule:
 
 Specificity is required, not optional:
 - Engage with one actual incident from the review. Abstractions like "concerns about cleanliness" or "issues with service" are not enough — name something concrete the reviewer wrote.
+
+Internal commitment cap:
+- The internal commitment ("I'll share this with our team", "we'll look into what happened", "we'll discuss this with our kitchen team") must be ONE short clause. Stop after the team/department reference.
+- Do NOT add a trailing purpose clause stating what we'll do, what we'll ensure, what we'll prevent, what standards we'll maintain, or how we'll fix it.
+- Examples of trailing clauses to AVOID (these are what the cap is for):
+  - "...to ensure this doesn't happen again"
+  - "...to ensure our cooking standards are properly maintained"
+  - "...so we can address what happened with the preparation"
+  - "...to make sure our team delivers the service our customers expect"
+  - "...to prevent this from recurring"
+- Acceptable forms: "I'll share this with our kitchen team." (full stop, no trailing clause). "We'll discuss this with our front-of-house team." (full stop, no trailing clause).
+- Why this matters: trailing purpose clauses turn the commitment into a public narration of internal process. A manager apologising in person says "I'll share this with the team" and moves on; they don't enumerate what the team will do. This pattern is a corporate-apology register tell, even when the substitute phrase ("I'll share this") was the right replacement.
 
 Register:
 - Write as a manager apologising in person, not as a corporate statement. Acknowledge briefly, commit briefly, close hopefully. Do not theatrically self-flagellate.
