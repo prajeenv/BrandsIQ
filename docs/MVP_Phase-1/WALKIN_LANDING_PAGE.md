@@ -43,10 +43,10 @@ The page should render correctly with or without UTM parameters (don't break if 
 ### Section 1 — Hero (above the fold on mobile, ~640px viewport)
 
 - **Headline (H1):** Reply to your reviews in seconds, in your brand voice.
-- **Subhead (paragraph):** AI review replies for restaurants, hotels, and cafés. Built in Berlin.
+- **Subhead (paragraph):** AI review replies for hospitality, retail, and local businesses. Built in Berlin. (Broadened from the original food-and-beverage-only list so the page reflects the product's full industry coverage, not just F&B.)
 - **Primary CTA button:** Start free beta
   - Links to `/auth/signup?utm_source=walkin` (the existing signup route; `utm_source` carries the walk-in attribution forward, see Section 6)
-- **Secondary text link (below CTA):** Or message me directly, links to WhatsApp deep link `https://wa.me/491776910899`
+- **Secondary text link (below CTA):** "WhatsApp me directly" with a message icon, links to WhatsApp deep link `https://wa.me/491776910899`
 
 ### Section 2 — Welcome Line
 
@@ -78,14 +78,14 @@ Personal block to reinforce the founder-led trust signal:
 - **Monogram avatar:** a circle (~80px diameter, `bg-brand-100` indigo fill) with the letter "P" centred inside (`text-brand-600`, ~32px, weight medium). Uses the app's indigo brand tokens (see Section 5 colour note). (If a headshot is added in the future, it would slot into this same position with circular crop.)
 - Name and title: "Prajeen Vijayan, Founder, Berlin"
 - Quote: "I'm building this in Berlin. If you'd like to chat through how it works on your reviews, ping me directly — happy to set up 15 minutes."
-- Two buttons side by side:
-  - WhatsApp (`https://wa.me/491776910899`)
+- Two outlined brand buttons (visible indigo border) side by side, equal weight:
+  - WhatsApp (`https://wa.me/491776910899`), with a message icon
   - Email (`mailto:prajeen@brandsiq.app`)
 
 ### Section 6 — Bottom CTA (repeat the primary action)
 
 - Primary button: Start your free beta → `/auth/signup?utm_source=walkin`
-- Secondary text link: Or message me on WhatsApp → `https://wa.me/491776910899`
+- (No secondary WhatsApp link here: it would duplicate the WhatsApp button in the founder block directly above.)
 
 ---
 
