@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/lib/validations";
+import { LOGO_RATIO } from "@/lib/constants";
 
 export default function ForgotPasswordPage() {
   const { data: session, status: sessionStatus } = useSession();
@@ -97,9 +99,20 @@ export default function ForgotPasswordPage() {
     <Card>
       <CardHeader className="text-center">
         <div className="flex justify-center mb-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xl font-bold">
-            R
-          </div>
+          <Link
+            href="/"
+            aria-label="Go to BrandsIQ home"
+            className="flex items-center transition-opacity hover:opacity-90"
+          >
+            <Image
+              src="/logo.png"
+              alt="BrandsIQ"
+              height={40}
+              width={Math.round(40 * LOGO_RATIO)}
+              priority
+              className="h-10 w-auto"
+            />
+          </Link>
         </div>
         <CardTitle className="text-2xl font-bold">
           {isSignedIn ? "Reset your password" : "Forgot password?"}

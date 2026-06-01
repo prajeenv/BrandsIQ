@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { VALIDATION_LIMITS } from "@/lib/constants";
+import { LOGO_RATIO, VALIDATION_LIMITS } from "@/lib/constants";
 
 const resetPasswordFormSchema = z
   .object({
@@ -172,9 +173,20 @@ function ResetPasswordContent() {
     <Card>
       <CardHeader className="text-center">
         <div className="flex justify-center mb-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xl font-bold">
-            R
-          </div>
+          <Link
+            href="/"
+            aria-label="Go to BrandsIQ home"
+            className="flex items-center transition-opacity hover:opacity-90"
+          >
+            <Image
+              src="/logo.png"
+              alt="BrandsIQ"
+              height={40}
+              width={Math.round(40 * LOGO_RATIO)}
+              priority
+              className="h-10 w-auto"
+            />
+          </Link>
         </div>
         <CardTitle className="text-2xl font-bold">Reset your password</CardTitle>
         <CardDescription>Enter your new password below</CardDescription>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
+import Image from "next/image";
 import Link from "next/link";
-import { Menu, LogOut, Settings, User, Sparkles, LifeBuoy } from "lucide-react";
-import { SUPPORT_MAILTO } from "@/lib/constants";
+import { Menu, LogOut, Settings, User, LifeBuoy } from "lucide-react";
+import { LOGO_RATIO, SUPPORT_MAILTO } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -52,11 +53,19 @@ export function DashboardHeader({ onMenuClick, tier = "FREE" }: DashboardHeaderP
         </Button>
 
         {/* Mobile logo */}
-        <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Sparkles className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-bold">BrandsIQ</span>
+        <Link
+          href="/dashboard"
+          aria-label="BrandsIQ dashboard"
+          className="flex items-center lg:hidden"
+        >
+          <Image
+            src="/logo.png"
+            alt="BrandsIQ"
+            height={28}
+            width={Math.round(28 * LOGO_RATIO)}
+            priority
+            className="h-7 w-auto"
+          />
         </Link>
 
         {/* Spacer */}

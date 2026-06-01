@@ -1,16 +1,17 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { LOGO_RATIO } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   LayoutDashboard,
   MessageSquare,
   Settings,
-  Sparkles,
   Ticket,
   Inbox,
   X,
@@ -67,11 +68,15 @@ export function Sidebar({ isOpen = true, onClose, isMobile = false }: SidebarPro
     <>
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b px-6">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Sparkles className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold">BrandsIQ</span>
+        <Link href="/dashboard" aria-label="BrandsIQ dashboard" className="flex items-center">
+          <Image
+            src="/logo.png"
+            alt="BrandsIQ"
+            height={28}
+            width={Math.round(28 * LOGO_RATIO)}
+            priority
+            className="h-7 w-auto"
+          />
         </Link>
         {isMobile && onClose && (
           <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
