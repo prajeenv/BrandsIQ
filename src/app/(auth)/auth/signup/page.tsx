@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignupForm } from "@/components/auth";
 
@@ -17,9 +18,13 @@ export default function SignUpPage() {
     <Card>
       <CardHeader className="space-y-1 text-center">
         <div className="flex justify-center mb-4">
-          <div className="flex h-12 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xl font-bold px-3">
+          <Link
+            href="/"
+            aria-label="Go to BrandsIQ home"
+            className="flex h-12 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xl font-bold px-3 transition-opacity hover:opacity-90"
+          >
             IQ
-          </div>
+          </Link>
         </div>
         <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
         <CardDescription>
