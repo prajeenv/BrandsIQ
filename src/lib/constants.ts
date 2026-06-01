@@ -2,11 +2,12 @@
  * Application constants for BrandsIQ
  */
 
-// Brand logo aspect ratio. The wordmark asset (public/logo.png) is 1672x941
-// (~1.777:1). Spots render it at a fixed height and derive the width from this
-// ratio so next/image reserves the right box (no layout shift). Single source
-// of truth: if the logo is ever re-cut at a different ratio, change it here.
-export const LOGO_RATIO = 1672 / 941;
+// Brand logo aspect ratio. The wordmark asset (public/logo.png) is 1151x262
+// (~4.39:1, tightly cropped). Spots render it at a fixed height and derive the
+// width from this ratio so next/image reserves the right box (no layout shift).
+// Single source of truth: if the logo is ever re-cut at a different ratio,
+// change it here.
+export const LOGO_RATIO = 1151 / 262;
 
 // Review platforms supported
 export const PLATFORMS = [

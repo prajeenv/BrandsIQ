@@ -7,6 +7,37 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.EMAIL_FROM || "BrandsIQ <noreply@brandsiq.app>";
 
+// Public absolute URL for the wordmark. Email needs an absolute https URL
+// (relative paths don't resolve in an inbox). Falls back to the prod domain
+// if NEXTAUTH_URL is unset so emails are never left with a dead image src.
+const LOGO_URL = `${(process.env.NEXTAUTH_URL || "https://www.brandsiq.app").replace(/\/$/, "")}/logo.png`;
+
+/**
+ * Branded email header: a white strip with the BrandsIQ wordmark, sitting
+ * above the indigo gradient band that carries the (white-text) heading.
+ *
+ * Why a white strip and not the logo on the gradient: the wordmark is dark
+ * navy, which would be invisible on the dark indigo gradient. White strip =
+ * dark-on-white, always legible.
+ *
+ * Why the heading stays as text (not the logo image): many inboxes block
+ * images by default. The image is an enhancement; the white-text heading on
+ * the gradient is the reliable branding that renders even with images off.
+ * The logo's alt="BrandsIQ" also degrades gracefully to the brand word.
+ *
+ * Logo sizing: asset is 1151x262 (~4.39:1). Rendered at 28px tall => ~123px
+ * wide. Explicit width/height attributes are required for email clients.
+ */
+function emailHeader(heading: string): string {
+  return `
+            <div style="background: #ffffff; padding: 20px 30px; border: 1px solid #e5e7eb; border-bottom: none; border-radius: 12px 12px 0 0; text-align: center;">
+              <img src="${LOGO_URL}" alt="BrandsIQ" width="123" height="28" style="display: inline-block; height: 28px; width: 123px; border: 0;" />
+            </div>
+            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">${heading}</h1>
+            </div>`;
+}
+
 export async function sendVerificationEmail(email: string, token: string) {
   const verificationUrl = `${process.env.NEXTAUTH_URL}/auth/verify-email?token=${token}`;
 
@@ -24,9 +55,7 @@ export async function sendVerificationEmail(email: string, token: string) {
             <title>Verify your email</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to BrandsIQ!</h1>
-            </div>
+            ${emailHeader("Welcome to BrandsIQ!")}
             <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
               <p style="margin-top: 0;">Thank you for signing up! Please verify your email address by clicking the button below:</p>
               <div style="text-align: center; margin: 30px 0;">
@@ -75,9 +104,7 @@ export async function sendPasswordResetEmail(email: string, token: string) {
             <title>Reset your password</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Password Reset Request</h1>
-            </div>
+            ${emailHeader("Password Reset Request")}
             <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
               <p style="margin-top: 0;">We received a request to reset your password. Click the button below to choose a new password:</p>
               <div style="text-align: center; margin: 30px 0;">
@@ -166,9 +193,7 @@ export async function sendWelcomeEmail(email: string, name?: string, isBetaUser:
             <title>Welcome to BrandsIQ</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 30px; border-radius: 12px 12px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">${heading}</h1>
-            </div>
+            ${emailHeader(heading)}
             <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
               <p style="margin-top: 0;">${section.headerLine}</p>
 
@@ -260,6 +285,9 @@ export async function sendFounderInquiryNotification(params: {
             <title>Founder inquiry</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 640px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; padding: 0 0 20px 0; margin-bottom: 20px; border-bottom: 1px solid #e5e7eb;">
+              <img src="${LOGO_URL}" alt="BrandsIQ" width="123" height="28" style="display: inline-block; height: 28px; width: 123px; border: 0;" />
+            </div>
             <h2 style="color: #4f46e5; margin: 0 0 12px 0;">${typeLabel[type]}</h2>
             <p style="color: #666; font-size: 14px; margin: 0 0 24px 0;">
               <strong>Source:</strong> ${source ?? "(not specified)"}<br>
