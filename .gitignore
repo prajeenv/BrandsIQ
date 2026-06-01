@@ -85,7 +85,12 @@ blob-report/
 tmpclaude-*
 dev.log
 nul
+# Ignore stray PNGs (screenshots, scratch images) by default...
 *.png
+# ...but allow committed brand assets (logo + favicon icons).
+!public/logo.png
+!src/app/icon.png
+!src/app/apple-icon.png
 
 # ===========================================
 # When to Revisit:

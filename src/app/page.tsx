@@ -1,5 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
-import { SUPPORT_MAILTO, TIER_LIMITS } from "@/lib/constants";
+import { LOGO_RATIO, SUPPORT_MAILTO, TIER_LIMITS } from "@/lib/constants";
 
 export default function HomePage() {
   return (
@@ -7,12 +8,16 @@ export default function HomePage() {
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 items-center justify-center rounded-lg bg-brand-500 text-white font-bold px-2 text-sm">
-              IQ
-            </div>
-            <span className="text-xl font-bold">BrandsIQ</span>
-          </div>
+          <Link href="/" aria-label="BrandsIQ home" className="flex items-center">
+            <Image
+              src="/logo.png"
+              alt="BrandsIQ"
+              height={32}
+              width={Math.round(32 * LOGO_RATIO)}
+              priority
+              className="h-8 w-auto"
+            />
+          </Link>
           <nav className="flex items-center gap-4">
             <Link
               href="/auth/signin"
@@ -321,12 +326,15 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t py-8">
         <div className="container flex flex-col items-center justify-between gap-4 md:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 items-center justify-center rounded bg-brand-500 text-white text-xs font-bold px-1.5">
-              IQ
-            </div>
-            <span className="text-sm font-medium">BrandsIQ</span>
-          </div>
+          {/* Decorative: the adjacent copyright line already names BrandsIQ,
+              so empty alt avoids a duplicate screen-reader announcement. */}
+          <Image
+            src="/logo.png"
+            alt=""
+            height={24}
+            width={Math.round(24 * LOGO_RATIO)}
+            className="h-6 w-auto"
+          />
           <div className="flex flex-col items-center gap-2 md:flex-row md:gap-6">
             <a
               href={SUPPORT_MAILTO}
