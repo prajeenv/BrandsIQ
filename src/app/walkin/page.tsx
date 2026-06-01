@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Check, MessageCircle } from "lucide-react";
+import { LOGO_RATIO } from "@/lib/constants";
 
 // Contact details surfaced on this page, kept as single constants.
 const WHATSAPP_URL = "https://wa.me/491776910899";
@@ -57,8 +59,22 @@ export default function WalkinPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <main className="mx-auto flex w-full max-w-[560px] flex-1 flex-col px-5">
+        {/* Logo. Small + centered, not a link: there's nowhere more "home" to
+            send a just-met walk-in visitor, and a link would risk pulling them
+            off the conversion path. */}
+        <div className="flex justify-center pt-10 pb-2">
+          <Image
+            src="/logo.png"
+            alt="BrandsIQ"
+            height={28}
+            width={Math.round(28 * LOGO_RATIO)}
+            priority
+            className="h-7 w-auto"
+          />
+        </div>
+
         {/* Hero */}
-        <section className="flex flex-col gap-5 pt-14 pb-12 text-center">
+        <section className="flex flex-col gap-5 pt-6 pb-12 text-center">
           <h1 className="text-[2rem] font-semibold leading-tight tracking-tight sm:text-5xl">
             Reply to your reviews in seconds, in your brand voice.
           </h1>
