@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, MessageCircle } from "lucide-react";
 
 // Contact details surfaced on this page, kept as single constants.
 const WHATSAPP_URL = "https://wa.me/491776910899";
@@ -14,7 +14,7 @@ const SIGNUP_HREF = "/auth/signup?utm_source=walkin";
 export const metadata: Metadata = {
   title: "Try BrandsIQ, AI review replies for hospitality",
   description:
-    "Reply to your reviews in seconds, in your brand voice. AI review replies for restaurants, hotels, and cafes. Built in Berlin.",
+    "Reply to your reviews in seconds, in your brand voice. AI review replies for hospitality, retail, and local businesses. Built in Berlin.",
 };
 
 const VALUE_POINTS = [
@@ -42,10 +42,16 @@ const HOW_IT_WORKS = [
 const primaryButtonClass =
   "inline-flex h-12 items-center justify-center rounded-md bg-brand-500 px-6 text-base font-medium text-white hover:bg-brand-600 transition-colors";
 
+// Outlined brand button: visible indigo border, used for the founder-block
+// contact pair (WhatsApp + Email) so they read as a balanced, equal-weight
+// pair rather than solid-vs-faint-grey.
+const outlineButtonClass =
+  "inline-flex h-12 items-center justify-center gap-2 rounded-md border border-brand-500 bg-background px-6 text-base font-medium text-brand-600 hover:bg-brand-50 transition-colors";
+
 // min-h-[44px] keeps the tappable area at the 44px touch-target floor (spec
 // §7) while preserving the plain text-link look.
 const secondaryLinkClass =
-  "inline-flex min-h-[44px] items-center text-sm font-medium text-brand-600 underline-offset-4 hover:underline";
+  "inline-flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-brand-600 underline-offset-4 hover:underline";
 
 export default function WalkinPage() {
   return (
@@ -57,8 +63,8 @@ export default function WalkinPage() {
             Reply to your reviews in seconds, in your brand voice.
           </h1>
           <p className="text-lg text-muted-foreground">
-            AI review replies for restaurants, hotels, and cafes. Built in
-            Berlin.
+            AI review replies for hospitality, retail, and local businesses.
+            Built in Berlin.
           </p>
           <div className="flex flex-col items-center gap-3">
             <Link href={SIGNUP_HREF} className={primaryButtonClass}>
@@ -70,7 +76,8 @@ export default function WalkinPage() {
               rel="noopener noreferrer"
               className={secondaryLinkClass}
             >
-              Or message me directly
+              <MessageCircle aria-hidden="true" className="h-4 w-4" />
+              WhatsApp me directly
             </a>
           </div>
         </section>
@@ -147,14 +154,12 @@ export default function WalkinPage() {
                 href={WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={primaryButtonClass}
+                className={outlineButtonClass}
               >
+                <MessageCircle aria-hidden="true" className="h-4 w-4" />
                 WhatsApp
               </a>
-              <a
-                href={`mailto:${FOUNDER_EMAIL}`}
-                className="inline-flex h-12 items-center justify-center rounded-md border border-input bg-background px-6 text-base font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
+              <a href={`mailto:${FOUNDER_EMAIL}`} className={outlineButtonClass}>
                 Email
               </a>
             </div>
@@ -167,14 +172,6 @@ export default function WalkinPage() {
             <Link href={SIGNUP_HREF} className={primaryButtonClass}>
               Start your free beta
             </Link>
-            <a
-              href={WHATSAPP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={secondaryLinkClass}
-            >
-              Or message me on WhatsApp
-            </a>
           </div>
         </section>
       </main>
