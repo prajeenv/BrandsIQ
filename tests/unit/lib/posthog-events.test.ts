@@ -59,16 +59,60 @@ describe("posthog-events — identification", () => {
 });
 
 describe("posthog-events — signup + onboarding", () => {
-  it("trackSignupCompletedWithBeta fires the event with no PII props", () => {
+  it("trackSignupCompletedWithBeta fires the event with no props when no source given", () => {
     trackSignupCompletedWithBeta();
 
     expect(captureMock).toHaveBeenCalledWith("signup_completed_with_beta", {});
   });
 
-  it("trackSignupCompletedNoBeta fires the event with no props", () => {
+  it("trackSignupCompletedNoBeta fires the event with no props when no source given", () => {
     trackSignupCompletedNoBeta();
 
     expect(captureMock).toHaveBeenCalledWith("signup_completed_no_beta", {});
+  });
+
+  it("trackSignupCompletedWithBeta carries signupSource when provided", () => {
+    trackSignupCompletedWithBeta({ signupSource: "walkin" });
+
+    expect(captureMock).toHaveBeenCalledWith("signup_completed_with_beta", {
+      signupSource: "walkin",
+    });
+  });
+
+  it("trackSignupCompletedNoBeta carries signupSource when provided", () => {
+    trackSignupCompletedNoBeta({ signupSource: "walkin" });
+
+    expect(captureMock).toHaveBeenCalledWith("signup_completed_no_beta", {
+      signupSource: "walkin",
+    });
+
+    // Defensive: attribution is categorical only, never PII.
+    const props = captureMock.mock.calls[0][1];
+    expect(props).not.toHaveProperty("email");
+    expect(props).not.toHaveProperty("name");
+    expect(props).not.toHaveProperty("organizationName");
+  });
+
+  it("omits signupSource when it is empty or whitespace-only", () => {
+    trackSignupCompletedNoBeta({ signupSource: "   " });
+    expect(captureMock).toHaveBeenLastCalledWith(
+      "signup_completed_no_beta",
+      {},
+    );
+
+    captureMock.mockClear();
+    trackSignupCompletedNoBeta({ signupSource: "" });
+    expect(captureMock).toHaveBeenLastCalledWith(
+      "signup_completed_no_beta",
+      {},
+    );
+  });
+
+  it("trims surrounding whitespace from signupSource", () => {
+    trackSignupCompletedWithBeta({ signupSource: "  walkin  " });
+    expect(captureMock).toHaveBeenCalledWith("signup_completed_with_beta", {
+      signupSource: "walkin",
+    });
   });
 
   it("trackOnboardingCompleted carries categorical context only", () => {
