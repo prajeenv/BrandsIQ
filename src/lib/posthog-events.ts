@@ -92,6 +92,29 @@ function capture(
 // ----------------------------------------------------------------------------
 
 /**
+ * Channel attribution for a completed signup. `signupSource` is a categorical
+ * acquisition tag (e.g. "walkin" for the Berlin walk-in QR landing page),
+ * sourced from the utm_source URL param. It is NOT PII — it identifies the
+ * channel, not the person. Omitted entirely when there is no source so the
+ * event shape stays `{}` for organic / direct signups.
+ */
+export interface SignupAttribution {
+  signupSource?: string;
+}
+
+/**
+ * Build the property bag for a signup-completed event. Returns `{}` when no
+ * source is present (keeping organic signups property-free) and
+ * `{ signupSource }` otherwise. Whitespace-only sources are treated as absent.
+ */
+function attributionProps(
+  props: SignupAttribution,
+): Record<string, unknown> {
+  const source = props.signupSource?.trim();
+  return source ? { signupSource: source } : {};
+}
+
+/**
  * Fires when a user completes signup with a valid beta invite code.
  * Source: SignupForm post-success, when betaCode is present and valid.
  *
@@ -105,15 +128,19 @@ function capture(
  * to clients — extending it is filed as a follow-up. Today the event fires
  * without any properties; we'll add daysToUse when the endpoint is updated.
  */
-export function trackSignupCompletedWithBeta(): void {
-  capture("signup_completed_with_beta", {});
+export function trackSignupCompletedWithBeta(
+  props: SignupAttribution = {},
+): void {
+  capture("signup_completed_with_beta", attributionProps(props));
 }
 
 /**
  * Fires when a user completes signup without a beta invite (Free tier).
  */
-export function trackSignupCompletedNoBeta(): void {
-  capture("signup_completed_no_beta", {});
+export function trackSignupCompletedNoBeta(
+  props: SignupAttribution = {},
+): void {
+  capture("signup_completed_no_beta", attributionProps(props));
 }
 
 /**

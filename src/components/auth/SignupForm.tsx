@@ -106,6 +106,12 @@ export function SignupForm({ callbackUrl = "/dashboard" }: SignupFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  // Channel attribution: ?utm_source=<channel> (e.g. "walkin" from the Berlin
+  // walk-in QR landing page). Stamped onto the signup-completed PostHog event
+  // so we can answer "did this channel convert?" without any pre-consent page
+  // analytics. Categorical, not PII.
+  const signupSource = searchParams.get("utm_source") ?? undefined;
+
   // Invite-code handling: read ?b=<code>, validate via the public endpoint,
   // and route to /auth/beta-link-expired if the code is invalid.
   const inviteCode = searchParams.get("b");
@@ -190,10 +196,10 @@ export function SignupForm({ callbackUrl = "/dashboard" }: SignupFormProps) {
       // _actual_ outcome.
       const userIsBetaUser = Boolean(result?.data?.user?.isBetaUser);
       if (userIsBetaUser) {
-        trackSignupCompletedWithBeta();
+        trackSignupCompletedWithBeta({ signupSource });
         trackBetaInviteLinkUsed();
       } else {
-        trackSignupCompletedNoBeta();
+        trackSignupCompletedNoBeta({ signupSource });
       }
 
       setSuccess(true);
