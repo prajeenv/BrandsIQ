@@ -213,6 +213,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         sentiment: review.sentiment,
         reviewerName: review.reviewerName,
       },
+      // 5/30 — language-aware salutation/sign-off. See generate route +
+      // DECISIONS.md #107.
+      effectiveLanguage: generatedResponse.effectiveLanguage,
     });
 
     // Deduct credits atomically

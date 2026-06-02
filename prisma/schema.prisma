@@ -196,6 +196,25 @@ model BrandVoice {
   // boundary.
   responseLanguage String? @map("response_language") @db.VarChar(50)
 
+  // Language the user typed their `salutationPattern` and `signoffLines`
+  // in. Detected via franc on the combined salutation + sign-off string
+  // (debounced in the form) and overridable via an inline "Change" link
+  // — same UX as the review-creation form's language detection.
+  //
+  // At assembly time, the post-processor compares this against the
+  // response's `effectiveLanguage`: match → use the user's literal text;
+  // mismatch → fall back to a built-in default for the response language
+  // from `LANGUAGE_DEFAULT_CONTACT_BLOCK` (src/lib/ai/
+  // language-contact-defaults.ts). When null — franc returned "und" and
+  // the user didn't manually confirm — the post-processor always uses
+  // the system default for the response language (the user's typed text
+  // is unused in that case; the form's "Language unclear" indicator
+  // warns about this upfront).
+  //
+  // Legacy data is backfilled to "English" by the migration so existing
+  // brand voices keep their pre-this-PR behaviour for English responses.
+  salutationSignoffLanguage String? @map("salutation_signoff_language") @db.VarChar(50)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

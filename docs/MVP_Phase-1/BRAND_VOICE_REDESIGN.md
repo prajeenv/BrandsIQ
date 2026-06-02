@@ -302,6 +302,34 @@ Only visible/enabled when 7.3 toggle is ON. Placed below the framing options bec
 
 **Positive-review behavior** (hardcoded, not a setting): When toggle 7.3 is ON and the current review is positive (3+ stars and non-negative sentiment), the email does NOT appear in the response body — it's only included in negative reviews. This is deliberate to prevent weird "please email us" lines tacked onto 5-star responses.
 
+### 7.6 Language-aware salutation & sign-off (added May 30, 2026)
+
+The salutation and sign-off are deterministic post-processing artifacts (§9.4) — they're appended outside the AI body using literal text stored on the brand voice (§7.1, §7.2). When the response-language override (§9.3 / Decision 100) pins the response body to a non-English language, this caused a mismatch: a French response would open with "Dear Mira," and close with "Warmest regards, The Team" — English islands in a French response.
+
+The user can't reasonably maintain salutation/sign-off in 44 languages, so the system fills the gap with a built-in defaults map plus a per-customisation language tracker.
+
+**Mechanism:**
+
+1. **New field on the brand voice:** `salutationSignoffLanguage String? @db.VarChar(50)`. Records what language the user typed their `salutationPattern` and `signoffLines` in. Stored values come from `SUPPORTED_RESPONSE_LANGUAGES`. Null only when franc returned "und" AND the user didn't manually confirm.
+2. **Detection (form-side):** `ContactSignoffSection.tsx` runs debounced (500ms) franc detection on the **concatenated salutation + sign-off** whenever either field changes. Combined gives franc ~30+ chars typically (comfortably above its 10-char floor for any reliable detection). The detected language is shown as an inline indicator: *"Detected: **Italian** — Change"*. Same UX pattern as the review-creation form's language detection (`src/components/reviews/ReviewForm.tsx`).
+3. **Manual override:** Clicking "Change" opens a small inline picker (every entry in `SUPPORTED_RESPONSE_LANGUAGES`). Picking marks the value as "manually overridden" so subsequent franc detection runs don't silently overwrite. The indicator text changes to *"Set to: **Italian** (Re-detect)"*. "Re-detect" reverts to auto-detection.
+4. **Built-in defaults map:** `src/lib/ai/language-contact-defaults.ts` exports `LANGUAGE_DEFAULT_CONTACT_BLOCK` — one hand-authored entry per `SUPPORTED_RESPONSE_LANGUAGES` value (44 entries). Each entry has `salutation` (with `{firstName}` placeholder), `noNameSalutation` (the firstName-null fallback — hand-authored, avoids per-language regex canonicalisation), and `signoff`.
+5. **Resolver (post-process-side):** `assembleResponse` gains a required `effectiveLanguage` arg. `resolveContactBlock(brandVoice, effectiveLanguage, firstName)` picks:
+   - `salutationSignoffLanguage === effectiveLanguage` → use the user's literal text (existing `buildSalutation` substitutes `{firstName}`).
+   - `salutationSignoffLanguage !== effectiveLanguage` → use the defaults map for `effectiveLanguage`.
+   - `salutationSignoffLanguage === null` → use the defaults map for `effectiveLanguage`. The user's typed text is unused; the form's "Language unclear" indicator warned about this upfront.
+6. **Source of truth for `effectiveLanguage`:** Computed once in `claude.ts:generateReviewResponse` as `brandVoice.responseLanguage || review.detectedLanguage` and returned as part of `GeneratedResponse`. The three routes (generate / regenerate / brand-voice-test) forward it into `assembleResponse` — single source of truth, no drift risk.
+
+**Legacy data:** The migration (`20260530120000_add_brand_voice_salutation_signoff_language`) backfills every existing row to `salutationSignoffLanguage = 'English'` so pre-this-PR behaviour is preserved for English responses. The post-PR null state only ever arises if a user types a fresh customisation that franc returns "und" on AND doesn't manually confirm.
+
+**Why hand-authored `noNameSalutation` per language, not regex canonicalisation:** Suffix-based languages (Japanese: `{firstName}様、`) and prefix-based ones (Italian: `Caro/a {firstName},`) need different no-name fallback shapes. Hand-authoring one entry per language (Italian: "Salve,"; Japanese: "お客様、") is simpler than 44 regex rules and produces grammatically-correct results.
+
+**Why the null-case falls through to defaults (not English):** When franc can't classify the user's text AND the user doesn't confirm, the system genuinely doesn't know what language the customisation is in. Treating null as English would mean a user who typed valid French text franc couldn't classify would have it unused for French responses. The honest behaviour: when in doubt, system defaults for the response language. The "Language unclear" indicator warns the user upfront that confirmation is needed for their text to apply.
+
+**Chip suggestions:** `SALUTATION_CHIPS_BY_LANGUAGE` and `SIGNOFF_CHIPS_BY_LANGUAGE` cover 10 languages with explicit register-appropriate chips (English, Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese Simplified, Korean); other languages fall back to the English set. The chips update live as the indicator's language value changes.
+
+**Cross-reference:** Decision 107 in `DECISIONS.md` for the full rationale and pattern lessons; PROGRESS.md for the test coverage delta.
+
 ---
 
 ## 8. Regenerate dialog (separate page, in scope for Phase 1)

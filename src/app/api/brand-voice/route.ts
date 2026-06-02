@@ -45,6 +45,9 @@ function projectToV2(row: {
     negativeReviewFramingCustom: normalized.negativeReviewFramingCustom,
     replyToEmail: normalized.replyToEmail,
     responseLanguage: normalized.responseLanguage,
+    // 5/30 — language the user typed their salutation/sign-off in.
+    // Drives the resolver in post-process.ts. See DECISIONS.md #107.
+    salutationSignoffLanguage: normalized.salutationSignoffLanguage,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -158,6 +161,7 @@ export async function PUT(request: NextRequest) {
         negativeReviewFramingCustom: v2.negativeReviewFramingCustom ?? null,
         replyToEmail: v2.replyToEmail ?? null,
         responseLanguage: v2.responseLanguage ?? null,
+        salutationSignoffLanguage: v2.salutationSignoffLanguage ?? null,
       },
       create: {
         userId: session.user.id,
@@ -174,6 +178,7 @@ export async function PUT(request: NextRequest) {
         negativeReviewFramingCustom: v2.negativeReviewFramingCustom ?? null,
         replyToEmail: v2.replyToEmail ?? null,
         responseLanguage: v2.responseLanguage ?? null,
+        salutationSignoffLanguage: v2.salutationSignoffLanguage ?? null,
       },
     });
 

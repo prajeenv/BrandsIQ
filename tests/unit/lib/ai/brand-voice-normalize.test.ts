@@ -269,6 +269,91 @@ describe("normalizeBrandVoice", () => {
     });
   });
 
+  // 5/30 — language the user typed their salutation/sign-off in.
+  // Same coercion logic as `responseLanguage` (both store the same
+  // kind of value — a display name from SUPPORTED_RESPONSE_LANGUAGES).
+  // The two fields share the `normalizeSupportedLanguage` helper, so
+  // these tests anchor that the helper is reused, not re-implemented.
+  // See DECISIONS.md #107.
+  describe("salutationSignoffLanguage", () => {
+    it("defaults to null when the field is absent", () => {
+      expect(normalizeBrandVoice({}).salutationSignoffLanguage).toBeNull();
+    });
+
+    it("defaults to null when explicitly null", () => {
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: null }).salutationSignoffLanguage,
+      ).toBeNull();
+    });
+
+    it("passes a supported display name through unchanged", () => {
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "English" }).salutationSignoffLanguage,
+      ).toBe("English");
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "Italian" }).salutationSignoffLanguage,
+      ).toBe("Italian");
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "Japanese" }).salutationSignoffLanguage,
+      ).toBe("Japanese");
+    });
+
+    it("trims whitespace before validating", () => {
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "  German  " })
+          .salutationSignoffLanguage,
+      ).toBe("German");
+    });
+
+    it("coerces an empty/whitespace string to null", () => {
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "" }).salutationSignoffLanguage,
+      ).toBeNull();
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "   " }).salutationSignoffLanguage,
+      ).toBeNull();
+    });
+
+    it("coerces unknown language strings to null (defensive)", () => {
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "Klingon" })
+          .salutationSignoffLanguage,
+      ).toBeNull();
+      // ISO 639-3 codes are not the storage shape — display names are.
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: "ita" }).salutationSignoffLanguage,
+      ).toBeNull();
+    });
+
+    it("coerces non-string values to null", () => {
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: 42 }).salutationSignoffLanguage,
+      ).toBeNull();
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: true }).salutationSignoffLanguage,
+      ).toBeNull();
+      expect(
+        normalizeBrandVoice({ salutationSignoffLanguage: {} }).salutationSignoffLanguage,
+      ).toBeNull();
+    });
+
+    it("is independent of responseLanguage (both fields use the same coercion but don't share state)", () => {
+      // Edge case: a user could pin `responseLanguage = Italian` but
+      // type their salutation/sign-off in English. The two values are
+      // tracked independently and the normalizer doesn't conflate
+      // them — important because the resolver compares
+      // salutationSignoffLanguage against effectiveLanguage (which is
+      // derived from responseLanguage), not against responseLanguage
+      // directly.
+      const out = normalizeBrandVoice({
+        responseLanguage: "Italian",
+        salutationSignoffLanguage: "English",
+      });
+      expect(out.responseLanguage).toBe("Italian");
+      expect(out.salutationSignoffLanguage).toBe("English");
+    });
+  });
+
   describe("safety", () => {
     it("returns defaults for null input", () => {
       const out = normalizeBrandVoice(null);

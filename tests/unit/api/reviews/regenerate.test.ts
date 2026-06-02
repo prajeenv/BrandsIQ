@@ -35,7 +35,15 @@ const mockPrisma = vi.hoisted(() => {
 const mockAuth = vi.hoisted(() => vi.fn());
 
 const mockGenerateReviewResponse = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({ responseText: 'We appreciate your feedback!', model: 'claude-sonnet-4-20250514' }),
+  vi.fn().mockResolvedValue({
+    responseText: 'We appreciate your feedback!',
+    model: 'claude-sonnet-4-20250514',
+    // 5/30 — language-aware salutation/sign-off plumbing (DECISIONS.md #107).
+    // Default mock language is English so the existing test suite preserves
+    // its pre-this-PR behaviour (English brand voice + English response = user's
+    // literal salutation/sign-off applies, same as today).
+    effectiveLanguage: 'English',
+  }),
 );
 
 const mockGetOrCreateBrandVoice = vi.hoisted(() =>

@@ -55,6 +55,12 @@ interface BrandVoiceDataV2 {
   replyToEmail: string | null;
   // Null = follow the review's detected language (default behaviour).
   responseLanguage: string | null;
+  // 5/30 — language the user typed their salutation/sign-off in.
+  // Detected via franc in ContactSignoffSection (debounced over the
+  // combined string) or picked manually via the inline "Change" link.
+  // Null when franc was uncertain and the user didn't pick.
+  // See DECISIONS.md #107.
+  salutationSignoffLanguage: string | null;
 }
 
 const DEFAULT_BRAND_VOICE: Omit<BrandVoiceDataV2, "id"> = {
@@ -71,6 +77,10 @@ const DEFAULT_BRAND_VOICE: Omit<BrandVoiceDataV2, "id"> = {
   negativeReviewFramingCustom: null,
   replyToEmail: null,
   responseLanguage: null,
+  // English is the same default the migration backfills onto every
+  // existing row, and matches the default English text in
+  // `salutationPattern` / `signoffLines` above.
+  salutationSignoffLanguage: "English",
 };
 
 // Starter chips — spec §4.2 / §4.3.
@@ -116,6 +126,24 @@ export function BrandVoiceForm() {
   const [negativeReviewFramingCustom, setNegativeReviewFramingCustom] = useState<string | null>(null);
   const [replyToEmail, setReplyToEmail] = useState<string | null>(null);
   const [responseLanguage, setResponseLanguage] = useState<string | null>(null);
+  // 5/30 — language the user typed their salutation/sign-off in. Drives
+  // chip suggestions in `ContactSignoffSection` AND the post-processor's
+  // resolver. Auto-detected via franc inside the section (debounced),
+  // overridable via the inline "Change" indicator. Manual override is
+  // tracked locally so the franc detector doesn't silently overwrite a
+  // user pick on subsequent edits.
+  //
+  // `salutationSignoffLanguageManuallyOverridden` is NOT persisted on
+  // the brand voice — it's transient form state. The persisted column
+  // is just the language value; whether the user picked it manually
+  // vs. auto-detection produced it is irrelevant to the resolver. The
+  // flag exists only to coordinate detection with manual picks within
+  // a single form session.
+  const [salutationSignoffLanguage, setSalutationSignoffLanguage] = useState<string | null>("English");
+  const [
+    salutationSignoffLanguageManuallyOverridden,
+    setSalutationSignoffLanguageManuallyOverridden,
+  ] = useState(false);
 
   // Ref for debounce timer
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -179,6 +207,14 @@ export function BrandVoiceForm() {
             responseLanguage && responseLanguage.trim().length > 0
               ? responseLanguage
               : null,
+          // 5/30 — salutation/sign-off language. The form sends null
+          // when franc was uncertain AND the user didn't manually
+          // pick, so the resolver falls through to system defaults
+          // for the response language. See DECISIONS.md #107.
+          salutationSignoffLanguage:
+            salutationSignoffLanguage && salutationSignoffLanguage.trim().length > 0
+              ? salutationSignoffLanguage
+              : null,
         }),
       });
 
@@ -211,6 +247,7 @@ export function BrandVoiceForm() {
     negativeReviewFramingCustom,
     replyToEmail,
     responseLanguage,
+    salutationSignoffLanguage,
   ]);
 
   // Auto-save effect with debounce
@@ -230,7 +267,8 @@ export function BrandVoiceForm() {
       negativeReviewFraming !== brandVoice.negativeReviewFraming ||
       (negativeReviewFramingCustom ?? "") !== (brandVoice.negativeReviewFramingCustom ?? "") ||
       (replyToEmail ?? "") !== (brandVoice.replyToEmail ?? "") ||
-      (responseLanguage ?? "") !== (brandVoice.responseLanguage ?? "");
+      (responseLanguage ?? "") !== (brandVoice.responseLanguage ?? "") ||
+      (salutationSignoffLanguage ?? "") !== (brandVoice.salutationSignoffLanguage ?? "");
 
     if (!hasChanges) {
       setSaveStatus("saved");
@@ -267,6 +305,7 @@ export function BrandVoiceForm() {
     negativeReviewFramingCustom,
     replyToEmail,
     responseLanguage,
+    salutationSignoffLanguage,
     performSave,
   ]);
 
@@ -292,6 +331,17 @@ export function BrandVoiceForm() {
       setNegativeReviewFramingCustom(bv.negativeReviewFramingCustom);
       setReplyToEmail(bv.replyToEmail);
       setResponseLanguage(bv.responseLanguage);
+      // 5/30 — hydrate the salutation/sign-off language from the server.
+      // Existing brand voices have the migration-backfilled "English" so
+      // this is non-null in the common case; new users get "English"
+      // from `getOrCreateBrandVoice`. Null is reserved for the "franc
+      // unclear + user didn't confirm" case the form may transition
+      // into during editing.
+      setSalutationSignoffLanguage(bv.salutationSignoffLanguage);
+      // Treat the loaded value as "auto-detected" so the franc effect
+      // can refresh it on edit. Manual override starts false on form
+      // load; the user picks via the inline indicator to mark it true.
+      setSalutationSignoffLanguageManuallyOverridden(false);
       setTimeout(() => setIsInitialized(true), 100);
     } catch (error) {
       console.error("Error fetching brand voice:", error);
@@ -315,6 +365,8 @@ export function BrandVoiceForm() {
     setNegativeReviewFramingCustom(DEFAULT_BRAND_VOICE.negativeReviewFramingCustom);
     setReplyToEmail(DEFAULT_BRAND_VOICE.replyToEmail);
     setResponseLanguage(DEFAULT_BRAND_VOICE.responseLanguage);
+    setSalutationSignoffLanguage(DEFAULT_BRAND_VOICE.salutationSignoffLanguage);
+    setSalutationSignoffLanguageManuallyOverridden(false);
     toast.info("Reset to default values. Changes will auto-save.");
   };
 
@@ -507,12 +559,20 @@ export function BrandVoiceForm() {
             negativeReviewFraming={negativeReviewFraming}
             negativeReviewFramingCustom={negativeReviewFramingCustom}
             replyToEmail={replyToEmail}
+            salutationSignoffLanguage={salutationSignoffLanguage}
+            salutationSignoffLanguageManuallyOverridden={
+              salutationSignoffLanguageManuallyOverridden
+            }
             onSalutationPatternChange={setSalutationPattern}
             onSignoffLinesChange={setSignoffLines}
             onNegativeReviewEmailEnabledChange={setNegativeReviewEmailEnabled}
             onNegativeReviewFramingChange={setNegativeReviewFraming}
             onNegativeReviewFramingCustomChange={setNegativeReviewFramingCustom}
             onReplyToEmailChange={setReplyToEmail}
+            onSalutationSignoffLanguageChange={(value, manuallyOverridden) => {
+              setSalutationSignoffLanguage(value);
+              setSalutationSignoffLanguageManuallyOverridden(manuallyOverridden);
+            }}
             disabled={isSaving}
           />
         </CardContent>

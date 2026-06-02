@@ -196,6 +196,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         sentiment: review.sentiment,
         reviewerName: review.reviewerName,
       },
+      // 5/30 — language-aware salutation/sign-off. Forward the value
+      // claude.ts already computed (brandVoice.responseLanguage ||
+      // review.detectedLanguage) so the resolver in post-process.ts
+      // routes salutation/sign-off against the same language the body
+      // was generated in. Single source of truth from
+      // generateReviewResponse. See DECISIONS.md #107.
+      effectiveLanguage: generatedResponse.effectiveLanguage,
     });
 
     // Deduct credits atomically

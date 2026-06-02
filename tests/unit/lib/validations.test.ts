@@ -1016,6 +1016,89 @@ describe('brandVoiceSchemaV2', () => {
     });
   });
 
+  // 5/30 — language the user typed their salutation/sign-off in.
+  // Same shape and constraints as `responseLanguage` — both store a
+  // display name from SUPPORTED_RESPONSE_LANGUAGES, both nullable + optional.
+  // The resolver in post-process.ts uses this to decide whether to honour
+  // the user's literal salutation/sign-off or fall back to language defaults.
+  // See DECISIONS.md #107.
+  describe('salutationSignoffLanguage', () => {
+    it('accepts null (franc-unclear + user-didn\'t-pick state)', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        salutationSignoffLanguage: null,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.salutationSignoffLanguage).toBeNull();
+    });
+
+    it('accepts omission (the field is optional)', () => {
+      const { salutationSignoffLanguage: _omit, ...rest } = {
+        ...validFull,
+        salutationSignoffLanguage: null,
+      };
+      const result = brandVoiceSchemaV2.safeParse(rest);
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a supported display name (English)', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        salutationSignoffLanguage: 'English',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.salutationSignoffLanguage).toBe('English');
+    });
+
+    it('accepts another supported display name (Italian)', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        salutationSignoffLanguage: 'Italian',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects an unknown language', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        salutationSignoffLanguage: 'Klingon',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an ISO 639-3 code (display name, not code, is the storage shape)', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        salutationSignoffLanguage: 'eng',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects > 50 chars', () => {
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        salutationSignoffLanguage: 'a'.repeat(51),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts the same payload regardless of responseLanguage (the two are independent)', () => {
+      // A user might pin responseLanguage = Italian but customise their
+      // salutation in English (or vice versa). The schema must allow
+      // any combination — the resolver handles the semantic.
+      const result = brandVoiceSchemaV2.safeParse({
+        ...validFull,
+        responseLanguage: 'Italian',
+        salutationSignoffLanguage: 'English',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.responseLanguage).toBe('Italian');
+        expect(result.data.salutationSignoffLanguage).toBe('English');
+      }
+    });
+  });
+
   describe('full payload', () => {
     it('accepts a minimal valid payload (just tone) and defaults the rest', () => {
       const result = brandVoiceSchemaV2.safeParse({ tone: 'friendly_professional' });

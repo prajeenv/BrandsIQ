@@ -32,6 +32,7 @@ import {
   type NormalizedBrandVoice,
   normalizeBrandVoice,
 } from "./brand-voice-normalize";
+import { getLanguageContactDefaults } from "./language-contact-defaults";
 import { isNegativeReview } from "./structure-templates";
 
 /**
@@ -48,11 +49,20 @@ export interface ReviewForAssembly {
  * Input to {@link assembleResponse}. `brandVoice` accepts any shape — the
  * function normalises it via `normalizeBrandVoice` before reading any field,
  * so the route layer can pass the raw Prisma row.
+ *
+ * `effectiveLanguage` is the display-name string (e.g. "English", "Italian")
+ * the response body was generated in. The post-processor uses it to pick
+ * the right salutation/sign-off: if it matches the brand voice's
+ * `salutationSignoffLanguage`, the user's literal customisation applies;
+ * otherwise the built-in default for `effectiveLanguage` from
+ * `LANGUAGE_DEFAULT_CONTACT_BLOCK` is used. Routes get this value from
+ * `generateReviewResponse`'s return — single source of truth.
  */
 export interface AssembleResponseArgs {
   modelBody: string;
   brandVoice: unknown;
   review: ReviewForAssembly;
+  effectiveLanguage: string;
 }
 
 /** The literal placeholder the model is told to emit; spec §7.4. */
@@ -211,6 +221,71 @@ function truncateBody(body: string): string {
 }
 
 /**
+ * Pick the salutation and sign-off for this response based on the brand
+ * voice's user-customised text vs. the built-in defaults for
+ * `effectiveLanguage`. Already-substituted-for-firstName; the caller
+ * appends the result directly.
+ *
+ * Rules (mirror DECISIONS.md #107 — language-aware salutation/sign-off):
+ *   1. `salutationSignoffLanguage === null` → user typed text franc
+ *      couldn't classify AND they didn't manually confirm via the form's
+ *      inline picker. The user's typed text is unused; we pick the
+ *      built-in defaults for `effectiveLanguage`. The form's "Language
+ *      unclear — please confirm" indicator warns about this.
+ *   2. `salutationSignoffLanguage === effectiveLanguage` → response is
+ *      in the same language the user customised their salutation/sign-off
+ *      in. Use the user's literal text. Existing `buildSalutation` runs
+ *      the no-name canonicalisation table when firstName is null (table
+ *      is English-focused; user-customised non-English salutations that
+ *      use {firstName} relied on the existing behaviour pre-this-PR
+ *      too, so this is no regression).
+ *   3. `salutationSignoffLanguage !== effectiveLanguage` → response is in
+ *      a different language than the user customised in. Use the
+ *      built-in defaults for `effectiveLanguage`.
+ *
+ * The defaults path uses `noNameSalutation` directly when firstName is
+ * null (avoids per-language regex canonicalisation entirely — each
+ * language's `noNameSalutation` is authored by hand).
+ *
+ * Exported for unit testing — the public surface is `assembleResponse`.
+ */
+export function resolveContactBlock(
+  brandVoice: NormalizedBrandVoice,
+  effectiveLanguage: string,
+  firstName: string | null,
+): { salutation: string; signoff: string } {
+  // Case 2: user customisation language matches response language → use
+  // the user's literal text. Run buildSalutation so {firstName} gets
+  // substituted and the English-focused no-name canonicalisation table
+  // covers the firstName-null edge.
+  if (
+    brandVoice.salutationSignoffLanguage !== null &&
+    brandVoice.salutationSignoffLanguage === effectiveLanguage
+  ) {
+    return {
+      salutation: buildSalutation(brandVoice.salutationPattern, firstName),
+      signoff: brandVoice.signoffLines,
+    };
+  }
+
+  // Cases 1 + 3: language unclear OR language mismatch → defaults map.
+  // Use `noNameSalutation` directly when firstName is null (no regex
+  // canonicalisation needed; each language's no-name greeting is
+  // hand-authored in the defaults map).
+  const defaults = getLanguageContactDefaults(effectiveLanguage);
+  if (firstName === null) {
+    return {
+      salutation: defaults.noNameSalutation,
+      signoff: defaults.signoff,
+    };
+  }
+  return {
+    salutation: defaults.salutation.replace(/\{firstName\}/gu, firstName),
+    signoff: defaults.signoff,
+  };
+}
+
+/**
  * Assemble the final response from the model body and the brand voice
  * configuration.
  *
@@ -222,13 +297,20 @@ function truncateBody(body: string): string {
  *   [sign-off (with literal \n converted to real newlines)]
  */
 export function assembleResponse(args: AssembleResponseArgs): string {
-  const { modelBody, brandVoice, review } = args;
+  const { modelBody, brandVoice, review, effectiveLanguage } = args;
 
   const normalized: NormalizedBrandVoice = normalizeBrandVoice(brandVoice);
 
-  // 1. Salutation
+  // 1. Salutation + sign-off resolution. The resolver compares the brand
+  //    voice's `salutationSignoffLanguage` against `effectiveLanguage`
+  //    and either uses the user's literal text (match) or falls back to
+  //    the built-in language defaults (mismatch or null).
   const firstName = extractFirstName(review.reviewerName);
-  const salutation = buildSalutation(normalized.salutationPattern, firstName);
+  const { salutation, signoff: resolvedSignoff } = resolveContactBlock(
+    normalized,
+    effectiveLanguage,
+    firstName,
+  );
 
   // 2. Body — first cap to RESPONSE_BODY_CHAR_MAX, then optionally
   //    substitute the [your email] placeholder for negative reviews when
@@ -253,8 +335,11 @@ export function assembleResponse(args: AssembleResponseArgs): string {
     body = stripPlaceholderSentences(body);
   }
 
-  // 3. Sign-off
-  const signoff = normaliseSignoffLines(normalized.signoffLines);
+  // 3. Sign-off — normalise the resolved string (handles both real
+  //    newlines and literal `\n` escape sequences, regardless of
+  //    whether the source was the user's customisation or a built-in
+  //    default).
+  const signoff = normaliseSignoffLines(resolvedSignoff);
 
   // 4. Assemble. Salutation → blank line → body → blank line → sign-off.
   //    No trailing newline; the response is stored verbatim and rendered

@@ -558,6 +558,17 @@ export async function getOrCreateBrandVoice(userId: string) {
         // in prisma/schema.prisma and the iter-3 reset migration. We pass
         // `tone` explicitly for self-documentation; the rest fall through.
         tone: "friendly_professional",
+        // Set the salutation/sign-off language explicitly to English so
+        // fresh brand voices match the English text in
+        // `salutationPattern`/`signoffLines` defaults. The post-process
+        // resolver compares this against the response's
+        // effectiveLanguage to decide whether to use the user's literal
+        // text or a built-in language-specific default. Leaving null
+        // here would make the resolver always fall through to the
+        // built-in defaults, which is the wrong starting state for a
+        // brand voice the user has never customised — they should get
+        // the English defaults they expect for English responses.
+        salutationSignoffLanguage: "English",
       },
     });
   }

@@ -35,7 +35,17 @@ const mockPrisma = vi.hoisted(() => {
 const mockAuth = vi.hoisted(() => vi.fn());
 
 const mockGenerateReviewResponse = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({ responseText: 'Thank you for your feedback!', model: 'claude-sonnet-4-20250514' }),
+  vi.fn().mockResolvedValue({
+    responseText: 'Thank you for your feedback!',
+    model: 'claude-sonnet-4-20250514',
+    // 5/30 — language-aware salutation/sign-off. The route forwards
+    // this into assembleResponse so the post-process resolver can
+    // route between the user's literal text and the built-in defaults
+    // map. Default to "English" so existing tests preserve their
+    // pre-this-PR behaviour (English brand voice + English response
+    // = user's literal text is used, same as today).
+    effectiveLanguage: 'English',
+  }),
 );
 
 const mockGetOrCreateBrandVoice = vi.hoisted(() =>
@@ -345,6 +355,76 @@ describe('POST /api/reviews/[id]/generate', () => {
           responseText: expect.stringMatching(
             /^Dear John,\n\nThank you for your feedback!\n\nWarmest regards,\nThe Team$/,
           ),
+        }),
+      }),
+    );
+  });
+
+  // ─── 5/30 — language-aware salutation/sign-off (DECISIONS.md #107) ──
+  // The route forwards `generatedResponse.effectiveLanguage` from
+  // claude.ts into `assembleResponse`. Coverage here: the assembled
+  // text uses Italian system defaults when the response is in Italian
+  // and the brand voice's customisation is in English (mismatch case).
+  it('iter 9: uses system Italian defaults when response is Italian but brand voice is in English', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.review.findFirst.mockResolvedValueOnce(reviewWithoutResponse);
+    mockPrisma.reviewResponse.create.mockResolvedValueOnce(createdResponse);
+    mockPrisma.creditUsage.updateMany.mockResolvedValueOnce({ count: 1 });
+
+    // Brand voice with explicit English customisation (matches the
+    // form's auto-tracked default for a fresh brand voice).
+    mockGetOrCreateBrandVoice.mockResolvedValueOnce({
+      tone: 'professional',
+      keyPhrases: [],
+      styleGuidelines: [],
+      sampleResponses: [],
+      acknowledgeNamedStaff: true,
+      acknowledgeOccasions: true,
+      salutationPattern: 'Dear {firstName},',
+      signoffLines: 'Warmest regards,\nThe Team',
+      negativeReviewEmailEnabled: false,
+      negativeReviewFraming: 'investigation',
+      negativeReviewFramingCustom: null,
+      replyToEmail: null,
+      responseLanguage: 'Italian',
+      salutationSignoffLanguage: 'English',
+    });
+
+    // Claude generates an Italian body and reports effectiveLanguage.
+    mockGenerateReviewResponse.mockResolvedValueOnce({
+      responseText: 'Grazie per il suo feedback!',
+      model: 'claude-sonnet-4-20250514',
+      effectiveLanguage: 'Italian',
+    });
+
+    const req = createRequest('/api/reviews/review-1/generate', { method: 'POST', body: {} });
+    await POST(req, routeParams({ id: 'review-1' }));
+
+    // The route should call assembleResponse with the Italian
+    // effectiveLanguage, which makes the resolver pick the Italian
+    // defaults — NOT the user's English "Dear {firstName},".
+    // Reviewer name is "John" → Italian salutation "Caro/a John,".
+    expect(mockPrisma.reviewResponse.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          responseText: expect.stringMatching(
+            /^Caro\/a John,\n\nGrazie per il suo feedback!\n\nCordiali saluti,\nIl Team$/,
+          ),
+        }),
+      }),
+    );
+    // Defensive: confirm the English customisation did NOT slip through.
+    expect(mockPrisma.reviewResponse.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          responseText: expect.stringContaining('Dear John,'),
+        }),
+      }),
+    );
+    expect(mockPrisma.reviewResponse.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          responseText: expect.stringContaining('Warmest regards'),
         }),
       }),
     );
