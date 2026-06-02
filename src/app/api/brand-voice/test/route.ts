@@ -99,6 +99,10 @@ export async function POST(request: NextRequest) {
         sentiment: null,
         reviewerName: null,
       },
+      // 5/30 — language-aware salutation/sign-off. Same forwarding as the
+      // generate + regenerate routes so the test panel matches prod
+      // behaviour for non-English brand voices too. See DECISIONS.md #107.
+      effectiveLanguage: generatedResponse.effectiveLanguage,
     });
 
     // Iter 6: legacy bridge deleted. The test panel UI now consumes the

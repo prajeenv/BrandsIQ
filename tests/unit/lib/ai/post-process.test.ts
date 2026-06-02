@@ -10,6 +10,11 @@ import {
 
 // Default V2 brand voice — fields we override per-test, defaults from
 // `normalizeBrandVoice` fill in the rest at runtime.
+//
+// 5/30 — `salutationSignoffLanguage: "English"` is the same default
+// the migration backfills onto every existing row, so tests that omit
+// it get the same "user-customisation applies for English responses"
+// behaviour they had pre-this-PR.
 const baseBrandVoice = {
   tone: "friendly_professional",
   keyPhrases: [],
@@ -23,6 +28,7 @@ const baseBrandVoice = {
   negativeReviewFraming: "investigation" as const,
   negativeReviewFramingCustom: null,
   replyToEmail: null,
+  salutationSignoffLanguage: "English" as string | null,
 };
 
 const baseReview = {
@@ -30,6 +36,14 @@ const baseReview = {
   sentiment: null as string | null,
   reviewerName: "Jane" as string | null,
 };
+
+// 5/30 — every assembleResponse call now requires `effectiveLanguage`.
+// Default to "English" so existing tests preserve their pre-this-PR
+// assertions (English brand voice + English response = user's literal
+// salutation/sign-off applies, same as today). Per-test overrides for
+// non-English cases live in the new "language-aware salutation/sign-off"
+// describe block below.
+const DEFAULT_EFFECTIVE_LANGUAGE = "English";
 
 describe("extractFirstName", () => {
   it("returns the single token unchanged", () => {
@@ -192,6 +206,7 @@ describe("assembleResponse — incomplete email config (defensive strip)", () =>
         replyToEmail: null,
       },
       review: { ...baseReview, rating: 1 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).not.toContain("[your email]");
@@ -209,6 +224,7 @@ describe("assembleResponse — incomplete email config (defensive strip)", () =>
         replyToEmail: null,
       },
       review: { ...baseReview, rating: 1 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).not.toContain("[your email]");
@@ -224,6 +240,7 @@ describe("assembleResponse — incomplete email config (defensive strip)", () =>
         replyToEmail: "hello@brand.example",
       },
       review: { ...baseReview, rating: 1 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).toContain("hello@brand.example");
@@ -237,6 +254,7 @@ describe("assembleResponse — salutation + body + sign-off", () => {
       modelBody: "Thanks so much for sharing this.",
       brandVoice: baseBrandVoice,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).toBe("Dear Jane,\n\nThanks so much for sharing this.\n\nWarmest regards,\nThe Team");
@@ -247,6 +265,7 @@ describe("assembleResponse — salutation + body + sign-off", () => {
       modelBody: "Body.",
       brandVoice: baseBrandVoice,
       review: { ...baseReview, reviewerName: null },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out.startsWith("Hello,\n\n")).toBe(true);
@@ -257,6 +276,7 @@ describe("assembleResponse — salutation + body + sign-off", () => {
       modelBody: "Body.",
       brandVoice: baseBrandVoice,
       review: { ...baseReview, reviewerName: "Jane Smith" },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out.startsWith("Dear Jane,")).toBe(true);
@@ -268,6 +288,7 @@ describe("assembleResponse — salutation + body + sign-off", () => {
       modelBody: "Body.",
       brandVoice: { ...baseBrandVoice, signoffLines: "Kind regards,\\nManager Name" },
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // The literal `\n` becomes a real newline so the sign-off renders on two lines.
@@ -279,6 +300,7 @@ describe("assembleResponse — salutation + body + sign-off", () => {
       modelBody: "Body.",
       brandVoice: { ...baseBrandVoice, signoffLines: "Regards,\nThe Team\n\n\n" },
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out.endsWith("Regards,\nThe Team")).toBe(true);
@@ -289,6 +311,7 @@ describe("assembleResponse — salutation + body + sign-off", () => {
       modelBody: "Body.",
       brandVoice: { ...baseBrandVoice, salutationPattern: "Hello {firstName}," },
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out.startsWith("Hello Jane,")).toBe(true);
@@ -306,6 +329,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
         replyToEmail: "hello@brand.example",
       },
       review: { ...baseReview, rating: 1 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).toContain("hello@brand.example");
@@ -321,6 +345,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
         replyToEmail: "hello@brand.example",
       },
       review: { ...baseReview, rating: 5 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // Placeholder remains because the routing predicate returned positive.
@@ -344,6 +369,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
         replyToEmail: "hello@brand.example",
       },
       review: { ...baseReview, rating: 1 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // Toggle is off, so substitution does not fire. With email present,
@@ -369,6 +395,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
         replyToEmail: null,
       },
       review: { ...baseReview, rating: 1 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).not.toContain("[your email]");
@@ -383,6 +410,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
         replyToEmail: "hello@brand.example",
       },
       review: { ...baseReview, rating: 4, sentiment: "negative" },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).toContain("hello@brand.example");
@@ -398,6 +426,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
         replyToEmail: "hello@brand.example",
       },
       review: { ...baseReview, rating: 2 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).toContain("hello@brand.example");
@@ -412,6 +441,7 @@ describe("assembleResponse — email substitution (spec §7.5)", () => {
         replyToEmail: "hello@brand.example",
       },
       review: { ...baseReview, rating: 3 },
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out).toContain("[your email]");
@@ -425,6 +455,7 @@ describe("assembleResponse — body truncation", () => {
       modelBody: body,
       brandVoice: baseBrandVoice,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // Body appears in full between the salutation and sign-off.
@@ -437,6 +468,7 @@ describe("assembleResponse — body truncation", () => {
       modelBody: body,
       brandVoice: baseBrandVoice,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // The full 2000-char body must not appear unchanged.
@@ -455,6 +487,7 @@ describe("assembleResponse — body truncation", () => {
       modelBody: body,
       brandVoice: baseBrandVoice,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // The body inside the assembled output should end at "." (the closest
@@ -474,6 +507,7 @@ describe("assembleResponse — body truncation", () => {
       modelBody: "x".repeat(5000),
       brandVoice: baseBrandVoice,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out.endsWith("Warmest regards,\nThe Team")).toBe(true);
@@ -486,6 +520,7 @@ describe("assembleResponse — defensive normalisation", () => {
       modelBody: "Body.",
       brandVoice: { tone: "friendly_professional", keyPhrases: [] },
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // The DEFAULTS in normalizeBrandVoice supply "Dear {firstName},"
@@ -499,6 +534,7 @@ describe("assembleResponse — defensive normalisation", () => {
       modelBody: "Body.",
       brandVoice: null,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     expect(out.startsWith("Dear Jane,\n\n")).toBe(true);
@@ -509,6 +545,7 @@ describe("assembleResponse — defensive normalisation", () => {
       modelBody: "   \n\nBody.\n\n  ",
       brandVoice: baseBrandVoice,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     // The body region between the salutation block and the sign-off block
@@ -523,6 +560,7 @@ describe("assembleResponse — full output order (spec §9.5)", () => {
       modelBody: "First paragraph.\n\nSecond paragraph.",
       brandVoice: baseBrandVoice,
       review: baseReview,
+      effectiveLanguage: DEFAULT_EFFECTIVE_LANGUAGE,
     });
 
     const lines = out.split("\n");

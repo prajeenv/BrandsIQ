@@ -356,6 +356,25 @@ export const brandVoiceSchemaV2 = z.object({
     })
     .optional()
     .nullable(),
+
+  // 5/30 — language the user typed their `salutationPattern` and
+  // `signoffLines` in. Detected via franc in the form (debounced over
+  // the combined salutation + sign-off string) and overridable via the
+  // inline "Change" indicator. Same value-set and length cap as
+  // `responseLanguage`. Null when franc returned "und" and the user
+  // didn't manually confirm — the resolver uses system defaults in that
+  // case. See DECISIONS.md #107.
+  salutationSignoffLanguage: z
+    .string()
+    .max(
+      BRAND_VOICE_LIMITS_V2.RESPONSE_LANGUAGE_MAX,
+      `Salutation/sign-off language must be under ${BRAND_VOICE_LIMITS_V2.RESPONSE_LANGUAGE_MAX} characters`,
+    )
+    .refine((v) => (SUPPORTED_RESPONSE_LANGUAGES as readonly string[]).includes(v), {
+      message: "Unsupported salutation/sign-off language",
+    })
+    .optional()
+    .nullable(),
 });
 
 export type BrandVoiceInputV2 = z.infer<typeof brandVoiceSchemaV2>;

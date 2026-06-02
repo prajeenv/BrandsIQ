@@ -129,6 +129,17 @@ export interface GenerateResponseParams {
 export interface GeneratedResponse {
   responseText: string;
   model: string;
+  /**
+   * The language the response body was generated in — `responseLanguage`
+   * if the brand voice has the override set, otherwise the review's
+   * `detectedLanguage`. Computed once here so the post-processing layer
+   * can route salutation/sign-off resolution against the same value
+   * without recomputing or risking drift between the prompt and the
+   * assembler. Always a display-name string from
+   * `SUPPORTED_RESPONSE_LANGUAGES` (the upstream sources are both
+   * `LANGUAGE_MAP` values).
+   */
+  effectiveLanguage: string;
 }
 
 /**
@@ -231,10 +242,16 @@ export async function generateReviewResponse(
   //      carries the `x-e2e-mock: 1` header that Playwright tests send.
   // Both must be true. See DECISIONS.md decision 61 (follow-up to #15).
   if (process.env.E2E_MOCK_AI === "true" && e2eMockOptIn) {
+    // Resolve the effective language even on the mock path so downstream
+    // post-processing has a real value to route against — keeps the mock
+    // path's contract identical to the live path. Cheap: normalize is
+    // pure, no I/O.
+    const mockNormalized = normalizeBrandVoice(brandVoice);
     return {
       responseText:
         "Thank you for your feedback! We truly appreciate you taking the time to share your experience with us. Your input helps us continue to improve our service.",
       model: "mock-e2e",
+      effectiveLanguage: mockNormalized.responseLanguage || detectedLanguage,
     };
   }
 
@@ -307,6 +324,7 @@ export async function generateReviewResponse(
       return {
         responseText: textContent.text.trim(),
         model: response.model,
+        effectiveLanguage,
       };
     } catch (error) {
       lastError = error as Error;
