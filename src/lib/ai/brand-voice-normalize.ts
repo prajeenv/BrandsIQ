@@ -58,6 +58,17 @@ export interface NormalizedBrandVoice {
    * names in SUPPORTED_RESPONSE_LANGUAGES. Unknown values coerce to null.
    */
   responseLanguage: string | null;
+  /**
+   * Language the user typed their `salutationPattern` and `signoffLines`
+   * in. Detected via franc in the form (debounced over the concatenated
+   * salutation + sign-off string), overridable via an inline "Change"
+   * link. Stored verbatim from `SUPPORTED_RESPONSE_LANGUAGES`. Null when
+   * franc returned "und" and the user didn't manually confirm — the
+   * post-processor uses the system default for the response language
+   * in that case and the user's typed text is unused. Unknown values
+   * coerce to null.
+   */
+  salutationSignoffLanguage: string | null;
 }
 
 const DEFAULTS: NormalizedBrandVoice = {
@@ -74,6 +85,7 @@ const DEFAULTS: NormalizedBrandVoice = {
   negativeReviewFramingCustom: null,
   replyToEmail: null,
   responseLanguage: null,
+  salutationSignoffLanguage: null,
 };
 
 const V2_TONE_SET = new Set<string>(BRAND_VOICE_TONES_V2);
@@ -187,11 +199,13 @@ function normalizeFraming(raw: unknown): NegativeReviewFraming {
 }
 
 /**
- * Normalize the response-language override. Unknown / non-string values
- * (and any string not in SUPPORTED_RESPONSE_LANGUAGES) coerce to null so
- * downstream code can rely on "non-null implies the override is valid".
+ * Normalize a `SUPPORTED_RESPONSE_LANGUAGES`-valued display name field.
+ * Unknown / non-string values (and any string not in the supported set)
+ * coerce to null so downstream code can rely on "non-null implies the
+ * field is valid". Shared between `responseLanguage` and
+ * `salutationSignoffLanguage` — both store the same kind of value.
  */
-function normalizeResponseLanguage(raw: unknown): string | null {
+function normalizeSupportedLanguage(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   if (trimmed.length === 0) return null;
@@ -228,6 +242,7 @@ export function normalizeBrandVoice(raw: unknown): NormalizedBrandVoice {
     negativeReviewFraming: normalizeFraming(r.negativeReviewFraming),
     negativeReviewFramingCustom: asNullableString(r.negativeReviewFramingCustom),
     replyToEmail: asNullableString(r.replyToEmail),
-    responseLanguage: normalizeResponseLanguage(r.responseLanguage),
+    responseLanguage: normalizeSupportedLanguage(r.responseLanguage),
+    salutationSignoffLanguage: normalizeSupportedLanguage(r.salutationSignoffLanguage),
   };
 }
