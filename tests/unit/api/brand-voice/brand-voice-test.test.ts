@@ -92,6 +92,8 @@ describe('POST /api/brand-voice/test', () => {
     mockGenerateReviewResponse.mockResolvedValue({
       responseText: 'Thank you for your wonderful feedback! We truly appreciate it.',
       model: 'claude-sonnet-4-20250514',
+      // 5/30 — language-aware salutation/sign-off (DECISIONS.md #107).
+      effectiveLanguage: 'English',
     });
     mockDetectLanguage.mockReturnValue({
       language: 'English',

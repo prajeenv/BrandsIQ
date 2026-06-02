@@ -69,6 +69,10 @@ const defaultBrandVoiceV2 = {
   negativeReviewFramingCustom: null,
   replyToEmail: null,
   responseLanguage: null,
+  // 5/30 — language the user typed their salutation/sign-off in.
+  // Defaults to "English" via the migration backfill + the
+  // getOrCreateBrandVoice factory. Drives the post-process resolver.
+  salutationSignoffLanguage: 'English',
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -135,6 +139,47 @@ describe('GET /api/brand-voice (V2)', () => {
     const json = await res.json();
 
     expect(json.data.brandVoice.responseLanguage).toBe('English');
+  });
+
+  // 5/30 — salutationSignoffLanguage surfacing. The form's franc
+  // detector hydrates from this value on load, and the post-process
+  // resolver uses it to decide when to honour the user's literal
+  // salutation/sign-off vs. fall back to system defaults. See
+  // DECISIONS.md #107.
+  it('surfaces the default salutationSignoffLanguage ("English") from a fresh brand voice', async () => {
+    mockPrisma.brandVoice.findUnique.mockResolvedValue(defaultBrandVoiceV2);
+
+    const res = await GET();
+    const json = await res.json();
+
+    expect(json.data.brandVoice.salutationSignoffLanguage).toBe('English');
+  });
+
+  it('surfaces a non-English salutationSignoffLanguage from the DB row', async () => {
+    mockPrisma.brandVoice.findUnique.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      salutationPattern: 'Caro/a {firstName},',
+      signoffLines: 'Cordiali saluti,\nIl Team',
+      salutationSignoffLanguage: 'Italian',
+    });
+
+    const res = await GET();
+    const json = await res.json();
+
+    expect(json.data.brandVoice.salutationSignoffLanguage).toBe('Italian');
+    expect(json.data.brandVoice.salutationPattern).toBe('Caro/a {firstName},');
+  });
+
+  it('surfaces a null salutationSignoffLanguage (franc-unclear, user-did-not-pick state)', async () => {
+    mockPrisma.brandVoice.findUnique.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      salutationSignoffLanguage: null,
+    });
+
+    const res = await GET();
+    const json = await res.json();
+
+    expect(json.data.brandVoice.salutationSignoffLanguage).toBeNull();
   });
 
   it('creates default brand voice with V2 tone if none exists', async () => {
@@ -351,5 +396,110 @@ describe('PUT /api/brand-voice (V2)', () => {
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  // 5/30 — salutationSignoffLanguage persistence. Mirrors the
+  // responseLanguage PUT/upsert tests above. Both fields share the same
+  // storage shape (varchar(50)) and Zod validation pattern (validated
+  // against SUPPORTED_RESPONSE_LANGUAGES), and both must flow through
+  // both branches of the upsert. See DECISIONS.md #107.
+  it('persists a supported salutationSignoffLanguage to both create and update branches', async () => {
+    mockPrisma.brandVoice.upsert.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      salutationSignoffLanguage: 'Italian',
+    });
+
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: { tone: 'friendly_professional', salutationSignoffLanguage: 'Italian' },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ salutationSignoffLanguage: 'Italian' }),
+        create: expect.objectContaining({ salutationSignoffLanguage: 'Italian' }),
+      }),
+    );
+
+    const json = await res.json();
+    expect(json.data.brandVoice.salutationSignoffLanguage).toBe('Italian');
+  });
+
+  it('persists salutationSignoffLanguage = null when explicitly null (franc-unclear state)', async () => {
+    mockPrisma.brandVoice.upsert.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      salutationSignoffLanguage: null,
+    });
+
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: {
+        tone: 'friendly_professional',
+        salutationSignoffLanguage: null,
+      },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ salutationSignoffLanguage: null }),
+        create: expect.objectContaining({ salutationSignoffLanguage: null }),
+      }),
+    );
+  });
+
+  it('rejects an unsupported salutationSignoffLanguage', async () => {
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: {
+        tone: 'friendly_professional',
+        salutationSignoffLanguage: 'Klingon',
+      },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('persists responseLanguage + salutationSignoffLanguage independently (different languages)', async () => {
+    // Verifies the upsert plumbs both fields without conflating them.
+    // A real-world case: user pins responseLanguage = Italian but
+    // their customisation is still in English — the resolver in
+    // post-process.ts handles this by falling back to system defaults
+    // for Italian responses.
+    mockPrisma.brandVoice.upsert.mockResolvedValue({
+      ...defaultBrandVoiceV2,
+      responseLanguage: 'Italian',
+      salutationSignoffLanguage: 'English',
+    });
+
+    const req = createRequest('/api/brand-voice', {
+      method: 'PUT',
+      body: {
+        tone: 'friendly_professional',
+        responseLanguage: 'Italian',
+        salutationSignoffLanguage: 'English',
+      },
+    });
+    const res = await PUT(req);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.brandVoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          responseLanguage: 'Italian',
+          salutationSignoffLanguage: 'English',
+        }),
+        create: expect.objectContaining({
+          responseLanguage: 'Italian',
+          salutationSignoffLanguage: 'English',
+        }),
+      }),
+    );
   });
 });
