@@ -1514,5 +1514,61 @@ Cross-reference DECISIONS.md "Response Language Override (brand-voice setting)" 
 
 ---
 
-**Last Updated:** May 29, 2026
-**Status:** Response language override feature shipped on `feat/response-language-override` branch. 99 numbered decisions logged. Awaiting PR review + merge.
+## Language-aware salutation & sign-off
+
+**Source of truth:** plan at `C:/Users/amith/.claude/plans/docs-mvp-phase-1-brand-voice-redesign-md-streamed-ripple.md`.
+**Spec amendment:** §7.6 added to `docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md`.
+**Started + completed:** May 30, 2026 (single PR, five layer-scoped commits).
+**Branch:** `feat/language-aware-salutation-signoff`.
+
+Closes the gap from Decision 100. The response-language override pinned the AI body to a chosen language (or let it follow the review's detected language when null), but the salutation ("Dear {firstName},") and sign-off ("Warmest regards,\nThe Team") were appended deterministically in post-processing using literal text stored on the `BrandVoice` row — they never saw the override. So a French review getting a French response opened with "Dear Mira," and closed with "Warmest regards, The Team" — English islands inside a French response.
+
+The user can't reasonably maintain salutation/sign-off in 44 languages, so the system has to fill the gap. The approach chosen (confirmed with the user after pushback on a standalone language dropdown): franc detects the language the user typed their customisation in (same UX as the review-creation form), and the post-processor picks between the user's literal text (language match) and a built-in defaults map (language mismatch or franc-unclear).
+
+### ✅ What shipped (single feature pass, layered commits)
+
+- **Schema** (`feat(db)`) — new `salutationSignoffLanguage String? @db.VarChar(50)` column on `BrandVoice` via migration `20260530120000_add_brand_voice_salutation_signoff_language`. Additive `ALTER TABLE` plus a one-line backfill (`UPDATE "brand_voices" SET "salutation_signoff_language" = 'English' WHERE ... IS NULL`) — pre-this-PR behaviour is preserved for English responses (Decision 107).
+- **Constants + validation** — `brandVoiceSchemaV2.salutationSignoffLanguage` validates against `SUPPORTED_RESPONSE_LANGUAGES`, bounded + nullable + optional. Same shape as `responseLanguage`; both fields share the storage shape and the Zod refine.
+- **Normalize adapter** — `normalizeBrandVoice` gains `salutationSignoffLanguage: string | null`. Renamed the existing `normalizeResponseLanguage` helper to `normalizeSupportedLanguage` since both `responseLanguage` and `salutationSignoffLanguage` use identical coercion (unknown / non-string / not-in-supported-set → null). One implementation, two call sites.
+- **Defaults map** (`feat(api+lib)`) — new pure module `src/lib/ai/language-contact-defaults.ts` with `LANGUAGE_DEFAULT_CONTACT_BLOCK` (44 hand-authored entries — one per `SUPPORTED_RESPONSE_LANGUAGES` value). Each entry: `salutation` (with `{firstName}` placeholder), `noNameSalutation` (hand-authored firstName-null fallback — avoids per-language regex canonicalisation; handles Japanese suffix-pattern cleanly), `signoff`. `getLanguageContactDefaults(language)` resolves with English fallback (defensive — by construction every supported language has an entry, enforced by a unit test).
+- **Resolver in `post-process.ts`** — `resolveContactBlock(brandVoice, effectiveLanguage, firstName)` is the new core. Three branches: (a) `salutationSignoffLanguage === effectiveLanguage` → user's literal text via existing `buildSalutation`; (b) mismatch → defaults map for `effectiveLanguage`; (c) `salutationSignoffLanguage === null` → defaults map (user's text unused; the form's "Language unclear" indicator warned about this trade-off upfront). The no-name case is handled by the defaults map's hand-authored `noNameSalutation` field — not regex canonicalisation. `assembleResponse` gains `effectiveLanguage: string` as a required arg.
+- **Plumb-through** — `GeneratedResponse` (from `claude.ts`) carries `effectiveLanguage` so the three routes (generate / regenerate / brand-voice/test) forward a single source of truth without recomputing. Mock path in `claude.ts` also computes it (the test environment's mock-AI path must produce a real `effectiveLanguage` so the assembler downstream works the same).
+- **API route** — `/api/brand-voice` GET surfaces `salutationSignoffLanguage`; PUT writes it via both branches of the upsert.
+- **Frontend** (`feat(ui)`) — `ContactSignoffSection` runs debounced (500ms) franc detection on the concatenated salutation + sign-off whenever either field changes (skipped entirely when `salutationSignoffLanguageManuallyOverridden` is true). Inline indicator below the sign-off field:
+  - **Detected/Set state**: Globe icon + "Detected: <lang>" or "Set to: <lang>" + a "Change" link (opens a small inline picker). When manually overridden, also shows a "Re-detect" link to revert to auto-detection.
+  - **Unclear state** (franc returned "und" OR combined text < 10 chars OR low-confidence): yellow alert ("Language unclear — please confirm") with auto-revealed picker. Saving without picking results in `salutationSignoffLanguage = null` → resolver uses system defaults for the response language.
+- **Language-keyed chip suggestions** — `SALUTATION_CHIPS_BY_LANGUAGE` and `SIGNOFF_CHIPS_BY_LANGUAGE` cover 10 languages with explicit chips (English, Spanish, French, German, Italian, Portuguese, Dutch, Japanese, Chinese Simplified, Korean); others fall back to English. The chip list updates live as `salutationSignoffLanguage` changes.
+- **`BrandVoiceForm` wiring** — adds `salutationSignoffLanguage` + `salutationSignoffLanguageManuallyOverridden` state. The first persists across saves; the second is transient form state. Hydration from GET, change-detection comparison, PUT payload, Reset to defaults — all updated. `getOrCreateBrandVoice` (in `db-utils.ts`) sets `salutationSignoffLanguage: "English"` explicitly on fresh brand voices.
+
+### Test coverage delta
+
+| Type | Before this PR | After this PR | Net (this PR) |
+|---|---|---|---|
+| Unit tests | 1171 (post-iter-9) | 1258 | **+87** |
+| Unit test files | 64 | 65 | +1 (new `language-contact-defaults.test.ts`) |
+| New unit test cases | — | — | 87 across 7 files |
+| Modified test fixtures | — | — | 4 (post-process baseBrandVoice + 24 assembleResponse call-sites + brand-voice route fixture + 3 route mocks gain `effectiveLanguage: "English"`) |
+| Integration tests | — | — | 0 |
+| E2E specs | — | — | 0 |
+
+Coverage by file:
+- `tests/unit/lib/ai/language-contact-defaults.test.ts` (NEW) — 56 cases: every supported language has an entry (one assertion per language, 44 total), every entry has the required fields, every salutation has `{firstName}`, every `noNameSalutation` does NOT, resolver fallback to English on unknown / empty, spot-checks for representative languages.
+- `tests/unit/lib/ai/post-process.test.ts` — +7 cases for the resolver behaviour (language match, language mismatch, null salutationSignoffLanguage, no-name fallbacks, Japanese suffix-pattern edge).
+- `tests/unit/lib/ai/brand-voice-normalize.test.ts` — +10 cases for `salutationSignoffLanguage` coercion + independence from `responseLanguage`.
+- `tests/unit/lib/validations.test.ts` — +8 cases for the new Zod field.
+- `tests/unit/api/brand-voice/brand-voice.test.ts` — +7 cases for GET surfacing + PUT persistence (including the independence case where `responseLanguage` and `salutationSignoffLanguage` are set to different languages).
+- `tests/unit/api/reviews/generate.test.ts` — +1 case asserting the route forwards `effectiveLanguage` and uses the Italian defaults when the brand voice is English-customised but the response is Italian.
+
+Verification: `npm run lint:strict` clean, `npm run type-check` clean, `npm run test:unit` 1258 passed / 0 failed across 65 files.
+
+### Decisions
+
+Cross-reference DECISIONS.md "Language-aware salutation & sign-off" section — #107: defaults map + per-customisation language tracking via franc detection (form-side) and resolver (post-process side). Pattern lessons captured in the decision text:
+1. When adding a new field that requires user input, *detect first, ask only on uncertainty* — mirrors the review-form's pattern.
+2. When two fields share the same value-set, share the coercion helper but track state independently.
+3. Hand-authored per-language no-name fallbacks beat per-language regex canonicalisation tables.
+
+---
+
+**Last Updated:** May 30, 2026
+**Status:** Language-aware salutation & sign-off shipped on `feat/language-aware-salutation-signoff` branch. 100 numbered decisions logged. Awaiting PR review + merge.
