@@ -33,7 +33,7 @@ describe('GET /api/cron/reset-credits', () => {
       usersReset: 2,
       errors: [],
       details: [
-        { userId: 'u1', tier: 'FREE', creditsReset: 15, sentimentReset: 35 },
+        { userId: 'u1', tier: 'FREE', creditsReset: 5, sentimentReset: 25 },
         { userId: 'u2', tier: 'STARTER', creditsReset: 30, sentimentReset: 150 },
       ],
     });
@@ -95,7 +95,7 @@ describe('GET /api/cron/reset-credits', () => {
     expect(json.data.errors).toEqual([]);
     expect(json.data.details).toHaveLength(2);
     expect(json.data.details[0]).toEqual(
-      expect.objectContaining({ userId: 'u1', tier: 'FREE', creditsReset: 15 })
+      expect.objectContaining({ userId: 'u1', tier: 'FREE', creditsReset: 5 })
     );
   });
 

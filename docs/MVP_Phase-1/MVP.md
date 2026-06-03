@@ -39,7 +39,7 @@ This produces a natural two-phase implementation:
 - Beta invite link infrastructure (one-time-use links, 60-day expiry)
 - `is_beta_user` flag on the User record, set automatically when a user signs up via a valid beta invite link
 - Beta-level credit allocation (150 response credits + 750 sentiment credits per month) for `is_beta_user: true` users
-- Free-tier allocation (15 response credits + 35 sentiment credits per month) for direct signups without an invite code
+- Free-tier allocation (5 response credits + 25 sentiment credits per month) for direct signups without an invite code
 - Profile registration capturing organization information at signup
 - Unified founder-inquiry form for: expired-link recovery, beta access requests from Free users, "request more credits" from beta users at zero balance
 - Pricing page with "BrandsIQ is currently in closed beta" banner and beta-access request CTA (no specific launch date promised)
@@ -107,7 +107,7 @@ BrandsIQ uses **one-axis pricing**: customers pay for AI work performed (credits
 
 | Tier | Price (USD) | Response Credits | Sentiment Quota | Users | Locations |
 |------|-------------|------------------|-----------------|-------|-----------|
-| Free | $0 | 15/month | 35/month | 1 | 1 |
+| Free | $0 | 5/month | 25/month | 1 | 1 |
 | Starter | $29/month | 30/month | 150/month | 1 | 1 |
 | Growth | $79/month | 100/month | 500/month | 1 | 1 |
 
@@ -536,7 +536,7 @@ The concrete features to build in Phase 1, with two-sentence descriptions per it
 
 ### 13.6 Beta-Plan Allocation Logic
 
-**Description:** Modify the credit allocation logic so that when calculating monthly allocation for a user, the system checks `is_beta_user` first: if true, allocates 150 response credits + 750 sentiment credits; otherwise allocates per the user's assigned tier (Free 15/35, Starter 30/150, Growth 100/500). The anniversary reset cron continues to call this same allocation logic — no separate cron job is needed.
+**Description:** Modify the credit allocation logic so that when calculating monthly allocation for a user, the system checks `is_beta_user` first: if true, allocates 150 response credits + 750 sentiment credits; otherwise allocates per the user's assigned tier (Free 5/25, Starter 30/150, Growth 100/500). The anniversary reset cron continues to call this same allocation logic — no separate cron job is needed.
 
 **Behavior:** Beta users are subject to identical anniversary reset rules as paid tiers. No carry-forward, no special treatment beyond the higher allocation amount.
 
@@ -770,3 +770,4 @@ The tier recommendation is generated from the per-user usage data captured durin
 | 2026-05-02 | Two tier-proportional packs at equal $1.20/credit rate: Starter pack 5/25 at $6, Growth pack 10/50 at $12 | Right-sizes financial commitment to each tier (each pack ~17% of monthly tier allocation); equal per-credit rate is fairer than premium-on-Starter without changing real upgrade pressure |
 | 2026-05-02 | Pack purchase modal removes within-3-days-of-reset conditional logic and pattern-based upgrade suggestions | Reset date displayed informationally is sufficient; conditional UX adds complexity without driving real upgrade signal; pattern-based upgrade nudges (if added later) belong in dashboard or email surfaces, not the pack purchase flow |
 | 2026-05-02 | Cross-document propagation task simplified to point at three working docs in `docs/phase-0/` (CORE_SPECS, SECURITY_AUTH, IMPLEMENTATION_GUIDE) | Earlier list referenced archived numbered docs; the active working set is consolidated and Claude Code can route content to the right working doc without explicit content-to-file mapping |
+| 2026-06-03 | Free tier allocation lowered from 15/35 to 5/25 (response/sentiment credits per month) | After reviewing real-business review volumes, the Free allocation was too generous to function as a trial-to-paid funnel; tightening it strengthens the upgrade signal. Starter, Growth, and the Beta plan are unchanged. No active users, so no data migration. |

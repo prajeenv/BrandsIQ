@@ -98,8 +98,8 @@ const mockCreatedUser = {
   email: 'newuser@example.com',
   name: 'Test User',
   tier: 'FREE',
-  credits: 15,
-  sentimentCredits: 35,
+  credits: 5,
+  sentimentCredits: 25,
   emailVerified: null,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -207,7 +207,7 @@ describe('POST /api/auth/signup', () => {
           name: 'Test User',
           password: '$2a$12$hashed',
           tier: 'FREE',
-          credits: 15,
+          credits: 5,
         }),
       })
     );
@@ -422,7 +422,7 @@ describe('POST /api/auth/signup', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             isBetaUser: false,
-            credits: 15,
+            credits: 5,
           }),
         }),
       );

@@ -97,7 +97,7 @@ const mockUser = {
   name: 'Test User',
   tier: 'FREE',
   isBetaUser: false,
-  credits: 15,
+  credits: 5,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

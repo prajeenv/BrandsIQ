@@ -51,7 +51,7 @@ Error codes: UNAUTHORIZED (401), FORBIDDEN (403), NOT_FOUND (404), VALIDATION_ER
 - Sentiment credits: Balance model (`user.sentimentCredits` = remaining)
 - Anniversary-based reset: 30 days from signup per user
 - Atomic transactions via `deductCreditsAtomic()` in db-utils.ts
-- Tier limits in `src/lib/constants.ts` (FREE: 15/35, STARTER: 30/150, GROWTH: 100/500)
+- Tier limits in `src/lib/constants.ts` (FREE: 5/25, STARTER: 30/150, GROWTH: 100/500)
 
 ### AI Integration
 - Claude (`src/lib/ai/claude.ts`): Model `claude-sonnet-4-20250514`, response generation with brand voice
@@ -109,7 +109,7 @@ These rules apply when writing or editing **user-facing UI text**: JSX text node
 | NextAuth middleware | Use `auth()` function, not deprecated `withAuth` |
 | Credit race conditions | Always use `prisma.$transaction` for credits |
 | useSearchParams | Wrap pages in Suspense boundaries |
-| Beta-plan allocation | Use `getEffectiveAllocation(user)` from `lib/constants.ts` (returns `BETA_PLAN` if `isBetaUser`, else tier limits). Never hardcode 15/35 or 150/750 directly. |
+| Beta-plan allocation | Use `getEffectiveAllocation(user)` from `lib/constants.ts` (returns `BETA_PLAN` if `isBetaUser`, else tier limits). Never hardcode 5/25 or 150/750 directly. |
 | Admin gating | `isFounder(session)` from `lib/auth-helpers.ts`. Routes also middleware-gated to `/dashboard/admin/*` and `/api/admin/*`. Non-founders get 404. |
 | Phase flag | Read via `getCurrentPhase()` from `lib/system-phase.ts`. Backed by `CURRENT_PHASE` env var (defaults to `phase_1`). Never read `process.env.CURRENT_PHASE` directly. |
 

@@ -155,9 +155,9 @@ export const authOptions = {
         await prisma.user.update({
           where: { id: user.id },
           data: {
-            credits: 15,
+            credits: 5,
             tier: "FREE",
-            sentimentCredits: 35
+            sentimentCredits: 25
           }
         });
         

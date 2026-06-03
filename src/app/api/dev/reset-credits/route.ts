@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { TIER_LIMITS } from "@/lib/constants";
 
 /**
  * POST /api/dev/reset-credits - Reset credits for testing (DEV ONLY)
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, credits = 15 } = body;
+    const { email, credits = TIER_LIMITS.FREE.credits } = body;
 
     if (!email) {
       return NextResponse.json(

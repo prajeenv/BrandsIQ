@@ -277,7 +277,7 @@ DEEPSEEK_API_KEY="sk-..."           # For sentiment analysis (optional - has fal
 
 | Tier | Price | Credits/Month | Sentiment Quota |
 |------|-------|---------------|-----------------|
-| FREE | $0 | 15 | 35 |
+| FREE | $0 | 5 | 25 |
 | STARTER | $29 | 60 | 150 |
 | GROWTH | $79 | 200 | 500 |
 

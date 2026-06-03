@@ -28,9 +28,9 @@ import {
 } from '@/lib/constants';
 
 describe('TIER_LIMITS', () => {
-  it('FREE tier has 15 credits and 35 sentiment quota', () => {
-    expect(TIER_LIMITS.FREE.credits).toBe(15);
-    expect(TIER_LIMITS.FREE.sentimentQuota).toBe(35);
+  it('FREE tier has 5 credits and 25 sentiment quota', () => {
+    expect(TIER_LIMITS.FREE.credits).toBe(5);
+    expect(TIER_LIMITS.FREE.sentimentQuota).toBe(25);
   });
 
   it('STARTER tier has 30 credits and 150 sentiment quota', () => {

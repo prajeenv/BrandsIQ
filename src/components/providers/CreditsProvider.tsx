@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import type { SystemPhase } from "@/lib/system-phase";
+import { TIER_LIMITS } from "@/lib/constants";
 
 interface CreditsContextType {
   credits: number;
@@ -47,10 +48,10 @@ interface CreditsProviderProps {
 export function CreditsProvider({
   children,
   initialCredits = 0,
-  initialCreditsTotal = 15,
+  initialCreditsTotal = TIER_LIMITS.FREE.credits,
   initialCreditsResetDate = null,
   initialSentimentCredits = 0,
-  initialSentimentTotal = 35,
+  initialSentimentTotal = TIER_LIMITS.FREE.sentimentQuota,
   initialSentimentResetDate = null,
   initialTier = "FREE",
   initialIsBetaUser = false,

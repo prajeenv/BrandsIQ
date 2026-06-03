@@ -18,7 +18,7 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
 
   it('creates a review, generates response, edits, and publishes', async () => {
     const db = getTestPrisma();
-    const user = await createTestUser({ credits: 15 });
+    const user = await createTestUser({ credits: 5 });
     const location = await createTestLocation(user.id);
 
     // Step 1: Create review
@@ -92,7 +92,7 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
 
   it('handles regeneration with version tracking', async () => {
     const db = getTestPrisma();
-    const user = await createTestUser({ credits: 15 });
+    const user = await createTestUser({ credits: 5 });
     const location = await createTestLocation(user.id);
 
     const review = await db.review.create({

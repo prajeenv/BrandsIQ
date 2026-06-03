@@ -15,8 +15,8 @@ describe('LowCreditWarning', () => {
   it('shows nothing when credits are sufficient', () => {
     const { container } = render(
       <LowCreditWarning
-        creditsRemaining={15}
-        creditsTotal={15}
+        creditsRemaining={5}
+        creditsTotal={5}
         tier="FREE"
       />
     );
@@ -28,8 +28,8 @@ describe('LowCreditWarning', () => {
   it('shows yellow warning when response credits are low but not zero', () => {
     const { container } = render(
       <LowCreditWarning
-        creditsRemaining={2}
-        creditsTotal={15}
+        creditsRemaining={1}
+        creditsTotal={5}
         tier="FREE"
         resetDate="2026-02-01T00:00:00Z"
       />
@@ -48,7 +48,7 @@ describe('LowCreditWarning', () => {
     render(
       <LowCreditWarning
         creditsRemaining={0}
-        creditsTotal={15}
+        creditsTotal={5}
         tier="FREE"
         resetDate="2026-02-01T00:00:00Z"
       />
@@ -63,11 +63,11 @@ describe('LowCreditWarning', () => {
   it('shows sentiment warning when sentiment credits are low', () => {
     render(
       <LowCreditWarning
-        creditsRemaining={15}
-        creditsTotal={15}
+        creditsRemaining={5}
+        creditsTotal={5}
         tier="FREE"
         sentimentRemaining={2}
-        sentimentTotal={35}
+        sentimentTotal={25}
         sentimentResetDate="2026-02-01T00:00:00Z"
       />
     );
@@ -82,7 +82,7 @@ describe('LowCreditWarning', () => {
     render(
       <LowCreditWarning
         creditsRemaining={0}
-        creditsTotal={15}
+        creditsTotal={5}
         tier="FREE"
         resetDate="2026-02-01T00:00:00Z"
       />
@@ -97,7 +97,7 @@ describe('LowCreditWarning', () => {
     render(
       <LowCreditWarning
         creditsRemaining={0}
-        creditsTotal={15}
+        creditsTotal={5}
         tier="FREE"
         resetDate="2026-02-01T00:00:00Z"
       />
@@ -118,11 +118,11 @@ describe('LowCreditWarning', () => {
     render(
       <LowCreditWarning
         creditsRemaining={0}
-        creditsTotal={15}
+        creditsTotal={5}
         tier="FREE"
         resetDate="2026-02-01T00:00:00Z"
         sentimentRemaining={0}
-        sentimentTotal={35}
+        sentimentTotal={25}
         sentimentResetDate="2026-02-01T00:00:00Z"
       />
     );
@@ -135,8 +135,8 @@ describe('LowCreditWarning', () => {
   it('handles missing sentiment props gracefully (backward compatibility)', () => {
     const { container } = render(
       <LowCreditWarning
-        creditsRemaining={2}
-        creditsTotal={15}
+        creditsRemaining={1}
+        creditsTotal={5}
         tier="FREE"
         resetDate="2026-02-01T00:00:00Z"
       />

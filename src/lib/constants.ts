@@ -225,8 +225,8 @@ export const TIER_LIMITS: Record<
   }
 > = {
   FREE: {
-    credits: 15,
-    sentimentQuota: 35,
+    credits: 5,
+    sentimentQuota: 25,
     price: 0,
     name: "Free",
   },
