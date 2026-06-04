@@ -23,7 +23,7 @@ Reviews added → AI generates response in same language → User edits (optiona
 
 | Tier    | Price     | Credits   | Sentiment Quota | Notes |
 | ------- | --------- | --------- | --------------- | ----- |
-| FREE    | $0        | 15/month  | 35/month        | Default for direct signups |
+| FREE    | $0        | 5/month   | 25/month        | Default for direct signups |
 | STARTER | $29/month | 30/month  | 150/month       | Active in MVP Phase 2 (Stripe) |
 | GROWTH  | $79/month | 100/month | 500/month       | Active in MVP Phase 2 (Stripe) |
 | BETA*   | $0        | 150/month | 750/month       | MVP Phase 1 only — `User.isBetaUser=true` via invite link. Not a Tier enum value; overrides tier-based allocation. |
@@ -63,9 +63,9 @@ model User {
   
   // Subscription & Credits
   tier                Tier      @default(FREE)
-  credits             Int       @default(15)
+  credits             Int       @default(5)
   creditsResetDate    DateTime  @default(now())
-  sentimentCredits    Int       @default(35)   // Balance model: remaining sentiment credits (decremented 1 per analysis)
+  sentimentCredits    Int       @default(25)   // Balance model: remaining sentiment credits (decremented 1 per analysis)
   sentimentResetDate  DateTime  @default(now())
   
   // Timestamps
@@ -548,7 +548,7 @@ The signup route (`POST /auth/signup`) and NextAuth's `events.signIn` were modif
 ```typescript
 // Tier limits
 const TIER_LIMITS = {
-  FREE: { credits: 15, sentiment: 35 },
+  FREE: { credits: 5, sentiment: 25 },
   STARTER: { credits: 30, sentiment: 150 },
   GROWTH: { credits: 100, sentiment: 500 }
 };
@@ -595,7 +595,7 @@ The dashboard displays a unified warning banner when either response credits or 
 - **Out:** 0 remaining
 
 This percentage-based threshold ensures all tiers get proportional warning time:
-- FREE (15 credits): Warning at ≤3 credits
+- FREE (5 credits): Warning at ≤1 credit
 - STARTER (30 credits): Warning at ≤6 credits
 - GROWTH (100 credits): Warning at ≤20 credits
 
@@ -658,8 +658,8 @@ Resets credits for all users whose reset date has passed. Uses anniversary-based
 **What it does:**
 1. Finds all users where `creditsResetDate < now`
 2. For each user:
-   - Resets `credits` to tier limit (FREE: 15, STARTER: 60, GROWTH: 200)
-   - Resets `sentimentCredits` to tier limit (FREE: 35, STARTER: 150, GROWTH: 500)
+   - Resets `credits` to tier limit (FREE: 5, STARTER: 60, GROWTH: 200)
+   - Resets `sentimentCredits` to tier limit (FREE: 25, STARTER: 150, GROWTH: 500)
    - Updates `creditsResetDate` and `sentimentResetDate` to 30 days forward
    - Creates audit log in `CreditUsage` table with action `MONTHLY_RESET`
 
@@ -690,8 +690,8 @@ curl http://localhost:3000/api/cron/reset-credits \
       {
         "userId": "user_123",
         "tier": "FREE",
-        "creditsReset": 15,
-        "sentimentReset": 35
+        "creditsReset": 5,
+        "sentimentReset": 25
       }
     ],
     "timestamp": "2026-02-01T00:00:00.000Z"

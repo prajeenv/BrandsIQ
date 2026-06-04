@@ -18,11 +18,11 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
 
   it('deducts credits atomically in a transaction', async () => {
     const db = getTestPrisma();
-    const user = await createTestUser({ credits: 15 });
+    const user = await createTestUser({ credits: 5 });
 
     await db.$transaction(async (tx) => {
       const u = await tx.user.findUnique({ where: { id: user.id } });
-      expect(u!.credits).toBe(15);
+      expect(u!.credits).toBe(5);
 
       await tx.user.update({
         where: { id: user.id },
@@ -39,7 +39,7 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
     });
 
     const updated = await db.user.findUnique({ where: { id: user.id } });
-    expect(updated!.credits).toBe(14);
+    expect(updated!.credits).toBe(4);
 
     const usage = await db.creditUsage.findMany({ where: { userId: user.id } });
     expect(usage).toHaveLength(1);
@@ -123,16 +123,16 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
     await db.user.update({
       where: { id: user.id },
       data: {
-        credits: 15,
-        sentimentCredits: 35,
+        credits: 5,
+        sentimentCredits: 25,
         creditsResetDate: nextReset,
         sentimentResetDate: nextReset,
       },
     });
 
     const reset = await db.user.findUnique({ where: { id: user.id } });
-    expect(reset!.credits).toBe(15);
-    expect(reset!.sentimentCredits).toBe(35);
+    expect(reset!.credits).toBe(5);
+    expect(reset!.sentimentCredits).toBe(25);
   });
 
   it('preserves audit trail when review is deleted (SetNull)', async () => {
@@ -173,7 +173,7 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
 
   it('deducts sentiment credits and creates audit log', async () => {
     const db = getTestPrisma();
-    const user = await createTestUser({ sentimentCredits: 35 });
+    const user = await createTestUser({ sentimentCredits: 25 });
     const location = await createTestLocation(user.id);
 
     const review = await db.review.create({
@@ -201,7 +201,7 @@ describe.skipIf(!canRunIntegration)('Credit Operations (Integration)', () => {
     });
 
     const updated = await db.user.findUnique({ where: { id: user.id } });
-    expect(updated!.sentimentCredits).toBe(34);
+    expect(updated!.sentimentCredits).toBe(24);
 
     const sentimentUsage = await db.sentimentUsage.findMany({ where: { userId: user.id } });
     expect(sentimentUsage).toHaveLength(1);

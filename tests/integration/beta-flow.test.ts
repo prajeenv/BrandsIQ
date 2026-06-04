@@ -89,8 +89,8 @@ describe.skipIf(!canRunIntegration)('Beta Flow (Integration)', () => {
         email: 'collision@test.com',
         password: 'hashed',
         tier: 'FREE',
-        credits: 15,
-        sentimentCredits: 35,
+        credits: 5,
+        sentimentCredits: 25,
         creditsResetDate: FUTURE,
         sentimentResetDate: FUTURE,
       },
@@ -158,7 +158,7 @@ describe.skipIf(!canRunIntegration)('Beta Flow (Integration)', () => {
       },
     });
 
-    // Non-beta user, also overdue, should reset to FREE tier (15/35)
+    // Non-beta user, also overdue, should reset to FREE tier (5/25)
     const free = await db.user.create({
       data: {
         email: 'reset-free@test.com',
@@ -181,8 +181,8 @@ describe.skipIf(!canRunIntegration)('Beta Flow (Integration)', () => {
     expect(refreshedBeta!.sentimentCredits).toBe(750);
 
     const refreshedFree = await db.user.findUnique({ where: { id: free.id } });
-    expect(refreshedFree!.credits).toBe(15);
-    expect(refreshedFree!.sentimentCredits).toBe(35);
+    expect(refreshedFree!.credits).toBe(5);
+    expect(refreshedFree!.sentimentCredits).toBe(25);
 
     // Audit trail records both
     const audit = await db.creditUsage.findMany({
@@ -199,8 +199,8 @@ describe.skipIf(!canRunIntegration)('Beta Flow (Integration)', () => {
         email: 'cascade@test.com',
         password: 'hashed',
         tier: 'FREE',
-        credits: 15,
-        sentimentCredits: 35,
+        credits: 5,
+        sentimentCredits: 25,
         creditsResetDate: FUTURE,
         sentimentResetDate: FUTURE,
       },

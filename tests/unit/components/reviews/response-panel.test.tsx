@@ -31,8 +31,8 @@ vi.mock("next-auth/react", () => ({
 const mockRefreshCredits = vi.fn();
 vi.mock("@/components/providers/CreditsProvider", () => ({
   useCredits: () => ({
-    credits: 10,
-    creditsTotal: 15,
+    credits: 4,
+    creditsTotal: 5,
     creditsResetDate: "2026-02-15T00:00:00Z",
     refreshCredits: mockRefreshCredits,
     // MVP Phase 1 iter-2: provide the phase-aware fields the dialog reads.

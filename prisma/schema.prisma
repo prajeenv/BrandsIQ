@@ -30,9 +30,9 @@ model User {
   // during user creation (auth.ts signIn event, signup route). The @default(now()) is only
   // a fallback for direct database inserts. Anniversary-based billing: 30-day cycles per user.
   tier               Tier     @default(FREE)
-  credits            Int      @default(15)
+  credits            Int      @default(5)
   creditsResetDate   DateTime @default(now())
-  sentimentCredits   Int      @default(35)
+  sentimentCredits   Int      @default(25)
   sentimentResetDate DateTime @default(now())
 
   // MVP Phase 1: Closed Beta

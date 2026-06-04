@@ -88,9 +88,9 @@ describe('GET /api/credits', () => {
       id: mockSession.user.id,
       tier: 'FREE',
       isBetaUser: false,
-      credits: 12,
+      credits: 4,
       creditsResetDate: resetDate,
-      sentimentCredits: 30,
+      sentimentCredits: 20,
       sentimentResetDate: sentimentResetDate,
     });
 
@@ -99,8 +99,8 @@ describe('GET /api/credits', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.data.credits.remaining).toBe(12);
-    expect(json.data.credits.total).toBe(15);
+    expect(json.data.credits.remaining).toBe(4);
+    expect(json.data.credits.total).toBe(5);
     expect(json.data.tier).toBe('FREE');
   });
 
@@ -109,9 +109,9 @@ describe('GET /api/credits', () => {
       id: mockSession.user.id,
       tier: 'FREE',
       isBetaUser: false,
-      credits: 12,
+      credits: 4,
       creditsResetDate: new Date(),
-      sentimentCredits: 30,
+      sentimentCredits: 20,
       sentimentResetDate: new Date(),
     });
 
@@ -119,8 +119,8 @@ describe('GET /api/credits', () => {
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    // FREE tier: total=15, remaining=12, used=3
-    expect(json.data.credits.used).toBe(3);
+    // FREE tier: total=5, remaining=4, used=1
+    expect(json.data.credits.used).toBe(1);
   });
 
   it('includes sentiment quota info', async () => {
@@ -128,9 +128,9 @@ describe('GET /api/credits', () => {
       id: mockSession.user.id,
       tier: 'FREE',
       isBetaUser: false,
-      credits: 12,
+      credits: 4,
       creditsResetDate: new Date(),
-      sentimentCredits: 30,
+      sentimentCredits: 20,
       sentimentResetDate: new Date(),
     });
 
@@ -139,8 +139,8 @@ describe('GET /api/credits', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.data.sentiment).toBeDefined();
-    expect(json.data.sentiment.remaining).toBe(30);
-    expect(json.data.sentiment.total).toBe(35);
+    expect(json.data.sentiment.remaining).toBe(20);
+    expect(json.data.sentiment.total).toBe(25);
     expect(json.data.sentiment.used).toBe(5);
   });
 

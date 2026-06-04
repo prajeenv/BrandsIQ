@@ -88,9 +88,9 @@ describe('GET /api/dashboard/stats', () => {
       name: 'Test User',
       tier: 'FREE',
       isBetaUser: false,
-      credits: 12,
+      credits: 4,
       creditsResetDate: resetDate,
-      sentimentCredits: 30,
+      sentimentCredits: 20,
       sentimentResetDate: resetDate,
       reviews: [],
       _count: { reviews: 0 },
@@ -103,9 +103,9 @@ describe('GET /api/dashboard/stats', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.data.credits.remaining).toBe(12);
-    expect(json.data.credits.total).toBe(15);
-    expect(json.data.sentiment.remaining).toBe(30);
+    expect(json.data.credits.remaining).toBe(4);
+    expect(json.data.credits.total).toBe(5);
+    expect(json.data.sentiment.remaining).toBe(20);
     expect(json.data.tier).toBe('FREE');
   });
 
@@ -167,9 +167,9 @@ describe('GET /api/dashboard/stats', () => {
       name: 'Test User',
       tier: 'FREE',
       isBetaUser: false,
-      credits: 15,
+      credits: 5,
       creditsResetDate: new Date(),
-      sentimentCredits: 35,
+      sentimentCredits: 25,
       sentimentResetDate: new Date(),
       reviews: [],
       _count: { reviews: 10 },
@@ -221,9 +221,9 @@ describe('GET /api/dashboard/stats', () => {
       name: 'Test User',
       tier: 'FREE',
       isBetaUser: false,
-      credits: 15,
+      credits: 5,
       creditsResetDate: new Date(),
-      sentimentCredits: 35,
+      sentimentCredits: 25,
       sentimentResetDate: new Date(),
       reviews: recentReviews,
       _count: { reviews: 2 },
@@ -252,9 +252,9 @@ describe('GET /api/dashboard/stats', () => {
         name: 'Test User',
         tier: 'FREE',
         isBetaUser: false,
-        credits: 15,
+        credits: 5,
         creditsResetDate: new Date(),
-        sentimentCredits: 35,
+        sentimentCredits: 25,
         sentimentResetDate: new Date(),
         brandVoice: { negativeReviewEmailEnabled: true, replyToEmail: null },
         reviews: [],
@@ -276,9 +276,9 @@ describe('GET /api/dashboard/stats', () => {
         name: 'Test User',
         tier: 'FREE',
         isBetaUser: false,
-        credits: 15,
+        credits: 5,
         creditsResetDate: new Date(),
-        sentimentCredits: 35,
+        sentimentCredits: 25,
         sentimentResetDate: new Date(),
         brandVoice: {
           negativeReviewEmailEnabled: true,
@@ -303,9 +303,9 @@ describe('GET /api/dashboard/stats', () => {
         name: 'Test User',
         tier: 'FREE',
         isBetaUser: false,
-        credits: 15,
+        credits: 5,
         creditsResetDate: new Date(),
-        sentimentCredits: 35,
+        sentimentCredits: 25,
         sentimentResetDate: new Date(),
         brandVoice: { negativeReviewEmailEnabled: false, replyToEmail: null },
         reviews: [],
@@ -327,9 +327,9 @@ describe('GET /api/dashboard/stats', () => {
         name: 'Test User',
         tier: 'FREE',
         isBetaUser: false,
-        credits: 15,
+        credits: 5,
         creditsResetDate: new Date(),
-        sentimentCredits: 35,
+        sentimentCredits: 25,
         sentimentResetDate: new Date(),
         brandVoice: null,
         reviews: [],

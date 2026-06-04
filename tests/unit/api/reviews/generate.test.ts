@@ -61,7 +61,7 @@ const mockGetOrCreateBrandVoice = vi.hoisted(() =>
 const mockDeductCreditsAtomic = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
     success: true,
-    user: { id: 'clu1234567890abcdef', credits: 14, tier: 'FREE' },
+    user: { id: 'clu1234567890abcdef', credits: 4, tier: 'FREE' },
     creditsDeducted: 1,
   }),
 );
@@ -121,9 +121,9 @@ const baseUser = {
   email: 'test@example.com',
   name: 'Test User',
   tier: 'FREE',
-  credits: 15,
+  credits: 5,
   creditsResetDate: new Date('2026-02-19'),
-  sentimentCredits: 35,
+  sentimentCredits: 25,
   sentimentResetDate: new Date('2026-02-19'),
 };
 

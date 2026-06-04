@@ -59,8 +59,8 @@ export async function createTestUser(overrides?: Record<string, unknown>) {
       password: '$2a$12$LJ3/mF.QJeGtq7aREj7sYeX/0GKGx8MhD.gX/3BZ.vR8oE3t3VkWi', // "Password1"
       emailVerified: new Date(),
       tier: 'FREE',
-      credits: 15,
-      sentimentCredits: 35,
+      credits: 5,
+      sentimentCredits: 25,
       creditsResetDate: new Date(),
       sentimentResetDate: new Date(),
       ...overrides,

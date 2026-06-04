@@ -16,7 +16,7 @@ describe("OutOfCreditsDialog", () => {
     open: true,
     onOpenChange: vi.fn(),
     creditsRemaining: 0,
-    creditsTotal: 15,
+    creditsTotal: 5,
     resetDate: "2026-02-15T00:00:00Z",
     actionType: "generate" as const,
   };
@@ -49,7 +49,7 @@ describe("OutOfCreditsDialog", () => {
     render(<OutOfCreditsDialog {...defaultProps} />);
 
     expect(screen.getByText("Credits remaining")).toBeInTheDocument();
-    expect(screen.getByText("0 of 15")).toBeInTheDocument();
+    expect(screen.getByText("0 of 5")).toBeInTheDocument();
   });
 
   it("shows reset date", () => {

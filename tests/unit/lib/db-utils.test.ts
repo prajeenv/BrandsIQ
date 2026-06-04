@@ -205,12 +205,12 @@ describe('deductCreditsAtomic', () => {
   it('deducts credits and creates audit log in transaction', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: TEST_USER.id,
-      credits: 15,
+      credits: 5,
       tier: 'FREE',
     });
     mockPrisma.user.update.mockResolvedValue({
       id: TEST_USER.id,
-      credits: 14,
+      credits: 4,
       tier: 'FREE',
     });
     mockPrisma.creditUsage.create.mockResolvedValue({});
@@ -220,7 +220,7 @@ describe('deductCreditsAtomic', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.user).toEqual({ id: TEST_USER.id, credits: 14, tier: 'FREE' });
+    expect(result.user).toEqual({ id: TEST_USER.id, credits: 4, tier: 'FREE' });
     expect(mockPrisma.$transaction).toHaveBeenCalled();
     expect(mockPrisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -261,12 +261,12 @@ describe('deductCreditsAtomic', () => {
   it('logs details JSON when provided', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: TEST_USER.id,
-      credits: 15,
+      credits: 5,
       tier: 'FREE',
     });
     mockPrisma.user.update.mockResolvedValue({
       id: TEST_USER.id,
-      credits: 14,
+      credits: 4,
       tier: 'FREE',
     });
     mockPrisma.creditUsage.create.mockResolvedValue({});
@@ -344,11 +344,11 @@ describe('hasSentimentCredits', () => {
 describe('deductSentimentCredits', () => {
   it('deducts 1 sentiment credit', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
-      sentimentCredits: 35,
+      sentimentCredits: 25,
       tier: 'FREE',
     });
     mockPrisma.user.update.mockResolvedValue({
-      sentimentCredits: 34,
+      sentimentCredits: 24,
       tier: 'FREE',
     });
     mockPrisma.sentimentUsage.create.mockResolvedValue({});
@@ -425,8 +425,8 @@ describe('resetMonthlyCredits', () => {
       expect.objectContaining({
         userId: 'user1',
         tier: 'FREE',
-        creditsReset: 15,
-        sentimentReset: 35,
+        creditsReset: 5,
+        sentimentReset: 25,
       })
     );
   });
@@ -545,7 +545,7 @@ describe('resetMonthlyCredits', () => {
 
     const result = await resetMonthlyCredits();
     expect(result.details[0]).toEqual(
-      expect.objectContaining({ creditsReset: 15, sentimentReset: 35 }),
+      expect.objectContaining({ creditsReset: 5, sentimentReset: 25 }),
     );
   });
 });

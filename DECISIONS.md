@@ -695,10 +695,10 @@ import { TIER_LIMITS } from "@/lib/constants";
 3. **Consistency**: No more mismatched values between pages
 4. **Documentation**: `CORE_SPECS.md` and code constants stay in sync
 
-**Current Tier Limits (as of January 30, 2026):**
+**Current Tier Limits (FREE lowered to 5/25 on June 3, 2026 — see "Free Tier Allocation Lowered" below):**
 | Tier | Credits | Sentiment | Price |
 |------|---------|-----------|-------|
-| FREE | 15 | 35 | $0 |
+| FREE | 5 | 25 | $0 |
 | STARTER | 30 | 150 | $29 |
 | GROWTH | 100 | 500 | $79 |
 
@@ -2104,6 +2104,23 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 
 ---
 
+## Free Tier Allocation Lowered (15/35 → 5/25)
+
+**Context.** The Free tier launched at 15 response credits + 35 sentiment credits per month. After the founder reviewed real-business review volumes, that allocation was judged too generous: Free was usable as a standing plan rather than a trial. Per the product philosophy (MVP.md Section 6 — "Free tier should drive upgrades, not be a viable indefinite plan"), the Free allocation is lowered to 5 response credits + 25 sentiment credits per month.
+
+#### Decision 108: Lower Free tier allocation to 5 response credits / 25 sentiment credits; everything flows from the single `TIER_LIMITS.FREE` constant.
+
+- **Decision (allocation):** `TIER_LIMITS.FREE` in `src/lib/constants.ts` changes from `{ credits: 15, sentimentQuota: 35 }` to `{ credits: 5, sentimentQuota: 25 }`. Starter (30/150), Growth (100/500), and the Beta plan (150/750) are unchanged.
+- **Why a single constant edit suffices for runtime:** `getEffectiveAllocation(user)` resolves every allocation path from `TIER_LIMITS`. New-user signup (`auth.ts` signIn event + `signup` route), the anniversary-reset cron (`db-utils.ts:resetMonthlyCredits` / `resetUserCredits`), the landing page, and the pricing page all read the constant. None of those files were edited — changing the constant cascades to all of them. The CLAUDE.md gotcha ("never hardcode 15/35") is the reason this works.
+- **Decision (DB defaults):** `prisma/schema.prisma` `User` column defaults change to `credits @default(5)` and `sentimentCredits @default(25)`, with an additive migration (`20260603120000_lower_free_tier_defaults`) that does an `ALTER COLUMN ... SET DEFAULT` on each. These are fallbacks for direct DB inserts — application code always sets the explicit allocation — but they are kept in sync with the constant for correctness.
+- **Decision (no backfill):** There are no real users, only test users (confirmed by the founder). New signups get 5/25 immediately; existing test users reset to 5/25 on their next anniversary cron run. No one-shot backfill script.
+- **Decision (latent hardcodes removed, not re-hardcoded):** Two spots that hardcoded the old Free values were rewired to read `TIER_LIMITS.FREE` rather than swapping one literal for another: `CreditsProvider`'s default props (`initialCreditsTotal` / `initialSentimentTotal`) and the dev-only `/api/dev/reset-credits` default. This brings them under the single-source-of-truth umbrella.
+- **No UI logic change:** `LowCreditWarning` uses a percentage threshold (`LOW_THRESHOLD_PERCENT = 20`), so at a 5-credit total the "low" warning fires at ≤1 remaining and "out" at 0 — no code change needed. The old "credits < 3" threshold referenced in historical notes no longer exists in the component.
+- **Alternatives considered:** (a) Backfill existing users to 5/25 — rejected, unnecessary (no real users) and would risk a mid-cycle credit drop if any existed. (b) Leave docs narrative stale and only change code — rejected, the founder asked for all active docs to stay honest.
+- **Risk:** Low ✅. Additive migration, reversible, no data touched. The only behavioural change is new signups and the next reset cycle landing on 5/25.
+
+---
+
 ## Decision Log
 
 ### Quick Reference Table
@@ -2217,6 +2234,7 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 105 | Internal-commitment cap on negative template — ban the trailing purpose clause ("to ensure this doesn't happen again"); name an acceptable form to mirror; step 2 of the template cross-references the cap | Brand Voice / Iter 9 | May 30 | Low ✅ | ✅ Implemented |
 | 106 | Universal rule against acknowledging missing service-recovery actions (compensation, refunds, discounts, complimentary items) — explicit carve-out from the iter-8 specificity rule (specificity applies to the interaction itself, not to missing remediations) | Brand Voice / Iter 9 | May 30 | Low ✅ | ✅ Implemented |
 | 107 | Language-aware salutation/sign-off resolver — built-in `LANGUAGE_DEFAULT_CONTACT_BLOCK` map (44 entries with `salutation` + `noNameSalutation` + `signoff`) + new `BrandVoice.salutationSignoffLanguage` column (detected via franc on combined salutation + sign-off, overridable via inline indicator); `assembleResponse` gains `effectiveLanguage` param plumbed through `GeneratedResponse`; user customisation applies when language matches, defaults map otherwise (and on null) | Language-aware salutation/sign-off | May 30 | Low ✅ | ✅ Implemented |
+| 108 | Free tier allocation lowered 15/35 → 5/25 — single `TIER_LIMITS.FREE` constant edit cascades to signup/cron/landing/pricing via `getEffectiveAllocation`; Prisma column defaults + additive migration, no backfill (no real users); `CreditsProvider` + dev reset-credits defaults rewired to the constant; Starter/Growth/Beta unchanged | Free tier allocation | Jun 3 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
@@ -2263,6 +2281,16 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 ---
 
 ## Change Log
+
+**June 3, 2026** — Free tier allocation lowered 15/35 → 5/25 (Decision 108)
+- Branch `fix/lower-free-tier-allocation`. After the founder reviewed real-business review volumes, the Free tier allocation was judged too generous to function as a trial-to-paid funnel. Free exists to drive upgrades, not to be a viable indefinite plan, so response credits drop 15 → 5 and sentiment credits drop 35 → 25. Starter (30/150), Growth (100/500), and the Beta plan (150/750) are unchanged.
+- Single source of truth: `TIER_LIMITS.FREE` in `src/lib/constants.ts` changed to `{ credits: 5, sentimentQuota: 25 }`. This cascades automatically through `getEffectiveAllocation()` to new-user signup (`auth.ts` signIn + signup route), the monthly-reset cron (`db-utils.ts:resetMonthlyCredits`), the landing page, and the pricing page — none of which were edited (they all read the constant).
+- `prisma/schema.prisma` `User` defaults changed (`credits @default(5)`, `sentimentCredits @default(25)`) + additive migration `20260603120000_lower_free_tier_defaults` (column-default change only, no backfill — there are no real users).
+- `CreditsProvider` default props wired to `TIER_LIMITS.FREE` (were hardcoded 15/35); dev-only `/api/dev/reset-credits` default wired to `TIER_LIMITS.FREE.credits` (was hardcoded 15) — both replacing latent hardcodes with the single source of truth.
+- No `LowCreditWarning` logic change — its threshold is percentage-based (`LOW_THRESHOLD_PERCENT = 20`), so at 5 credits the low warning fires at ≤1 remaining automatically.
+- Test fixtures + assertions updated across ~13 files (15→5, 35→25) including the canonical `TEST_USER` fixture, integration helpers, and consistency-sensitive remaining/total/used assertions.
+- Docs updated: CLAUDE.md, CORE_SPECS.md, SECURITY_AUTH.md, MVP.md (table + Section 18 Decision Log row), PROGRESS.md, this entry + Decision 108 below.
+- Verification: `npm run lint`, `npm run type-check`, `npm run test:unit` all green; `prisma generate` clean.
 
 **May 30, 2026 (later)** — Language-aware salutation & sign-off (Decision 107)
 - Single PR on `feat/language-aware-salutation-signoff`, five layer-scoped commits (db / api+lib / ui / test / docs).
@@ -2495,4 +2523,4 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 
 **Note:** This document should be updated after each prompt execution. When in doubt about whether something is a "decision," document it - better to over-document than under-document.
 
-**Last Reviewed:** May 30, 2026 — Language-aware salutation & sign-off (Decision 107). Closes the gap where Decision 100's response-language override left the deterministic salutation/sign-off stuck in English. New `salutationSignoffLanguage` column on `BrandVoice` (detected via franc on the combined salutation + sign-off, overridable via inline indicator) drives a resolver in `post-process.ts` that picks between the user's literal text and a built-in defaults map (44 hand-authored language entries). Migration backfills existing rows to 'English' so pre-this-PR behaviour is preserved. Earlier on May 30 — Brand Voice / Iteration 9 prompt-tuning batch driven by Italian undercooked-pizza spreadsheet review (Decisions 101–106). Three PRs: #153 regen-dialog independence note (merged), #154 universal "do not promise the failed thing done correctly" rule (merged), #155 substitution pairs + soft-flagellation extensions + commitment cap + missing-service-recovery rule (merged). Decision 104 captures the speech-act calibration (obligation-shaped concession vs. owner-voice acknowledgement) that justifies the soft-flagellation list's design. Earlier on May 29 — response-language override on `BrandVoice` (Decision 100); May 26 — regen-instructions persistence (schema columns + UI reveal + PostHog metadata-only telemetry); May 25 — Brand Voice / Iteration 8 default-voice prompt tuning. Iteration 7 above covered the incomplete-email-config feedback work.
+**Last Reviewed:** June 3, 2026 — Free tier allocation lowered 15/35 → 5/25 (Decision 108). Single `TIER_LIMITS.FREE` constant edit cascades through `getEffectiveAllocation` to signup, the reset cron, the landing page, and the pricing page; Prisma column defaults changed via additive migration `20260603120000_lower_free_tier_defaults` with no backfill (no real users); `CreditsProvider` + dev reset-credits defaults rewired to the constant; Starter/Growth/Beta unchanged. Earlier on May 30 — Language-aware salutation & sign-off (Decision 107). Closes the gap where Decision 100's response-language override left the deterministic salutation/sign-off stuck in English. New `salutationSignoffLanguage` column on `BrandVoice` (detected via franc on the combined salutation + sign-off, overridable via inline indicator) drives a resolver in `post-process.ts` that picks between the user's literal text and a built-in defaults map (44 hand-authored language entries). Migration backfills existing rows to 'English' so pre-this-PR behaviour is preserved. Earlier on May 30 — Brand Voice / Iteration 9 prompt-tuning batch driven by Italian undercooked-pizza spreadsheet review (Decisions 101–106). Three PRs: #153 regen-dialog independence note (merged), #154 universal "do not promise the failed thing done correctly" rule (merged), #155 substitution pairs + soft-flagellation extensions + commitment cap + missing-service-recovery rule (merged). Decision 104 captures the speech-act calibration (obligation-shaped concession vs. owner-voice acknowledgement) that justifies the soft-flagellation list's design. Earlier on May 29 — response-language override on `BrandVoice` (Decision 100); May 26 — regen-instructions persistence (schema columns + UI reveal + PostHog metadata-only telemetry); May 25 — Brand Voice / Iteration 8 default-voice prompt tuning. Iteration 7 above covered the incomplete-email-config feedback work.

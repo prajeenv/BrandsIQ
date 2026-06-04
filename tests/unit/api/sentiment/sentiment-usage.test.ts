@@ -142,7 +142,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
       isBetaUser: false,
-      sentimentCredits: 35,
+      sentimentCredits: 25,
       sentimentResetDate: new Date("2026-03-01"),
     });
 
@@ -168,7 +168,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
       isBetaUser: false,
-      sentimentCredits: 35,
+      sentimentCredits: 25,
       sentimentResetDate: new Date("2026-03-01"),
     });
 
@@ -199,7 +199,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
       isBetaUser: false,
-      sentimentCredits: 30,
+      sentimentCredits: 20,
       sentimentResetDate: new Date("2026-03-01"),
     });
 
@@ -207,9 +207,9 @@ describe("GET /api/sentiment/usage", () => {
     const response = await GET(request);
     const result = await parseResponse<any>(response);
 
-    expect(result.body.data.quota.remaining).toBe(30);
-    expect(result.body.data.quota.total).toBe(35); // FREE tier total
-    expect(result.body.data.quota.used).toBe(5); // 35 - 30
+    expect(result.body.data.quota.remaining).toBe(20);
+    expect(result.body.data.quota.total).toBe(25); // FREE tier total
+    expect(result.body.data.quota.used).toBe(5); // 25 - 20
   });
 
   it("falls back to details JSON when review is deleted", async () => {
@@ -235,7 +235,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
       isBetaUser: false,
-      sentimentCredits: 35,
+      sentimentCredits: 25,
       sentimentResetDate: new Date("2026-03-01"),
     });
 
@@ -257,7 +257,7 @@ describe("GET /api/sentiment/usage", () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       tier: "FREE",
       isBetaUser: false,
-      sentimentCredits: 35,
+      sentimentCredits: 25,
       sentimentResetDate: new Date("2026-03-01"),
     });
 

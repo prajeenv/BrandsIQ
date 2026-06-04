@@ -31,7 +31,7 @@ describe("CreditsProvider", () => {
     );
 
     expect(screen.getByTestId("credits")).toHaveTextContent("0");
-    expect(screen.getByTestId("creditsTotal")).toHaveTextContent("15");
+    expect(screen.getByTestId("creditsTotal")).toHaveTextContent("5");
     expect(screen.getByTestId("tier")).toHaveTextContent("FREE");
     expect(screen.getByTestId("sentimentCredits")).toHaveTextContent("0");
   });
@@ -74,15 +74,15 @@ describe("CreditsProvider", () => {
         Promise.resolve({
           success: true,
           data: {
-            credits: { remaining: 8, total: 15, resetDate: null },
-            sentiment: { remaining: 20, total: 35, resetDate: null },
+            credits: { remaining: 4, total: 5, resetDate: null },
+            sentiment: { remaining: 20, total: 25, resetDate: null },
             tier: "FREE",
           },
         }),
     });
 
     render(
-      <CreditsProvider initialCredits={15}>
+      <CreditsProvider initialCredits={5}>
         <TestConsumer />
       </CreditsProvider>
     );
@@ -92,7 +92,7 @@ describe("CreditsProvider", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("credits")).toHaveTextContent("8");
+      expect(screen.getByTestId("credits")).toHaveTextContent("4");
       expect(screen.getByTestId("sentimentCredits")).toHaveTextContent("20");
     });
 

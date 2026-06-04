@@ -1570,5 +1570,25 @@ Cross-reference DECISIONS.md "Language-aware salutation & sign-off" section — 
 
 ---
 
-**Last Updated:** May 30, 2026
-**Status:** Language-aware salutation & sign-off shipped on `feat/language-aware-salutation-signoff` branch. 100 numbered decisions logged. Awaiting PR review + merge.
+## Free Tier Allocation Lowered (15/35 → 5/25)
+
+**Started + completed:** June 3, 2026. **Branch:** `fix/lower-free-tier-allocation`.
+
+After the founder reviewed real-business review volumes, the Free tier allocation was lowered from 15 response credits / 35 sentiment credits to **5 / 25** per month. Free exists to drive upgrades, not to be a viable standing plan. Starter (30/150), Growth (100/500), and the Beta plan (150/750) are unchanged.
+
+**What shipped:**
+- `TIER_LIMITS.FREE` in `src/lib/constants.ts` → `{ credits: 5, sentimentQuota: 25 }`. This single edit cascades through `getEffectiveAllocation()` to signup (`auth.ts` + signup route), the reset cron (`db-utils.ts`), the landing page, and the pricing page — none edited (they read the constant).
+- `prisma/schema.prisma` `User` defaults `@default(5)` / `@default(25)` + additive migration `20260603120000_lower_free_tier_defaults` (column-default change only, no backfill — no real users).
+- `CreditsProvider` default props + dev-only `/api/dev/reset-credits` default rewired to `TIER_LIMITS.FREE` (were hardcoded 15/35 — now under single-source-of-truth).
+- No `LowCreditWarning` change (percentage threshold adapts automatically; at 5 credits the low warning fires at ≤1 remaining).
+- Test fixtures + assertions updated across ~13 files (15→5, 35→25), including the canonical `TEST_USER` fixture and consistency-sensitive remaining/total/used assertions.
+- Docs updated: CLAUDE.md, CORE_SPECS.md, SECURITY_AUTH.md, MVP.md, DECISIONS.md (Decision 108), this entry.
+
+**Verification:** `npm run lint`, `npm run type-check`, `npm run test:unit` green; `prisma generate` clean.
+
+**Decisions:** cross-reference DECISIONS.md "Free Tier Allocation Lowered" — Decision 108.
+
+---
+
+**Last Updated:** June 3, 2026
+**Status:** Free tier allocation lowered 15/35 → 5/25 on `fix/lower-free-tier-allocation` branch (Decision 108). 101 numbered decisions logged. Earlier — language-aware salutation & sign-off (Decision 107) merged to main.

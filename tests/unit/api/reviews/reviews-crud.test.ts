@@ -70,8 +70,8 @@ const baseUser = {
   email: 'test@example.com',
   name: 'Test User',
   tier: 'FREE',
-  credits: 15,
-  sentimentCredits: 35,
+  credits: 5,
+  sentimentCredits: 25,
   sentimentResetDate: new Date('2026-02-19'),
   creditsResetDate: new Date('2026-02-19'),
 };
