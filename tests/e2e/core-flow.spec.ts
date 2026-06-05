@@ -43,9 +43,9 @@ test.describe("Core User Flow", () => {
     const reviewText = `E2E test review ${Date.now()}: Great product, excellent customer service and fast delivery!`;
     await page.locator("#reviewText").fill(reviewText);
 
-    // Click the 5th star for a 5-star rating.
-    // The star buttons are inside a flex container after the "Rating (optional)" label.
-    const ratingSection = page.locator("text=Rating (optional)").locator("..");
+    // Click the 5th star for a 5-star rating (rating is required on create).
+    // The star buttons are inside a flex container after the "Rating *" label.
+    const ratingSection = page.getByText("Rating *", { exact: true }).locator("..");
     const stars = ratingSection.locator('button[type="button"]');
     await stars.nth(4).click();
 
