@@ -169,6 +169,18 @@ describe("posthog-events — founder inquiry", () => {
     });
   });
 
+  it("carries the signup_gateway source (walk-in /auth/get-started)", () => {
+    trackFounderInquirySubmitted({
+      type: "beta_request",
+      source: "signup_gateway",
+    });
+
+    expect(captureMock).toHaveBeenCalledWith("founder_inquiry_submitted", {
+      type: "beta_request",
+      source: "signup_gateway",
+    });
+  });
+
   it("supports all four inquiry types", () => {
     const types = [
       "beta_request",

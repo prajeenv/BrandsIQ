@@ -45,7 +45,7 @@ The page should render correctly with or without UTM parameters (don't break if 
 - **Headline (H1):** Reply to your reviews in seconds, in your brand voice.
 - **Subhead (paragraph):** AI review replies for hospitality, retail, and local businesses. Built in Berlin. (Broadened from the original food-and-beverage-only list so the page reflects the product's full industry coverage, not just F&B.)
 - **Primary CTA button:** Start free beta
-  - Links to `/auth/signup?utm_source=walkin` (the existing signup route; `utm_source` carries the walk-in attribution forward, see Section 6)
+  - Links to `/auth/get-started?utm_source=walkin` (the signup gateway: offers "Request beta access" alongside a regular-signup fallback, since BrandsIQ is invite-only). The gateway forwards `utm_source` on to `/auth/signup`, so walk-in attribution survives the extra hop (see Section 6). Under `phase_2` the gateway redirects straight to `/auth/signup`.
 - **Secondary text link (below CTA):** "WhatsApp me directly" with a message icon, links to WhatsApp deep link `https://wa.me/491776910899`
 
 ### Section 2 — Welcome Line
@@ -84,7 +84,7 @@ Personal block to reinforce the founder-led trust signal:
 
 ### Section 6 — Bottom CTA (repeat the primary action)
 
-- Primary button: Start your free beta → `/auth/signup?utm_source=walkin`
+- Primary button: Start your free beta → `/auth/get-started?utm_source=walkin` (same gateway as the hero CTA; see Section 1)
 - (No secondary WhatsApp link here: it would duplicate the WhatsApp button in the founder block directly above.)
 
 ---
@@ -151,7 +151,7 @@ Note: `$pageview` autocapture is already **off** app-wide (`capture_pageview: fa
 
 ### How attribution works
 
-1. The signup CTAs link to `/auth/signup?utm_source=walkin`.
+1. The "Start free beta" CTAs link to `/auth/get-started?utm_source=walkin`. The gateway carries `utm_source` onto its "Continue with regular signup" link (and its `phase_2` redirect), so the param reaches `/auth/signup?utm_source=walkin` either way.
 2. `SignupForm` reads `utm_source` from the URL.
 3. On successful account creation (a deliberate, post-opt-in user action), the existing `signup_completed_with_beta` / `signup_completed_no_beta` events carry a categorical `signupSource: "walkin"` property. This is a channel tag, not PII (consistent with Decision 35).
 

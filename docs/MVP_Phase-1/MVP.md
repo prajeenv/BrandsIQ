@@ -528,6 +528,8 @@ The concrete features to build in Phase 1, with two-sentence descriptions per it
 
 **No confirmation email back to the inquirer.** The expired-link page already states the contract ("we'll send you a fresh invite within 24 hours"); a separate confirmation email would be development effort for no validation signal. The founder responds personally via the channel that fits the context (email, WhatsApp).
 
+**Implementation note (post-MVP addition):** the shared form gained a fifth surface — the `/auth/get-started` signup gateway that the walk-in page's "Start free beta" CTA now routes to. It renders the form with `type=beta_request` and a new `source=signup_gateway` value (added to `FOUNDER_INQUIRY_SOURCES` alongside `expired_link | pricing | zero_balance | onboarding_intent | other`). Under `phase_2` the gateway redirects to `/auth/signup` instead (no closed beta to request). See DECISIONS.md.
+
 ### 13.5 Profile Registration
 
 **Description:** Extend the signup flow with profile registration fields per Section 9 — mandatory fields (organization name, industry, country, location name) and optional fields (location count, primary platform). For no-code signups, additionally show beta intent radio + free-text challenge field; non-empty submissions create a `FounderInquiry` of type `beta_request`.
