@@ -197,7 +197,7 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
 
           {/* Review text */}
           <div className="space-y-2">
-            <Label htmlFor="reviewText">Review Text (optional)</Label>
+            <Label htmlFor="reviewText">Review Text</Label>
             <Textarea
               id="reviewText"
               placeholder="Paste or type the customer review here..."
@@ -323,7 +323,7 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
 
           {/* Reviewer name */}
           <div className="space-y-2">
-            <Label htmlFor="reviewerName">Reviewer Name (optional)</Label>
+            <Label htmlFor="reviewerName">Reviewer Name</Label>
             <Input
               id="reviewerName"
               placeholder="e.g., John D."
@@ -333,7 +333,7 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
 
           {/* Review date */}
           <div className="space-y-2">
-            <Label htmlFor="reviewDate">Review Date (optional)</Label>
+            <Label htmlFor="reviewDate">Review Date</Label>
             <Input
               id="reviewDate"
               type="date"

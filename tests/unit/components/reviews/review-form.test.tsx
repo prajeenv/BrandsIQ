@@ -45,7 +45,7 @@ describe("ReviewForm", () => {
     it("renders review text textarea", () => {
       render(<ReviewForm />);
 
-      expect(screen.getByText("Review Text (optional)")).toBeInTheDocument();
+      expect(screen.getByText("Review Text")).toBeInTheDocument();
       expect(
         screen.getByPlaceholderText(
           "Paste or type the customer review here..."
@@ -68,14 +68,14 @@ describe("ReviewForm", () => {
     it("renders reviewer name input", () => {
       render(<ReviewForm />);
 
-      expect(screen.getByText("Reviewer Name (optional)")).toBeInTheDocument();
+      expect(screen.getByText("Reviewer Name")).toBeInTheDocument();
       expect(screen.getByPlaceholderText("e.g., John D.")).toBeInTheDocument();
     });
 
     it("renders review date input", () => {
       render(<ReviewForm />);
 
-      expect(screen.getByText("Review Date (optional)")).toBeInTheDocument();
+      expect(screen.getByText("Review Date")).toBeInTheDocument();
     });
 
     it("renders Add Review submit button", () => {
