@@ -47,7 +47,7 @@ import { getTextDirection } from "@/lib/language-detection";
 export interface ReviewCardData {
   id: string;
   platform: string;
-  reviewText: string;
+  reviewText: string | null;
   rating: number | null;
   reviewerName: string | null;
   reviewDate: string | null;
@@ -141,7 +141,7 @@ export function ReviewCard({ review, onDelete }: ReviewCardProps) {
   const [isResponseExpanded, setIsResponseExpanded] = useState(false);
 
   const textDirection = getTextDirection(review.detectedLanguage);
-  const reviewNeedsExpansion = needsExpansion(review.reviewText);
+  const reviewNeedsExpansion = !!review.reviewText && needsExpansion(review.reviewText);
   const responseNeedsExpansion = review.response && needsExpansion(review.response.responseText);
 
   const handleDelete = async () => {
@@ -249,15 +249,21 @@ export function ReviewCard({ review, onDelete }: ReviewCardProps) {
                 </span>
               </div>
 
-              {/* Review text */}
+              {/* Review text (may be absent for a star-only review) */}
               <div>
                 <Link href={`/dashboard/reviews/${review.id}`}>
-                  <p
-                    className="text-sm whitespace-pre-line hover:text-primary cursor-pointer"
-                    dir={textDirection}
-                  >
-                    {isReviewExpanded ? review.reviewText : truncateToTwoLines(review.reviewText)}
-                  </p>
+                  {review.reviewText ? (
+                    <p
+                      className="text-sm whitespace-pre-line hover:text-primary cursor-pointer"
+                      dir={textDirection}
+                    >
+                      {isReviewExpanded ? review.reviewText : truncateToTwoLines(review.reviewText)}
+                    </p>
+                  ) : (
+                    <p className="text-sm italic text-muted-foreground hover:text-primary cursor-pointer">
+                      No written comment
+                    </p>
+                  )}
                 </Link>
                 {reviewNeedsExpansion && (
                   <Button

@@ -130,7 +130,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Non-blocking audit log for prompt-injection patterns in the review text.
     // Spec §10.6 — generation still proceeds either way.
     await logIfInjectionAttempt({
-      text: review.reviewText,
+      // reviewText is nullable for star-only reviews; the detector needs a
+      // string. An empty string yields no matches, which is correct.
+      text: review.reviewText ?? "",
       userId: session.user.id,
       fieldName: "review_text",
     });

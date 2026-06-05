@@ -98,21 +98,24 @@ npm run test:e2e                                  # Playwright against staging
 Dashboard → "Add Review" button
   ↓
 Review Form:
-- Paste review text (auto-detect language)
-- Select platform (Google, Amazon, etc.)
-- Add rating (optional), reviewer name (optional)
+- Select a star rating (REQUIRED)
+- Paste review text (OPTIONAL — many Google reviews are star-only; auto-detect language when present)
+- Select platform (Google, Amazon, etc.; defaults to Google)
+- Add reviewer name (optional)
 - Override language if detection wrong
   ↓
 Click "Add Review"
   ↓
 System:
-1. Validates input (1-2000 chars)
-2. Detects language (franc library)
-3. Saves to database
-4. Triggers sentiment analysis (DeepSeek)
+1. Validates input (rating required 1-5; reviewText optional, ≤4000 chars when present)
+2. Detects language (franc library) — only when there is text; star-only reviews default to English
+3. Saves to database (reviewText = null for a star-only review)
+4. Triggers sentiment analysis (DeepSeek) — skipped for star-only reviews (no text to analyze, no credit spent)
   ↓
 Redirects to review detail page
 ```
+
+**Star-only reviews (rating, no text):** A review with a rating but no written comment is valid. Response generation still works — the prompt switches to a no-text path that responds to the sentiment of the rating itself (warm for high, apologetic for low) without inventing specific incidents, dishes, staff, or occasions. The rating drives the structure-template routing (1-2★ negative, 3★ mixed, 4-5★ positive) exactly as it does for reviews with text.
 
 ### Response Generation Flow
 ```

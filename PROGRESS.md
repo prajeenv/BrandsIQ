@@ -1590,5 +1590,27 @@ After the founder reviewed real-business review volumes, the Free tier allocatio
 
 ---
 
-**Last Updated:** June 3, 2026
-**Status:** Free tier allocation lowered 15/35 → 5/25 on `fix/lower-free-tier-allocation` branch (Decision 108). 101 numbered decisions logged. Earlier — language-aware salutation & sign-off (Decision 107) merged to main.
+## Add Review: rating required, review text optional (star-only reviews)
+
+**Started + completed:** June 4, 2026. **Branch:** `feat/star-only-reviews` (off main, after Decision 108 merged).
+
+Inverts the Add Review form requiredness so a star-only review (a rating with no written comment, e.g. a Google "5 stars, no comment") can be added and gets a rating-appropriate AI response. Previously both Platform and Review Text were mandatory, which blocked the common real-world case the founder observed. Rating is the cleaner anchor — the AI always has something to respond to.
+
+**What shipped (layered, db → validation → route → AI → UI → tests → docs):**
+- **Schema + migration:** `Review.reviewText` → `String? @db.Text` via additive `20260604120000_review_text_optional` (DROP NOT NULL, no backfill — existing rows all have text).
+- **Validation:** `createReviewSchema` makes `reviewText` optional and `rating` required (`z.number({ message: "Please select a rating" }).min(1).max(5)`). `updateReviewSchema` unchanged.
+- **`POST /api/reviews`:** normalizes empty/whitespace text → null; for star-only reviews skips the text-based duplicate check, language detection (defaults to English), and sentiment analysis (no credit spent). `sentimentWarning` now fires only on a genuine no-credits skip, so star-only adds no longer show a spurious "sentiment skipped" banner.
+- **AI (`claude.ts`):** `reviewText` param nullable; `hasReviewText` threads into both prompt builders. `buildUserPrompt` states "no written comment" instead of emitting an empty review block; `buildSystemPrompt` injects a no-text override (after the structure template, before the reinforcement tail) so the model responds to the rating without inventing specifics. Structure templates unchanged — `selectStructureTemplate` already routes star-only reviews by rating (1-2★ negative, 3★ mixed, 4-5★ positive). `generate`/`regenerate` routes pass `review.reviewText ?? ""` to the injection logger.
+- **Form:** Platform `*` dropped; Review Text "(optional)"; Rating "*" with an inline error; rating wired via RHF `Controller` (the reliable way to validate a custom star widget — plain `setValue` did not surface the required error); no clear-on-reclick.
+- **Null-text display:** `ReviewCard` + review detail page render a muted "No written comment" placeholder for star-only reviews.
+
+**Test coverage:** `createReviewSchema` block rewritten (star-only accepted; missing/null rating rejected) + rating added to existing cases; 3 new route tests (star-only create with null text + no warning, dedupe skipped, sentiment skipped even with credits); form tests (labels flipped, blocked-without-rating, star-only submit); `claude.ts` no-text prompt tests; ReviewCard placeholder test.
+
+**Verification:** `npx prisma generate` clean, `npx tsc --noEmit` clean, `npm run lint` clean, `npm run test:unit` **1270 passed / 0 failed** across 65 files.
+
+**Decisions:** cross-reference DECISIONS.md "Add Review: rating required, review text optional" — Decision 109.
+
+---
+
+**Last Updated:** June 4, 2026
+**Status:** Add Review requiredness inverted — rating required, review text optional, star-only reviews supported with a no-text AI generation path (Decision 109), on `feat/star-only-reviews` branch. 102 numbered decisions logged. Decision 108 (Free tier allocation 15/35 → 5/25) is merged to main.

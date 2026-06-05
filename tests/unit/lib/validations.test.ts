@@ -206,10 +206,11 @@ describe('createReviewSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts minimal review (platform + reviewText)', () => {
+  it('accepts minimal review (platform + rating, no text)', () => {
+    // Star-only review: rating is required, reviewText is optional.
     const result = createReviewSchema.safeParse({
       platform: 'Amazon',
-      reviewText: 'Good product',
+      rating: 5,
     });
     expect(result.success).toBe(true);
   });
@@ -218,22 +219,34 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'InvalidPlatform',
       reviewText: 'Good product',
+      rating: 4,
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects empty reviewText', () => {
+  it('accepts empty reviewText when a rating is present', () => {
+    // Empty text is allowed now; the route normalizes it to null.
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: '',
+      rating: 5,
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts omitted reviewText when a rating is present', () => {
+    const result = createReviewSchema.safeParse({
+      platform: 'Google',
+      rating: 3,
+    });
+    expect(result.success).toBe(true);
   });
 
   it('accepts reviewText up to REVIEW_TEXT_MAX (4000) chars', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'a'.repeat(VALIDATION_LIMITS.REVIEW_TEXT_MAX),
+      rating: 5,
     });
     expect(result.success).toBe(true);
   });
@@ -242,6 +255,7 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'a'.repeat(VALIDATION_LIMITS.REVIEW_TEXT_MAX + 1),
+      rating: 5,
     });
     expect(result.success).toBe(false);
   });
@@ -275,19 +289,28 @@ describe('createReviewSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts null rating', () => {
+  it('rejects review with no rating (rating is required on create)', () => {
+    const result = createReviewSchema.safeParse({
+      platform: 'Google',
+      reviewText: 'Test',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects null rating (rating is required on create)', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
       rating: null,
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it('accepts YYYY-MM-DD date format', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
+      rating: 5,
       reviewDate: '2026-03-20',
     });
     expect(result.success).toBe(true);
@@ -297,6 +320,7 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
+      rating: 5,
       reviewDate: '2026-03-20T10:30:00Z',
     });
     expect(result.success).toBe(true);
@@ -306,6 +330,7 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
+      rating: 5,
       reviewDate: '2026-03-20T10:30:00.000Z',
     });
     expect(result.success).toBe(true);
@@ -315,6 +340,7 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
+      rating: 5,
       reviewDate: 'March 20, 2026',
     });
     expect(result.success).toBe(false);
@@ -324,6 +350,7 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
+      rating: 5,
       reviewDate: null,
     });
     expect(result.success).toBe(true);
@@ -333,6 +360,7 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
+      rating: 5,
       reviewerName: 'John Doe',
     });
     expect(result.success).toBe(true);
@@ -342,6 +370,7 @@ describe('createReviewSchema', () => {
     const result = createReviewSchema.safeParse({
       platform: 'Google',
       reviewText: 'Test',
+      rating: 5,
       detectedLanguage: 'Spanish',
     });
     expect(result.success).toBe(true);
@@ -353,6 +382,7 @@ describe('createReviewSchema', () => {
       const result = createReviewSchema.safeParse({
         platform,
         reviewText: 'Test review',
+        rating: 5,
       });
       expect(result.success).toBe(true);
     }

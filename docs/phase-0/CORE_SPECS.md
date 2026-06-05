@@ -404,8 +404,8 @@ The signup route (`POST /auth/signup`) and NextAuth's `events.signIn` were modif
 // Request
 {
   "platform": "google",        // Required: "google" | "amazon" | "shopify" | "trustpilot" | "other"
-  "reviewText": string,        // Required, 1-4000 chars
-  "rating"?: number,           // Optional, 1-5
+  "reviewText"?: string,       // Optional, 1-4000 chars when present (empty/absent => star-only review, stored null)
+  "rating": number,            // Required, 1-5 (supports star-only reviews; the AI anchors on the rating)
   "reviewerName"?: string,
   "reviewDate"?: string,       // ISO 8601
   "externalId"?: string,
@@ -525,10 +525,10 @@ The signup route (`POST /auth/signup`) and NextAuth's `events.signIn` were modif
 - Credits: 0-1000 (cannot go negative)
 
 ### Review
-- reviewText: 1-4000 chars
-- rating: 1-5 or null
-- platform: one of allowed values
-- detectedLanguage: auto-detected, user can override
+- reviewText: optional on create; when present, 1-4000 chars. A star-only review (rating with no comment) stores `reviewText = null`. (Edit/PATCH may also clear it.)
+- rating: required on create, 1-5. Nullable in the DB so edit/PATCH can clear it; the create schema enforces presence.
+- platform: one of allowed values (defaults to Google)
+- detectedLanguage: auto-detected when there is text, else English; user can override
 
 ### ReviewResponse
 - responseText: 1-500 chars
