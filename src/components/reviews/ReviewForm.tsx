@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Star, Globe, AlertCircle, Loader2 } from "lucide-react";
@@ -53,6 +53,7 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
     handleSubmit,
     watch,
     setValue,
+    control,
     formState: { errors },
   } = useForm<CreateReviewInput>({
     resolver: zodResolver(createReviewSchema),
@@ -67,7 +68,6 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
   });
 
   const reviewText = watch("reviewText");
-  const rating = watch("rating");
 
   // Debounced language detection
   const detectLanguageDebounced = useCallback((text: string) => {
@@ -174,7 +174,7 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Platform selector */}
           <div className="space-y-2">
-            <Label htmlFor="platform">Platform *</Label>
+            <Label htmlFor="platform">Platform</Label>
             <Select
               value={watch("platform")}
               onValueChange={(value) => setValue("platform", value as typeof PLATFORMS[number])}
@@ -197,7 +197,7 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
 
           {/* Review text */}
           <div className="space-y-2">
-            <Label htmlFor="reviewText">Review Text *</Label>
+            <Label htmlFor="reviewText">Review Text (optional)</Label>
             <Textarea
               id="reviewText"
               placeholder="Paste or type the customer review here..."
@@ -278,34 +278,47 @@ export function ReviewForm({ initialData, mode = "create" }: ReviewFormProps) {
             </div>
           )}
 
-          {/* Rating selector */}
+          {/* Rating selector (required). Wired through a Controller so the
+              star widget participates in RHF validation — the Zod
+              required-check surfaces errors.rating on submit when no star is
+              picked. */}
           <div className="space-y-2">
-            <Label>Rating (optional)</Label>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() =>
-                    setValue("rating", rating === star ? undefined : star)
-                  }
-                  className="rounded p-1 hover:bg-muted transition-colors"
-                >
-                  <Star
-                    className={`h-6 w-6 ${
-                      rating && star <= rating
-                        ? "fill-yellow-400 text-yellow-400"
-                        : "text-muted-foreground"
-                    }`}
-                  />
-                </button>
-              ))}
-              {rating && (
-                <span className="ml-2 text-sm text-muted-foreground">
-                  {rating} star{rating > 1 ? "s" : ""}
-                </span>
+            <Label>Rating *</Label>
+            <Controller
+              name="rating"
+              control={control}
+              render={({ field }) => (
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      // Rating is required, so a star always sets the value (no
+                      // clear-on-reclick). Re-picking a different star changes
+                      // it. field.onChange validates onChange once submitted.
+                      onClick={() => field.onChange(star)}
+                      className="rounded p-1 hover:bg-muted transition-colors"
+                    >
+                      <Star
+                        className={`h-6 w-6 ${
+                          field.value && star <= field.value
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-muted-foreground"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  {field.value && (
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {field.value} star{field.value > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
               )}
-            </div>
+            />
+            {errors.rating && (
+              <p className="text-sm text-destructive">{errors.rating.message}</p>
+            )}
           </div>
 
           {/* Reviewer name */}

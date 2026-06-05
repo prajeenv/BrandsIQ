@@ -44,6 +44,14 @@ export async function POST(request: NextRequest) {
 
     const { platform, reviewText, rating, reviewerName, reviewDate, detectedLanguage: userOverrideLanguage } = validationResult.data;
 
+    // Normalize empty/whitespace-only text to null. A star-only review (rating
+    // present, no comment) persists reviewText: null, not "". This keeps the
+    // column clean, makes the duplicate-check and sentiment/language guards
+    // below well-defined, and is load-bearing for not sending blank text to
+    // DeepSeek.
+    const normalizedText =
+      reviewText && reviewText.trim().length > 0 ? reviewText : null;
+
     // Get user for credits check
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -64,41 +72,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for duplicate review within 5 minutes
-    const recentDuplicate = await prisma.review.findFirst({
-      where: {
-        userId: session.user.id,
-        reviewText,
-        createdAt: {
-          gte: new Date(Date.now() - 5 * 60 * 1000), // Within 5 minutes
-        },
-      },
-    });
-
-    if (recentDuplicate) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "DUPLICATE_REVIEW",
-            message: "This review was already added recently",
+    // Check for duplicate review within 5 minutes — only when there is text.
+    // The dedupe guard exists to catch an accidental double-submit of the same
+    // comment. Star-only reviews (normalizedText === null) have no comment to
+    // duplicate, and a user legitimately bulk-adding several "5 stars, no
+    // comment" reviews in one sitting must not be blocked, so we skip the
+    // check entirely for them. (Querying with reviewText: null would also
+    // wrongly match every prior null-text review.)
+    if (normalizedText !== null) {
+      const recentDuplicate = await prisma.review.findFirst({
+        where: {
+          userId: session.user.id,
+          reviewText: normalizedText,
+          createdAt: {
+            gte: new Date(Date.now() - 5 * 60 * 1000), // Within 5 minutes
           },
         },
-        { status: 409 }
-      );
+      });
+
+      if (recentDuplicate) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "DUPLICATE_REVIEW",
+              message: "This review was already added recently",
+            },
+          },
+          { status: 409 }
+        );
+      }
     }
 
-    // Auto-detect language (use user override if provided)
-    const languageResult = detectLanguage(reviewText);
+    // Auto-detect language (use user override if provided). Only run detection
+    // when there is text — a star-only review has nothing to detect, so it
+    // defaults to English (the same default detectLanguage itself returns for
+    // empty input, surfaced here explicitly).
+    const languageResult = normalizedText
+      ? detectLanguage(normalizedText)
+      : { language: "English", confidence: "low" as const, code: "eng", isRTL: false };
     const finalLanguage = userOverrideLanguage || languageResult.language;
 
-    // Check sentiment credits
+    // Run sentiment analysis only when there is text AND credits remain.
+    // Star-only reviews never spend a sentiment credit (there is nothing to
+    // analyze) and persist sentiment: null.
     let sentiment: string | null = null;
     let sentimentAnalyzed = false;
 
-    if (user.sentimentCredits > 0) {
-      // Run sentiment analysis
-      const sentimentResult = await analyzeSentiment(reviewText);
+    if (user.sentimentCredits > 0 && normalizedText) {
+      const sentimentResult = await analyzeSentiment(normalizedText);
       sentiment = sentimentResult.sentiment;
       sentimentAnalyzed = true;
     }
@@ -136,7 +158,7 @@ export async function POST(request: NextRequest) {
           userId: session.user.id,
           locationId: location.id,
           platform,
-          reviewText,
+          reviewText: normalizedText,
           rating,
           reviewerName,
           reviewDate: reviewDate ? new Date(reviewDate) : null,
@@ -192,9 +214,13 @@ export async function POST(request: NextRequest) {
             wasOverridden: !!userOverrideLanguage,
           },
           sentimentAnalyzed,
-          ...(sentimentAnalyzed ? {} : {
-            sentimentWarning: "Sentiment analysis skipped: no credits remaining",
-          }),
+          // Warn only when sentiment was skipped because credits ran out (the
+          // actionable case). A star-only review skips sentiment because there
+          // is no text to analyze — that is expected, not a credit problem, so
+          // no warning (and no spurious "sentiment skipped" banner).
+          ...(!sentimentAnalyzed && normalizedText && user.sentimentCredits === 0
+            ? { sentimentWarning: "Sentiment analysis skipped: no credits remaining" }
+            : {}),
         },
       },
       { status: 201 }

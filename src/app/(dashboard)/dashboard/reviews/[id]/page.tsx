@@ -51,7 +51,7 @@ import { trackResponseGenerated } from "@/lib/posthog-events";
 interface ReviewDetail {
   id: string;
   platform: string;
-  reviewText: string;
+  reviewText: string | null;
   rating: number | null;
   reviewerName: string | null;
   reviewDate: string | null;
@@ -439,15 +439,21 @@ export default function ReviewDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Review text */}
+          {/* Review text (may be absent for a star-only review) */}
           <div>
-            <p
-              className="text-sm leading-relaxed whitespace-pre-wrap"
-              dir={textDirection}
-            >
-              {isReviewExpanded ? review.reviewText : truncateToLines(review.reviewText, MAX_LINES)}
-            </p>
-            {needsExpansion(review.reviewText) && (
+            {review.reviewText ? (
+              <p
+                className="text-sm leading-relaxed whitespace-pre-wrap"
+                dir={textDirection}
+              >
+                {isReviewExpanded ? review.reviewText : truncateToLines(review.reviewText, MAX_LINES)}
+              </p>
+            ) : (
+              <p className="text-sm italic text-muted-foreground">
+                No written comment. The reviewer left only a star rating.
+              </p>
+            )}
+            {review.reviewText && needsExpansion(review.reviewText) && (
               <Button
                 variant="ghost"
                 size="sm"

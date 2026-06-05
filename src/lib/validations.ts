@@ -125,15 +125,29 @@ export const resetPasswordSchema = z.object({
 });
 
 // Review schemas
+//
+// Create-time contract: rating is REQUIRED, reviewText is OPTIONAL. This
+// supports star-only reviews (e.g. a Google "5 stars, no comment") — the
+// rating gives the AI something to anchor a response on, while the comment
+// may be absent. The route normalizes empty/whitespace reviewText to null
+// before persisting. (updateReviewSchema below keeps PATCH semantics where
+// both are optional.)
 export const createReviewSchema = z.object({
   platform: z.enum(PLATFORMS, {
     message: "Please select a valid platform",
   }),
   reviewText: z
     .string()
-    .min(VALIDATION_LIMITS.REVIEW_TEXT_MIN, "Review text is required")
-    .max(VALIDATION_LIMITS.REVIEW_TEXT_MAX, `Review text must be under ${VALIDATION_LIMITS.REVIEW_TEXT_MAX} characters`),
-  rating: z.number().min(1).max(5).optional().nullable(),
+    .max(VALIDATION_LIMITS.REVIEW_TEXT_MAX, `Review text must be under ${VALIDATION_LIMITS.REVIEW_TEXT_MAX} characters`)
+    .optional(),
+  // Required on create. The friendly message covers both the missing/invalid
+  // case (no star picked → undefined) and the range case so the form always
+  // shows the same "Please select a rating" hint. Wired into the form via a
+  // Controller so the star widget participates in validation.
+  rating: z
+    .number({ message: "Please select a rating" })
+    .min(1, "Please select a rating")
+    .max(5, "Please select a rating"),
   reviewerName: z.string().max(100).optional().nullable(),
   // Accept both date (YYYY-MM-DD) and datetime formats
   reviewDate: z.string().refine(

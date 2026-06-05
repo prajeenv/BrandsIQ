@@ -240,8 +240,13 @@ model Review {
   location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   platform     String // "google" | "amazon" | "shopify" | "trustpilot" | "other"
-  reviewText   String    @db.Text // 1-4000 chars (Zod cap; @db.Text is unbounded)
-  rating       Int? // 1-5 stars, nullable
+  // Optional at create: a star-only review (e.g. a Google "5 stars, no
+  // comment") has no text. When present, Zod caps it at 1-4000 chars.
+  // Rating is the create-time required field (enforced at the app layer via
+  // createReviewSchema); the column itself stays nullable so PATCH/edit can
+  // still clear it.
+  reviewText   String?   @db.Text
+  rating       Int? // 1-5 stars; required on create (Zod), nullable in DB for edit
   reviewerName String?
   reviewDate   DateTime?
 

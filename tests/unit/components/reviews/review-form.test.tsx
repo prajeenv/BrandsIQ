@@ -39,13 +39,13 @@ describe("ReviewForm", () => {
     it("renders platform selector", () => {
       render(<ReviewForm />);
 
-      expect(screen.getByText("Platform *")).toBeInTheDocument();
+      expect(screen.getByText("Platform")).toBeInTheDocument();
     });
 
     it("renders review text textarea", () => {
       render(<ReviewForm />);
 
-      expect(screen.getByText("Review Text *")).toBeInTheDocument();
+      expect(screen.getByText("Review Text (optional)")).toBeInTheDocument();
       expect(
         screen.getByPlaceholderText(
           "Paste or type the customer review here..."
@@ -56,7 +56,7 @@ describe("ReviewForm", () => {
     it("renders rating stars (1-5)", () => {
       render(<ReviewForm />);
 
-      expect(screen.getByText("Rating (optional)")).toBeInTheDocument();
+      expect(screen.getByText("Rating *")).toBeInTheDocument();
       // 5 star buttons rendered
       const starButtons = screen.getAllByRole("button").filter((btn) => {
         // Star buttons are type="button" within the rating section
@@ -176,7 +176,7 @@ describe("ReviewForm", () => {
 
       render(<ReviewForm />);
 
-      // Fill required fields
+      // Fill optional text
       const textarea = screen.getByPlaceholderText(
         "Paste or type the customer review here..."
       );
@@ -184,7 +184,56 @@ describe("ReviewForm", () => {
         target: { value: "This is a great product that I absolutely love!" },
       });
 
+      // Rating is required — pick a star before submitting.
+      const starButtons = screen
+        .getAllByRole("button")
+        .filter((btn) => btn.closest(".flex.items-center.gap-1"));
+      fireEvent.click(starButtons[4]); // 5 stars
+
       // Submit
+      fireEvent.click(screen.getByRole("button", { name: "Add Review" }));
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/reviews",
+          expect.objectContaining({ method: "POST" })
+        );
+      });
+    });
+
+    it("blocks submit and shows an error when no rating is selected", async () => {
+      render(<ReviewForm />);
+
+      // Provide text but NO rating.
+      const textarea = screen.getByPlaceholderText(
+        "Paste or type the customer review here..."
+      );
+      fireEvent.change(textarea, {
+        target: { value: "Text is present but no star rating was picked." },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Add Review" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Please select a rating")).toBeInTheDocument();
+      });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("submits a star-only review (rating, no text)", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({ success: true, data: { review: { id: "rev_star" } } }),
+      });
+
+      render(<ReviewForm />);
+
+      // No text typed. Pick a rating only.
+      const starButtons = screen
+        .getAllByRole("button")
+        .filter((btn) => btn.closest(".flex.items-center.gap-1"));
+      fireEvent.click(starButtons[4]); // 5 stars
+
       fireEvent.click(screen.getByRole("button", { name: "Add Review" }));
 
       await waitFor(() => {

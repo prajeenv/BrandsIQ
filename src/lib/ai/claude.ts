@@ -87,7 +87,13 @@ export type ToneModifier =
   | "empathetic_attentive";
 
 export interface GenerateResponseParams {
-  reviewText: string;
+  /**
+   * The review's written comment. May be null/empty for a star-only review
+   * (rating present, no comment). When absent, the prompt switches to a
+   * no-text path that responds to the rating itself without inventing
+   * specific details. See buildUserPrompt + buildSystemPrompt.
+   */
+  reviewText?: string | null;
   platform: string;
   rating?: number | null;
   /**
@@ -278,6 +284,12 @@ export async function generateReviewResponse(
   const effectiveLanguage = normalized.responseLanguage || detectedLanguage;
   const isLanguageOverridden = Boolean(normalized.responseLanguage);
 
+  // Star-only review: a rating with no written comment. Drives the no-text
+  // path in both prompts so the model responds to the rating itself rather
+  // than inventing specific details it has no source for.
+  const hasReviewText =
+    typeof reviewText === "string" && reviewText.trim().length > 0;
+
   const systemPrompt = buildSystemPrompt({
     brandVoice: normalized,
     effectiveLanguage,
@@ -286,6 +298,7 @@ export async function generateReviewResponse(
     rating: rating ?? null,
     sentiment: sentiment ?? null,
     toneModifier,
+    hasReviewText,
   });
 
   const userPrompt = buildUserPrompt({
@@ -295,6 +308,7 @@ export async function generateReviewResponse(
     detectedLanguage,
     isTestMode,
     customRegenerateInstructions,
+    hasReviewText,
   });
 
   // Retry logic for transient errors (429 rate limit, 529 overloaded).
@@ -369,6 +383,8 @@ function buildSystemPrompt(args: {
   rating: number | null;
   sentiment: string | null;
   toneModifier?: ToneModifier;
+  /** False for a star-only review (rating present, no written comment). */
+  hasReviewText: boolean;
 }): string {
   const {
     brandVoice,
@@ -378,6 +394,7 @@ function buildSystemPrompt(args: {
     rating,
     sentiment,
     toneModifier,
+    hasReviewText,
   } = args;
 
   // Two-variant language directive. Default form (no override) keeps the
@@ -514,6 +531,17 @@ Negative-review framing (apply to this response — the team will follow up via 
   // model what each paragraph in the response should do.
   prompt += `\n\n${getStructureTemplate({ rating, sentiment })}`;
 
+  // ─── No-text override (star-only review) ─────────────────────────
+  // Placed AFTER the structure template so it overrides the template's
+  // "Specificity is required" instructions, and BEFORE the reinforcement
+  // tail so style/security rules still win. The reviewer left only a
+  // rating, so there is nothing concrete to reference — the model must
+  // respond to the sentiment of the rating itself without inventing
+  // incidents, dishes, staff, or occasions.
+  if (!hasReviewText) {
+    prompt += `\n\nStar-only review: the reviewer left a rating but no written comment. Do NOT reference, quote, paraphrase, or invent any specific incident, detail, dish, staff member, or occasion. The structure template above asks for specificity; that requirement is suspended for this response because there is no review text to draw from. Respond to the sentiment implied by the ${rating ?? "star"}-star rating itself: warm and appreciative for a high rating, sincerely apologetic and inviting for a low rating, with a brief acknowledgement that the reviewer took the time to leave a rating. Keep it short and genuine.`;
+  }
+
   prompt += `\n\nRespond ONLY with the response body. Do not include a salutation or a sign-off — those are added separately. No explanations, no meta-commentary.`;
 
   // ─── Reinforcement (spec §10.3) ──────────────────────────────────
@@ -532,14 +560,15 @@ Negative-review framing (apply to this response — the team will follow up via 
  * Build the user prompt with review details.
  */
 function buildUserPrompt(params: {
-  reviewText: string;
+  reviewText?: string | null;
   platform: string;
   rating?: number | null;
   detectedLanguage: string;
   isTestMode: boolean;
   customRegenerateInstructions?: string;
+  hasReviewText: boolean;
 }): string {
-  const { reviewText, platform, rating, detectedLanguage, isTestMode, customRegenerateInstructions } = params;
+  const { reviewText, platform, rating, detectedLanguage, isTestMode, customRegenerateInstructions, hasReviewText } = params;
 
   let prompt = `Write a response to this ${platform} review`;
 
@@ -547,13 +576,24 @@ function buildUserPrompt(params: {
     prompt += ` (${rating}/5 stars)`;
   }
 
-  // Spec §10.5: review text flows into the user prompt wrapped via the
-  // sanitize helper so it is treated as data, not instructions. The wrapper
-  // also strips any literal `<<<...>>>` markers that would attempt to spoof
-  // the delimiters.
-  prompt += ` in ${detectedLanguage}:
+  if (hasReviewText) {
+    // Spec §10.5: review text flows into the user prompt wrapped via the
+    // sanitize helper so it is treated as data, not instructions. The wrapper
+    // also strips any literal `<<<...>>>` markers that would attempt to spoof
+    // the delimiters.
+    prompt += ` in ${detectedLanguage}:
 
-${wrapUserContent("Customer review", reviewText)}`;
+${wrapUserContent("Customer review", reviewText as string)}`;
+  } else {
+    // Star-only review: no comment to wrap. We deliberately do NOT emit an
+    // empty "Customer review" block — that empty block is what invites the
+    // model to hallucinate details. State the situation plainly instead; the
+    // system prompt's no-text override block (gated on the same hasReviewText
+    // flag) tells the model how to respond to the rating itself.
+    prompt += ` in ${detectedLanguage}.
+
+The reviewer left a ${rating ?? "star"}-star rating with no written comment.`;
+  }
 
   if (customRegenerateInstructions && customRegenerateInstructions.trim().length > 0) {
     // Spec §8.2 / §10.5: single-use directive for this regeneration, wrapped

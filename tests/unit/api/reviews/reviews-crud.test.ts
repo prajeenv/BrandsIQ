@@ -244,6 +244,71 @@ describe('POST /api/reviews', () => {
       }),
     );
   });
+
+  // ─── Star-only reviews (rating, no text) ──────────────────────
+
+  const starOnlyBody = { platform: 'Google', rating: 5 };
+
+  it('creates a star-only review with reviewText null, no sentiment, no warning', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.location.findFirst.mockResolvedValueOnce({ id: 'loc-1' });
+    const starOnlyReview = { ...baseReview, reviewText: null, sentiment: null };
+    mockPrisma.review.create.mockResolvedValueOnce(starOnlyReview);
+
+    const req = createRequest('/api/reviews', { method: 'POST', body: starOnlyBody });
+
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.success).toBe(true);
+    expect(json.data.review.reviewText).toBeNull();
+    expect(json.data.review.sentiment).toBeNull();
+    expect(json.data.sentimentAnalyzed).toBe(false);
+    // No "sentiment skipped" warning: there was no text to analyze, this is
+    // not a credit problem.
+    expect(json.data.sentimentWarning).toBeUndefined();
+    // The persisted row carries null text.
+    expect(mockPrisma.review.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ reviewText: null }) }),
+    );
+    // Sentiment analysis + usage logging skipped entirely.
+    expect(mockPrisma.sentimentUsage.create).not.toHaveBeenCalled();
+  });
+
+  it('does NOT run the duplicate check for star-only reviews', async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.location.findFirst.mockResolvedValueOnce({ id: 'loc-1' });
+    mockPrisma.review.create.mockResolvedValueOnce({ ...baseReview, reviewText: null, sentiment: null });
+
+    const req = createRequest('/api/reviews', { method: 'POST', body: starOnlyBody });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(201);
+    // The text-based dedupe query is skipped when there is no text, so two
+    // "5 stars, no comment" reviews in a row both succeed.
+    expect(mockPrisma.review.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('skips sentiment for a star-only review even when credits are available', async () => {
+    // baseUser has sentimentCredits: 25 — yet a star-only review must not
+    // spend one (there is no text to analyze).
+    mockPrisma.user.findUnique.mockResolvedValueOnce(baseUser);
+    mockPrisma.location.findFirst.mockResolvedValueOnce({ id: 'loc-1' });
+    mockPrisma.review.create.mockResolvedValueOnce({ ...baseReview, reviewText: null, sentiment: null });
+
+    const req = createRequest('/api/reviews', { method: 'POST', body: starOnlyBody });
+
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.data.sentimentAnalyzed).toBe(false);
+    expect(mockPrisma.sentimentUsage.create).not.toHaveBeenCalled();
+    // No credit decrement.
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
 });
 
 // ─── GET /api/reviews ───────────────────────────────────────────

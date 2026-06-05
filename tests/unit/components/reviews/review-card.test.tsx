@@ -172,6 +172,15 @@ describe("ReviewCard", () => {
 
       expect(screen.queryByText("Show more")).not.toBeInTheDocument();
     });
+
+    it('renders "No written comment" for a star-only review (null text)', () => {
+      const starOnly: ReviewCardData = { ...baseReview, reviewText: null };
+      render(<ReviewCard review={starOnly} />);
+
+      expect(screen.getByText("No written comment")).toBeInTheDocument();
+      // No expansion control when there is no text.
+      expect(screen.queryByText("Show more")).not.toBeInTheDocument();
+    });
   });
 
   describe("actions", () => {
@@ -184,7 +193,7 @@ describe("ReviewCard", () => {
     it("has correct link to review detail page", () => {
       render(<ReviewCard review={baseReview} />);
 
-      const link = screen.getByRole("link", { name: baseReview.reviewText });
+      const link = screen.getByRole("link", { name: baseReview.reviewText! });
       expect(link).toHaveAttribute("href", "/dashboard/reviews/rev_1");
     });
   });
@@ -193,7 +202,7 @@ describe("ReviewCard", () => {
     it("has link to review detail page on review text", () => {
       render(<ReviewCard review={baseReview} />);
 
-      const link = screen.getByRole("link", { name: baseReview.reviewText });
+      const link = screen.getByRole("link", { name: baseReview.reviewText! });
       expect(link).toHaveAttribute("href", "/dashboard/reviews/rev_1");
     });
   });
