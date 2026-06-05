@@ -418,6 +418,7 @@ export const FOUNDER_INQUIRY_SOURCES = [
   "pricing",
   "zero_balance",
   "onboarding_intent",
+  "signup_gateway", // /auth/get-started — walk-in "Start free beta" gateway
   "other",
 ] as const;
 export type FounderInquirySource = (typeof FOUNDER_INQUIRY_SOURCES)[number];

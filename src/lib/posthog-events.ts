@@ -178,9 +178,10 @@ export function trackBetaInviteLinkUsed(): void {
 // ----------------------------------------------------------------------------
 
 /**
- * Fires when the founder-inquiry form submits successfully. Used in four
- * places (expired-link recovery, pricing CTA, zero-balance dialog,
- * low-credit warning, onboarding-intent), distinguished by `source`.
+ * Fires when the founder-inquiry form submits successfully. Used across
+ * several surfaces (expired-link recovery, pricing CTA, zero-balance dialog,
+ * low-credit warning, onboarding-intent, and the /auth/get-started signup
+ * gateway), distinguished by `source`.
  */
 export function trackFounderInquirySubmitted(props: {
   type:
@@ -193,6 +194,7 @@ export function trackFounderInquirySubmitted(props: {
     | "pricing"
     | "zero_balance"
     | "onboarding_intent"
+    | "signup_gateway"
     | "other";
 }): void {
   capture("founder_inquiry_submitted", props);

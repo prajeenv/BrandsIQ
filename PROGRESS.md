@@ -1612,5 +1612,25 @@ Inverts the Add Review form requiredness so a star-only review (a rating with no
 
 ---
 
-**Last Updated:** June 4, 2026
-**Status:** Add Review requiredness inverted — rating required, review text optional, star-only reviews supported with a no-text AI generation path (Decision 109), on `feat/star-only-reviews` branch. 102 numbered decisions logged. Decision 108 (Free tier allocation 15/35 → 5/25) is merged to main.
+## Walk-in "Start free beta" → /auth/get-started gateway
+
+**Started + completed:** June 5, 2026. **Branch:** `feat/walkin-get-started-gateway` (off main).
+
+The walk-in page's "Start free beta" CTA dropped a just-met visitor straight into the bare signup form. Since BrandsIQ is invite-only (closed beta), the visitor had no way to *request* beta access from that path. Now "Start free beta" routes to a new `/auth/get-started` gateway that offers request-beta-access alongside a regular-signup fallback, mirroring the expired-link page. Built by reusing existing machinery — almost no new logic.
+
+**What shipped:**
+- **New page** `src/app/(auth)/auth/get-started/page.tsx` — server component under the `(auth)` group (inherits centered-card chrome). Renders a Card ("Start your free beta", `Rocket` icon) with `<FounderInquiryForm type="beta_request" source="signup_gateway" />` + "Continue with regular signup →" + "Already have an account? Sign in". Phase-aware: reads `getCurrentPhase()`; under `phase_2` redirects to `/auth/signup` preserving `utm_source`.
+- **utm threading:** `walkin → /auth/get-started?utm_source=walkin → /auth/signup?utm_source=walkin`. The gateway forwards `utm_source` onto both the `phase_2` redirect and the signup link, so `SignupForm`'s existing client-side `utm_source` read keeps working.
+- **`src/lib/constants.ts`:** `signup_gateway` added to `FOUNDER_INQUIRY_SOURCES`. **`src/lib/posthog-events.ts`:** `| "signup_gateway"` added to the hardcoded `trackFounderInquirySubmitted` source union (the one type-check landmine — it duplicates the enum rather than importing it).
+- **`src/app/walkin/page.tsx`:** `SIGNUP_HREF` re-pointed to `/auth/get-started?utm_source=walkin` (covers both CTA sites). Landing page untouched.
+
+**Tests:** new `tests/unit/app/auth/get-started-page.test.tsx` (5 cases: phase_1 render + utm-threaded signup link, bare-signup when no param, array-param first-value, phase_2 redirect with + without utm); `constants.test.ts` gains a `FOUNDER_INQUIRY_SOURCES` block (4 cases); `posthog-events.test.ts` gains a `signup_gateway` case.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run lint` clean, affected unit tests green (new page + constants + posthog + FounderInquiryForm regression all pass).
+
+**Decisions:** cross-reference DECISIONS.md "Walk-in 'Start free beta' → /auth/get-started gateway" — Decision 110.
+
+---
+
+**Last Updated:** June 5, 2026
+**Status:** Walk-in "Start free beta" now routes through a new `/auth/get-started` gateway offering request-beta-access + regular-signup fallback (Decision 110), on `feat/walkin-get-started-gateway` branch. 103 numbered decisions logged. Decision 109 (star-only reviews) merged to main.

@@ -8,10 +8,13 @@ import { LOGO_RATIO } from "@/lib/constants";
 const WHATSAPP_URL = "https://wa.me/491776910899";
 const FOUNDER_EMAIL = "prajeen@brandsiq.app";
 
-// Carry the walk-in source forward so signup attribution works without any
-// pre-consent page analytics — the existing signup flow reads utm_source and
-// stamps it onto the signup_completed_* PostHog event (a post-opt-in action).
-const SIGNUP_HREF = "/auth/signup?utm_source=walkin";
+// "Start free beta" routes through the /auth/get-started gateway, which offers
+// request-beta-access (closed beta) alongside a regular-signup fallback. The
+// gateway forwards utm_source on to /auth/signup, so attribution still works
+// without any pre-consent page analytics — the signup flow reads utm_source
+// and stamps it onto the signup_completed_* PostHog event (a post-opt-in
+// action). Under phase_2 the gateway redirects straight to signup.
+const SIGNUP_HREF = "/auth/get-started?utm_source=walkin";
 
 export const metadata: Metadata = {
   title: "Try BrandsIQ, AI review replies for hospitality",

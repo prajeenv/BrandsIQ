@@ -25,6 +25,7 @@ import {
   DEFAULT_NEGATIVE_REVIEW_FRAMING,
   BRAND_VOICE_LIMITS_V2,
   RESPONSE_BODY_CHAR_MAX,
+  FOUNDER_INQUIRY_SOURCES,
 } from '@/lib/constants';
 
 describe('TIER_LIMITS', () => {
@@ -355,5 +356,31 @@ describe('RESPONSE_BODY_CHAR_MAX', () => {
 
   it('is strictly smaller than the assembled cap (so salutation+sign-off fit)', () => {
     expect(RESPONSE_BODY_CHAR_MAX).toBeLessThan(VALIDATION_LIMITS.RESPONSE_TEXT_MAX);
+  });
+});
+
+describe('FOUNDER_INQUIRY_SOURCES', () => {
+  it('includes signup_gateway (the /auth/get-started gateway source)', () => {
+    expect(FOUNDER_INQUIRY_SOURCES).toContain('signup_gateway');
+  });
+
+  it('keeps "other" as the last entry (catch-all invariant)', () => {
+    expect(FOUNDER_INQUIRY_SOURCES[FOUNDER_INQUIRY_SOURCES.length - 1]).toBe('other');
+  });
+
+  it('retains the original five sources', () => {
+    for (const source of [
+      'expired_link',
+      'pricing',
+      'zero_balance',
+      'onboarding_intent',
+      'other',
+    ]) {
+      expect(FOUNDER_INQUIRY_SOURCES).toContain(source);
+    }
+  });
+
+  it('has six sources total', () => {
+    expect(FOUNDER_INQUIRY_SOURCES).toHaveLength(6);
   });
 });

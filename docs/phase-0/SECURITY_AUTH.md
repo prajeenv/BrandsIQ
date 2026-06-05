@@ -254,7 +254,7 @@ OAuth sign-ups can carry a beta invite code through the Google round-trip via an
 
 ## MVP Phase 1: Public founder-inquiry form
 
-The `FounderInquiryForm` (used on `/auth/beta-link-expired`, `/pricing` banner, the zero-balance dialog) submits to `POST /api/founder-inquiries`. This is one of the few **public** (unauthenticated-allowed) POST endpoints in the app — the expired-link recovery flow happens before signup.
+The `FounderInquiryForm` (used on `/auth/beta-link-expired`, the `/auth/get-started` walk-in signup gateway, the `/pricing` banner, and the zero-balance dialog) submits to `POST /api/founder-inquiries`. This is one of the few **public** (unauthenticated-allowed) POST endpoints in the app — both the expired-link recovery flow and the walk-in get-started gateway happen before signup, so the visitor has no session.
 
 **Protections:**
 
