@@ -26,6 +26,7 @@ const mockPrisma = vi.hoisted(() => {
 const mockEmail = vi.hoisted(() => ({
   sendVerificationEmail: vi.fn().mockResolvedValue({ success: true }),
   sendPasswordResetEmail: vi.fn().mockResolvedValue({ success: true }),
+  sendOAuthSignInHintEmail: vi.fn().mockResolvedValue({ success: true }),
   sendWelcomeEmail: vi.fn().mockResolvedValue({ success: true }),
 }));
 
@@ -142,12 +143,13 @@ describe('POST /api/auth/password-reset/request', () => {
     expect(mockEmail.sendPasswordResetEmail).not.toHaveBeenCalled();
   });
 
-  it('does not send email for OAuth-only user (password is null)', async () => {
+  it('sends the Google sign-in hint (not a reset) for an OAuth-only user with a linked Google account', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'oauth-user',
       email: 'oauth@example.com',
       password: null,
       emailVerified: new Date(),
+      accounts: [{ provider: 'google' }],
     });
 
     const req = createRequest('/api/auth/password-reset/request', {
@@ -156,21 +158,53 @@ describe('POST /api/auth/password-reset/request', () => {
     });
     const response = await POST(req);
 
+    // Response stays the generic 200 (anti-enumeration).
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json.success).toBe(true);
 
-    // Should NOT create token or send email for OAuth-only users
+    // No reset token + no reset email; instead the Google hint email fires.
     expect(mockTokens.createPasswordResetToken).not.toHaveBeenCalled();
     expect(mockEmail.sendPasswordResetEmail).not.toHaveBeenCalled();
+    expect(mockEmail.sendOAuthSignInHintEmail).toHaveBeenCalledWith(
+      'oauth@example.com'
+    );
   });
 
-  it('creates token and sends email for password user', async () => {
+  it('stays silent for a password-less account with NO linked Google account', async () => {
+    // e.g. an invite-created user who never set a password and never linked
+    // Google — we must not tell them to "use Google".
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'no-auth-user',
+      email: 'noauth@example.com',
+      password: null,
+      emailVerified: new Date(),
+      accounts: [],
+    });
+
+    const req = createRequest('/api/auth/password-reset/request', {
+      method: 'POST',
+      body: { email: 'noauth@example.com' },
+    });
+    const response = await POST(req);
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+
+    // Neither email fires; existing silent behavior preserved.
+    expect(mockTokens.createPasswordResetToken).not.toHaveBeenCalled();
+    expect(mockEmail.sendPasswordResetEmail).not.toHaveBeenCalled();
+    expect(mockEmail.sendOAuthSignInHintEmail).not.toHaveBeenCalled();
+  });
+
+  it('creates token and sends the reset email for a password user', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-123',
       email: 'user@example.com',
       password: '$2a$12$hashedpassword',
       emailVerified: new Date(),
+      accounts: [],
     });
 
     const req = createRequest('/api/auth/password-reset/request', {
@@ -190,5 +224,7 @@ describe('POST /api/auth/password-reset/request', () => {
       'user@example.com',
       'reset-token-123'
     );
+    // The hint email must not fire for a password user.
+    expect(mockEmail.sendOAuthSignInHintEmail).not.toHaveBeenCalled();
   });
 });

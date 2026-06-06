@@ -137,6 +137,69 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 }
 
 /**
+ * Sent when a password-reset is requested for an account that has NO password
+ * because it was created via Google sign-in (and a Google account is actually
+ * linked). There is nothing to reset, so instead of silently sending nothing
+ * we email the real owner a hint to sign in with Google.
+ *
+ * Anti-enumeration: the password-reset request route returns the SAME generic
+ * response whether or not this email is sent. The differentiation lives only
+ * in the inbox of the genuine account owner, never in the HTTP response, so a
+ * form-prober cannot use it to discover which emails have Google accounts.
+ *
+ * No token is created or included — this is a navigational hint, not a reset.
+ */
+export async function sendOAuthSignInHintEmail(email: string) {
+  const signInUrl = `${process.env.NEXTAUTH_URL}/auth/signin`;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email,
+      subject: "Use Google to sign in - BrandsIQ",
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Use Google to sign in</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            ${emailHeader("Sign in with Google")}
+            <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="margin-top: 0;">You asked to reset your password, but this account was created with Google sign-in. It does not have a password to reset.</p>
+              <p>To get back in, use the "Continue with Google" button on the sign-in page:</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${signInUrl}" style="background: #4f46e5; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+                  Sign in with Google
+                </a>
+              </div>
+              <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+              <p style="color: #4f46e5; font-size: 14px; word-break: break-all;">${signInUrl}</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              <p style="color: #999; font-size: 12px; margin-bottom: 0;">
+                If you didn't request this, you can safely ignore this email. Your account is unchanged.
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error("Failed to send OAuth sign-in hint email:", error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error sending OAuth sign-in hint email:", error);
+    return { success: false, error };
+  }
+}
+
+/**
  * Plan-specific copy block rendered inside the welcome email.
  * Numbers and framing come from BETA_PLAN / TIER_LIMITS.FREE so a future
  * change to the allocation propagates here automatically.

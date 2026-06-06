@@ -2237,6 +2237,7 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 | 108 | Free tier allocation lowered 15/35 → 5/25 — single `TIER_LIMITS.FREE` constant edit cascades to signup/cron/landing/pricing via `getEffectiveAllocation`; Prisma column defaults + additive migration, no backfill (no real users); `CreditsProvider` + dev reset-credits defaults rewired to the constant; Starter/Growth/Beta unchanged | Free tier allocation | Jun 3 | Low ✅ | ✅ Implemented |
 | 109 | Add-review requiredness inverted — rating REQUIRED, reviewText OPTIONAL — supports star-only reviews (e.g. Google "5 stars, no comment"). Additive nullable migration on `Review.reviewText` (no backfill); route normalizes empty text → null, skips dedupe + sentiment + language detection for star-only; no-text AI prompt path responds to the rating without inventing specifics (templates kept pure); platform `*` label dropped; rating wired via RHF `Controller`; null-text placeholder in list + detail views | Add-review fields | Jun 4 | Low ✅ | ✅ Implemented |
 | 110 | Walk-in "Start free beta" routes through a new `/auth/get-started` gateway offering request-beta-access (`FounderInquiryForm type=beta_request`) alongside a regular-signup fallback, mirroring the expired-link page. Phase-aware server component: `phase_2` redirects to `/auth/signup` preserving `utm_source`. New `signup_gateway` value in `FOUNDER_INQUIRY_SOURCES` (+ the hardcoded `posthog-events` union) for attribution. Walk-in `SIGNUP_HREF` re-pointed; landing page untouched | Walk-in signup gateway | Jun 5 | Low ✅ | ✅ Implemented |
+| 111 | OAuth-only "Forgot password" now emails a "Sign in with Google" hint instead of silently sending nothing. Gated on `password === null` AND an actually-linked `provider==='google'` account (a password-less account with no Google link stays silent). On-page HTTP response is byte-identical across all branches, so anti-enumeration is preserved — the differentiation lives only in the owner's inbox. New `sendOAuthSignInHintEmail` (no token); request route adds `include: { accounts: true }` + an if/else branch | OAuth reset hint | Jun 6 | Low ✅ | ✅ Implemented |
 
 *Table will grow as decisions are made*
 
@@ -2316,7 +2317,30 @@ Verification: `npm run lint:strict` clean; `npm run type-check` clean; `npm run 
 - **GDPR posture:** unchanged. The page is unauthenticated like `beta-link-expired`/`signup` and posts to the existing rate-limited `POST /api/founder-inquiries`. No new auth surface or PII handling.
 - **Risk:** Low ✅. Purely additive: one new page, one enum value (+ its duplicated union), one constant re-point. No schema/migration. Reversible.
 
+---
+
+## OAuth-only "Forgot password" → "Sign in with Google" hint email
+
+**Context.** A user whose account was created via **Google sign-in only** (no password) who clicks "Forgot password" got **nothing**: the request route only sent a reset email `if (user && user.password)`, and an OAuth-only account has `password === null`. The page still showed the generic "if an account exists, a link has been sent" message (deliberate anti-enumeration), so the real owner waited for an email that never arrived, with no explanation. No user complained, but it's a genuine communication gap. The founder chose the email-based hint (keep the page generic; tell the real owner via their inbox).
+
+#### Decision 111: Email a "Sign in with Google" hint for OAuth-only reset requests, gated on an actually-linked Google account; on-page response unchanged.
+
+- **Decision (new email):** `sendOAuthSignInHintEmail(email)` in `src/lib/email.ts`, mirroring `sendPasswordResetEmail` (same `emailHeader` shell, same `{ success, error }` return inside try/catch, never throws). Heading "Sign in with Google", CTA → `/auth/signin` (the page with the Google button). **No token** — it's a navigational hint, not a reset.
+- **Decision (detection):** fire the hint only when `user.password === null` AND `user.accounts.some(a => a.provider === "google")`. The request route adds `include: { accounts: true }` to the lookup. A password-less account with **no** linked Google (e.g. an invite-created user who never set a password or linked OAuth) keeps the **existing silent no-email** behavior — we never tell someone to "use Google" when they may not have it. This was the key correctness call: `password === null` alone is NOT the same as "has Google".
+- **Decision (anti-enumeration preserved):** the route's HTTP 200 response is **byte-identical** across all branches (password / google-hint / silent). The only differentiation lives in the email that reaches the genuine owner's inbox, never in the response a form-prober can observe. Email-send failures are caught + logged in the helper, so they can't alter the response either.
+- **Alternatives considered:** (a) on-page message "this account uses Google sign-in" — rejected, it leaks account-existence + sign-in-method to anyone probing the forgot-password form (a real enumeration regression). (b) any-password-null account gets the hint — rejected, would mislead the no-Google edge population. (c) generic "this account has no password" copy — rejected as vaguer; the founder chose the Google-specific hint gated on an actual Google link.
+- **What this does NOT change:** the credentials login guard (`if (!user.password) return null`) and the confirm route are untouched. If a Google user later genuinely wants a password, that's a separate "set a password" feature, not built here.
+- **Risk:** Low ✅. Additive: one new email helper, one route branch, one extra `include`. No schema change. Reversible. The anti-enumeration contract is the thing to guard — the response stays identical.
+
 ## Change Log
+
+**June 6, 2026** — OAuth-only "Forgot password" → "Sign in with Google" hint email (Decision 111)
+- Branch `feat/oauth-reset-hint-email` (off main). A Google-only user (no password) who requests a password reset now receives an email hinting them to sign in with Google, instead of silently getting nothing. Closes a communication gap; no user had complained.
+- `src/lib/email.ts`: new `sendOAuthSignInHintEmail(email)` — mirrors `sendPasswordResetEmail` but CTA → `/auth/signin`, no token.
+- `src/app/api/auth/password-reset/request/route.ts`: lookup gains `include: { accounts: true }`; the single `if (user && user.password)` becomes a branch — password user → reset email (unchanged); OAuth-only + linked Google → hint email; password-less + no Google → silent (unchanged). The generic 200 response is identical across all branches (anti-enumeration).
+- Tests: `email.test.ts` gains a `sendOAuthSignInHintEmail` block (subject/recipient, signin link present, no reset-password link, success + error result shapes); `password-reset-request.test.ts` — the old "OAuth-only sends nothing" case flips to "linked-Google sends the hint", a new "no-Google stays silent" case, and the password case asserts the hint does NOT fire. `accounts` added to the route-test fixtures.
+- Docs: DECISIONS (this entry + Decision 111), PROGRESS, SECURITY_AUTH.md (password-reset anti-enumeration + OAuth-only hint subsection).
+- Verification: `npx tsc --noEmit` clean, `npm run lint` clean, affected unit tests green.
 
 **June 5, 2026** — Walk-in "Start free beta" → /auth/get-started gateway (Decision 110)
 - Branch `feat/walkin-get-started-gateway` (off main). The walk-in page's "Start free beta" CTA now routes to a new `/auth/get-started` page that offers request-beta-access alongside a regular-signup fallback, since BrandsIQ is invite-only. Built by reusing `FounderInquiryForm`, the founder-inquiries API, and the `getCurrentPhase()` server pattern.

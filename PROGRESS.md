@@ -1632,5 +1632,24 @@ The walk-in page's "Start free beta" CTA dropped a just-met visitor straight int
 
 ---
 
-**Last Updated:** June 5, 2026
-**Status:** Walk-in "Start free beta" now routes through a new `/auth/get-started` gateway offering request-beta-access + regular-signup fallback (Decision 110), on `feat/walkin-get-started-gateway` branch. 103 numbered decisions logged. Decision 109 (star-only reviews) merged to main.
+## OAuth-only "Forgot password" → "Sign in with Google" hint email
+
+**Started + completed:** June 6, 2026. **Branch:** `feat/oauth-reset-hint-email` (off main).
+
+A Google-only user (account created via Google sign-in, no password) who clicked "Forgot password" previously got nothing — the request route only sent a reset email when the account had a password, and the page showed the generic "check your email" message either way. Now such users receive an email hinting them to sign in with Google. No user had complained; this closes a communication gap.
+
+**What shipped:**
+- **`src/lib/email.ts`:** new `sendOAuthSignInHintEmail(email)` mirroring `sendPasswordResetEmail` (same branded shell + `{success,error}` return), CTA "Sign in with Google" → `/auth/signin`, **no token**.
+- **`src/app/api/auth/password-reset/request/route.ts`:** lookup gains `include: { accounts: true }`; the `if (user && user.password)` becomes a branch — password user → reset email (unchanged); OAuth-only with a linked Google account → hint email; password-less with no Google → silent (unchanged). The generic 200 response is **identical** across all branches (anti-enumeration preserved — the differentiation lives only in the inbox).
+- **Detection gate:** `password === null` AND `accounts.some(a => a.provider === "google")`. A password-less account with no Google link keeps today's silent behavior, so we never tell someone to "use Google" when they may not have it.
+
+**Tests:** `email.test.ts` gains a `sendOAuthSignInHintEmail` block (4 cases); `password-reset-request.test.ts` — old "OAuth-only sends nothing" flips to "linked-Google sends the hint", plus a new "no-Google stays silent" case and a "password user, hint not fired" assertion. 33 tests across the two files pass.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run lint` clean, affected unit tests green.
+
+**Decisions:** cross-reference DECISIONS.md "OAuth-only 'Forgot password' → 'Sign in with Google' hint email" — Decision 111.
+
+---
+
+**Last Updated:** June 6, 2026
+**Status:** OAuth-only "Forgot password" now sends a "Sign in with Google" hint email instead of silently nothing, gated on an actually-linked Google account, with the on-page response unchanged (anti-enumeration preserved) — Decision 111, on `feat/oauth-reset-hint-email` branch. 104 numbered decisions logged. Decision 110 (walk-in gateway) merged to main.
