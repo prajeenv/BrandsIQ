@@ -14,6 +14,7 @@ vi.mock('resend', () => ({
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendOAuthSignInHintEmail,
   sendWelcomeEmail,
   sendFounderInquiryNotification,
 } from '@/lib/email';
@@ -102,6 +103,40 @@ describe('email.ts', () => {
       expect(result).toEqual(
         expect.objectContaining({ success: true }),
       );
+    });
+  });
+
+  describe('sendOAuthSignInHintEmail', () => {
+    it('sends a Google sign-in hint with the right subject and recipient', async () => {
+      await sendOAuthSignInHintEmail('oauth@example.com');
+
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.to).toBe('oauth@example.com');
+      expect(callArgs.subject).toContain('Google');
+    });
+
+    it('links to the sign-in page and carries no reset token', async () => {
+      await sendOAuthSignInHintEmail('oauth@example.com');
+
+      const callArgs = mockSend.mock.calls[0][0];
+      expect(callArgs.html).toContain('/auth/signin');
+      // It is a navigational hint, not a reset — no reset-password link.
+      expect(callArgs.html).not.toContain('/auth/reset-password');
+    });
+
+    it('returns success on successful send', async () => {
+      const result = await sendOAuthSignInHintEmail('oauth@example.com');
+
+      expect(result).toEqual(expect.objectContaining({ success: true }));
+    });
+
+    it('returns error result when the send fails', async () => {
+      mockSend.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+
+      const result = await sendOAuthSignInHintEmail('oauth@example.com');
+
+      expect(result).toEqual(expect.objectContaining({ success: false }));
     });
   });
 

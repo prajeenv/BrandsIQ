@@ -330,6 +330,17 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 }
 ```
 
+### Password-reset request: anti-enumeration + OAuth-only hint
+
+`POST /api/auth/password-reset/request` always returns the **same generic 200** ("If an account exists with this email, a password reset link has been sent.") regardless of whether the email exists, doesn't exist, or belongs to an OAuth-only account. This is deliberate anti-enumeration: a form-prober cannot use the HTTP response to discover which emails have accounts or which sign-in method they use.
+
+Branch behavior (all return the identical 200):
+- **Password account** (`user.password` set) → create a reset token + send the reset email.
+- **Google sign-in account, no password** (`user.password === null` AND a linked `provider === "google"` account) → send a **sign-in-method hint email** (`sendOAuthSignInHintEmail`) pointing the owner to "Sign in with Google" at `/auth/signin`. **No token.** This closes a UX gap where such users previously got nothing and no explanation. The differentiation lives only in the inbox of the genuine owner, never in the response, so it does not leak enumeration.
+- **Password-less account with no linked Google** (e.g. an invite-created user who never set a password or linked OAuth) → no email (existing silent behavior; we never claim a sign-in method the account may not have).
+
+Email-send failures in any branch are caught and logged inside the email helper, so they can never alter the response. See DECISIONS.md.
+
 ---
 
 ## Security Implementation
