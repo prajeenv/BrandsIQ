@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  Plus,
   ArrowRight,
   Star,
   Globe,
@@ -282,13 +283,25 @@ export default function ReviewDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <Button variant="ghost" size="sm" asChild>
-        <Link href="/dashboard/reviews">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Reviews
-        </Link>
-      </Button>
+      {/* Top bar: back link on the left, Add Review on the right.
+          The Add Review CTA mirrors the one on the reviews-list and
+          dashboard pages (same Plus icon + label + href) so the
+          affordance is consistent across surfaces. Lets users bulk-add
+          without round-tripping through the list page. */}
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/dashboard/reviews">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Reviews
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link href="/dashboard/reviews/new">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Review
+          </Link>
+        </Button>
+      </div>
 
       {/* Sentiment skipped alert */}
       {showSentimentAlert && (() => {
