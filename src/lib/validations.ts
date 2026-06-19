@@ -222,6 +222,20 @@ export const testBrandVoiceSchema = z.object({
   rating: z.number().min(1).max(5).optional().nullable(),
 });
 
+// Integration generate schema (for the key-authenticated external endpoint
+// used by the One-Pager Mailer — see docs/MVP_Phase-1/ONE_PAGER_MAILER_DESIGN.md
+// Section 10). Raw review text in, response body out. No user, no stored brand
+// voice. The reply always follows the review's detected language (BrandsIQ
+// default), so there is intentionally no responseLanguage override here.
+export const integrationGenerateSchema = z.object({
+  reviewText: z
+    .string()
+    .min(VALIDATION_LIMITS.REVIEW_TEXT_MIN, "Review text is required")
+    .max(VALIDATION_LIMITS.REVIEW_TEXT_MAX, "Review text too long"),
+  platform: z.enum(PLATFORMS).optional().default("Google"),
+  rating: z.number().min(1).max(5).optional().nullable(),
+});
+
 // ─── Brand voice redesign V2 (iter 2) ──────────────────────────────
 // Spec: docs/MVP_Phase-1/BRAND_VOICE_REDESIGN.md §9.2.
 //
@@ -566,6 +580,7 @@ export type RegenerateResponseInput = z.infer<typeof regenerateResponseSchema>;
 export type UpdateResponseInput = z.infer<typeof updateResponseSchema>;
 export type BrandVoiceInput = z.infer<typeof brandVoiceSchema>;
 export type TestBrandVoiceInput = z.infer<typeof testBrandVoiceSchema>;
+export type IntegrationGenerateInput = z.infer<typeof integrationGenerateSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type OnboardingSubmitInput = z.infer<typeof onboardingSubmitSchema>;
 export type SettingsProfileUpdateInput = z.infer<typeof settingsProfileUpdateSchema>;
