@@ -38,7 +38,7 @@ vi.mock('@/lib/auth', () => ({ auth: mockAuth }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/ai/claude', () => ({
   generateReviewResponse: mockGenerateReviewResponse,
-  DEFAULT_MODEL: 'claude-sonnet-4-20250514',
+  DEFAULT_MODEL: 'claude-sonnet-5',
 }));
 vi.mock('@/lib/language-detection', () => ({
   detectLanguage: mockDetectLanguage,
@@ -91,7 +91,7 @@ describe('POST /api/brand-voice/test', () => {
     );
     mockGenerateReviewResponse.mockResolvedValue({
       responseText: 'Thank you for your wonderful feedback! We truly appreciate it.',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       // 5/30 — language-aware salutation/sign-off (DECISIONS.md #107).
       effectiveLanguage: 'English',
     });

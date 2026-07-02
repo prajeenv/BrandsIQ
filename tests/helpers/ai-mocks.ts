@@ -5,7 +5,7 @@
 export function mockClaudeResponse(text: string = 'Thank you for your wonderful feedback! We truly appreciate your kind words.') {
   return {
     content: [{ type: 'text' as const, text }],
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
     id: 'msg_test_123',
     role: 'assistant' as const,
     stop_reason: 'end_turn',

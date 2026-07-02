@@ -87,7 +87,7 @@ export const TEST_RESPONSE = {
   editedAt: null,
   creditsUsed: 1,
   toneUsed: 'professional',
-  generationModel: 'claude-sonnet-4-20250514',
+  generationModel: 'claude-sonnet-5',
   isPublished: false,
   publishedAt: null,
   createdAt: new Date('2026-03-21T00:00:00Z'),

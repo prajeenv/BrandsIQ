@@ -22,7 +22,11 @@ import {
 } from "./structure-templates";
 
 // Default model for response generation.
-export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+// NOTE: use the exact, date-suffix-FREE model ID. The previous value
+// "claude-sonnet-4-20250514" was deprecated and began returning 404
+// not_found_error from the Anthropic API (breaking all generation).
+// claude-sonnet-5 is the current Sonnet-tier model.
+export const DEFAULT_MODEL = "claude-sonnet-5";
 
 // Headroom over RESPONSE_BODY_CHAR_MAX. The prompt asks for 500–750 chars
 // (5/24 prompt-tuning pass) but a generous max_tokens lets the model

@@ -61,7 +61,7 @@ const defaultParams = {
 
 const successResponse = {
   content: [{ type: 'text' as const, text: 'Thank you for your feedback!' }],
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-5',
 };
 
 describe('claude.ts', () => {
@@ -81,8 +81,8 @@ describe('claude.ts', () => {
   });
 
   describe('DEFAULT_MODEL', () => {
-    it('should be claude-sonnet-4-20250514', () => {
-      expect(DEFAULT_MODEL).toBe('claude-sonnet-4-20250514');
+    it('should be claude-sonnet-5', () => {
+      expect(DEFAULT_MODEL).toBe('claude-sonnet-5');
     });
   });
 
@@ -99,7 +99,7 @@ describe('claude.ts', () => {
       const result = await generateReviewResponse(defaultParams);
 
       expect(result.responseText).toBe('Thank you for your feedback!');
-      expect(result.model).toBe('claude-sonnet-4-20250514');
+      expect(result.model).toBe('claude-sonnet-5');
     });
 
     it('should call messages.create with correct model and max_tokens', async () => {
@@ -208,7 +208,7 @@ describe('claude.ts', () => {
     it('should throw when response contains no text content blocks', async () => {
       mockCreate.mockResolvedValueOnce({
         content: [{ type: 'image', source: {} }],
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-5',
       });
 
       await expect(generateReviewResponse(defaultParams)).rejects.toThrow(
@@ -424,7 +424,7 @@ describe('claude.ts', () => {
 
       // Real path: Claude was hit and the canned mock did NOT fire.
       expect(mockCreate).toHaveBeenCalledTimes(1);
-      expect(result.model).toBe('claude-sonnet-4-20250514');
+      expect(result.model).toBe('claude-sonnet-5');
       expect(result.responseText).not.toBe(
         'Thank you for your feedback! We truly appreciate you taking the time to share your experience with us. Your input helps us continue to improve our service.',
       );

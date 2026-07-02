@@ -74,7 +74,7 @@ const existingResponse = {
   editedAt: null,
   creditsUsed: 1,
   toneUsed: 'professional',
-  generationModel: 'claude-sonnet-4-20250514',
+  generationModel: 'claude-sonnet-5',
   isPublished: false,
   publishedAt: null,
   // 5/26 — persisted regenerate-instruction field. Default fixture is
