@@ -32,7 +32,13 @@ function runPhase1(profileName) {
     var rowValues = values[r];
     var rowNumber = r + 1; // 1-based sheet row
 
-    if (isBlankRow_(rowValues)) {
+    // Not a real prospect row (no Business Name) → skip SILENTLY. Business Name
+    // is the identifying column, so its absence is the true end-of-data signal.
+    // getDataRange() can extend past the last prospect when unrelated columns
+    // hold stray content (notes, leftover sample text, formatting), and we must
+    // never write an Error into such a row: doing so makes it non-blank and it
+    // would then be reprocessed on every subsequent run.
+    if (!hasBusinessName_(rowValues, headerMap)) {
       continue;
     }
     if (shouldSkipPhase1_(rowValues, headerMap)) {
@@ -104,7 +110,10 @@ function runPhase2(profileName) {
     var rowValues = values[r];
     var rowNumber = r + 1;
 
-    if (isBlankRow_(rowValues)) {
+    // Not a real prospect row (no Business Name) → skip silently, same as
+    // Phase 1. Prevents stray content in unrelated columns from being treated
+    // as a data row.
+    if (!hasBusinessName_(rowValues, headerMap)) {
       continue;
     }
     var status = trim_(getCell(rowValues, headerMap, "Status"));
@@ -238,17 +247,16 @@ function withRowGuard(sheet, rowNumber, headerMap, fn) {
 // ── Small helpers ───────────────────────────────────────────────────────────
 
 /**
- * A row is "blank" if every cell trims to empty. Lets us ignore trailing empty
- * rows that getDataRange may include.
+ * True if the row has a non-empty Business Name. This is the "is this a real
+ * prospect row?" test used to bound both phase loops: getDataRange() can extend
+ * past the last prospect (stray content in unrelated columns, trailing
+ * formatting), so we key on the identifying column rather than on "every cell
+ * is empty". A row without a Business Name is skipped silently — never
+ * processed, never stamped with an Error.
  * @private
  */
-function isBlankRow_(rowValues) {
-  for (var i = 0; i < rowValues.length; i++) {
-    if (trim_(rowValues[i]) !== "") {
-      return false;
-    }
-  }
-  return true;
+function hasBusinessName_(rowValues, headerMap) {
+  return trim_(getCell(rowValues, headerMap, "Business Name")) !== "";
 }
 
 /**
