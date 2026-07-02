@@ -43,7 +43,7 @@ describe.skipIf(!canRunIntegration)('Review Lifecycle (Integration)', () => {
         responseText: 'Thank you for your kind words!',
         toneUsed: 'professional',
         creditsUsed: 1,
-        generationModel: 'claude-sonnet-4-20250514',
+        generationModel: 'claude-sonnet-5',
       },
     });
     expect(response.isEdited).toBe(false);

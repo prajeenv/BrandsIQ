@@ -37,7 +37,7 @@ const mockAuth = vi.hoisted(() => vi.fn());
 const mockGenerateReviewResponse = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
     responseText: 'Thank you for your feedback!',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
     // 5/30 — language-aware salutation/sign-off. The route forwards
     // this into assembleResponse so the post-process resolver can
     // route between the user's literal text and the built-in defaults
@@ -72,7 +72,7 @@ vi.mock('@/lib/auth', () => ({ auth: mockAuth }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/ai/claude', () => ({
   generateReviewResponse: mockGenerateReviewResponse,
-  DEFAULT_MODEL: 'claude-sonnet-4-20250514',
+  DEFAULT_MODEL: 'claude-sonnet-5',
 }));
 vi.mock('@/lib/db-utils', () => ({
   getOrCreateBrandVoice: mockGetOrCreateBrandVoice,
@@ -151,7 +151,7 @@ const reviewWithResponse = {
     isEdited: false,
     creditsUsed: 1,
     toneUsed: 'professional',
-    generationModel: 'claude-sonnet-4-20250514',
+    generationModel: 'claude-sonnet-5',
     isPublished: false,
     createdAt: new Date('2026-01-15'),
     updatedAt: new Date('2026-01-15'),
@@ -166,7 +166,7 @@ const createdResponse = {
   editedAt: null,
   creditsUsed: 1,
   toneUsed: 'default',
-  generationModel: 'claude-sonnet-4-20250514',
+  generationModel: 'claude-sonnet-5',
   isPublished: false,
   publishedAt: null,
   createdAt: new Date('2026-01-16'),
@@ -393,7 +393,7 @@ describe('POST /api/reviews/[id]/generate', () => {
     // Claude generates an Italian body and reports effectiveLanguage.
     mockGenerateReviewResponse.mockResolvedValueOnce({
       responseText: 'Grazie per il suo feedback!',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       effectiveLanguage: 'Italian',
     });
 

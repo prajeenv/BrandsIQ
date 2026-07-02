@@ -37,7 +37,7 @@ const mockAuth = vi.hoisted(() => vi.fn());
 const mockGenerateReviewResponse = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
     responseText: 'We appreciate your feedback!',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
     // 5/30 — language-aware salutation/sign-off plumbing (DECISIONS.md #107).
     // Default mock language is English so the existing test suite preserves
     // its pre-this-PR behaviour (English brand voice + English response = user's
@@ -80,7 +80,7 @@ vi.mock('@/lib/auth', () => ({ auth: mockAuth }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('@/lib/ai/claude', () => ({
   generateReviewResponse: mockGenerateReviewResponse,
-  DEFAULT_MODEL: 'claude-sonnet-4-20250514',
+  DEFAULT_MODEL: 'claude-sonnet-5',
 }));
 vi.mock('@/lib/db-utils', () => ({
   getOrCreateBrandVoice: mockGetOrCreateBrandVoice,
@@ -143,7 +143,7 @@ const existingResponse = {
   editedAt: null,
   creditsUsed: 1,
   toneUsed: 'professional',
-  generationModel: 'claude-sonnet-4-20250514',
+  generationModel: 'claude-sonnet-5',
   isPublished: false,
   publishedAt: null,
   // 5/26 — persisted regenerate-instruction field. The default fixture

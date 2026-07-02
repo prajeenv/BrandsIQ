@@ -98,7 +98,7 @@ describe('POST /api/integrations/generate-response', () => {
     });
     mockGenerateReviewResponse.mockResolvedValue({
       responseText: 'Vielen Dank für Ihre wunderbare Bewertung!',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       effectiveLanguage: 'German',
     });
   });
@@ -202,7 +202,7 @@ describe('POST /api/integrations/generate-response', () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.data.responseText).toBe('Vielen Dank für Ihre wunderbare Bewertung!');
-    expect(json.data.model).toBe('claude-sonnet-4-20250514');
+    expect(json.data.model).toBe('claude-sonnet-5');
     expect(json.data.language).toBe('German');
   });
 
